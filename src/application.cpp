@@ -610,18 +610,6 @@ int main(void)
 
 		time_previous = time_current;
 
-#if 0
-		if(time_delta > 0.25f)
-		{
-			time_previous = time_current;
-			f64 frames_per_second = (f64)frame_count / time_delta;
-			char tmp[128];
-			sprintf(tmp, "OpenGL FPS: %.2f\n", frames_per_second);
-			glfwSetWindowTitle(Window.handle, tmp);
-			frame_count = 0;
-		}
-		frame_count++;
-#endif
 	}
 	glfwTerminate();
 	return 0;
