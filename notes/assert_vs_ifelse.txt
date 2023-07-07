@@ -1,0 +1,36 @@
+ASSERT vs. IF/ELSE
+
+Assert is to document your ASSUMPTIONS in the code. An if/else statement is to handle different LOGICAL scenarios.
+
+Ex. print_number()
+
+USING ASSERT
+
+void
+print_number(int* somePtr)
+{
+  assert (somePtr!=NULL);
+  printf ("%d\n",*somePtr);
+}
+
+In my print_number function I ALWAYS ASSUME that the pointer is NOT null. I would be very VERY surprised if 
+this is null. I DON'T CARE to handle this scenario at all in my code.
+
+USING IF/ELSE
+
+
+void
+print_number(int* somePtr)
+{
+  if (somePtr != NULL)
+       printf ("%d\n",*somePtr);
+  // else do something 
+}
+
+In my print_number function, I EXPECT people to pass a null pointer. And I know how to handle this situation and 
+I do handle this with an else condition.
+
+So, sometimes you will know how to handle certain situations and you want to do that. In this case use if/else. 
+Sometimes, you assume that something will not happen and you don't care to handle it. You just express your 
+surprise and stop your program execution. In this case use assert.
+-----------------------------------------------------------------------------------------------------------------------------------------
