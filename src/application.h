@@ -42,7 +42,7 @@ typedef struct
 
 typedef struct
 {
-	f32 speed;
+	f32 sensitivity;
 	glm::vec2 Pos;
 } mouse_t;
 
@@ -62,6 +62,7 @@ enum
 
 typedef struct 
 {
+	f32 pitch, yaw;
 	key_t Keys[KEY_COUNT];
 	mouse_t Mouse;
 } input_t;
