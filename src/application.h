@@ -3,9 +3,9 @@
 typedef struct
 {
 	GLuint id;
-	//TODO(Justin): I do not know if these are worth keeping in the struct..
-	char vertex_shader_filename[1024];
-	char fragment_shader_filename[1024];
+	const char *vertex_shader_filename;
+	const char *fragment_shader_filename;
+	b32 reloaded;
 } shader_program_t;
 
 typedef struct
@@ -42,6 +42,7 @@ typedef struct
 
 typedef struct
 {
+	f32 speed;
 	glm::vec2 Pos;
 } mouse_t;
 
@@ -67,6 +68,7 @@ typedef struct
 
 typedef struct
 {
+	shader_program_t ShaderProgram;
 	camera_t Camera;
 } app_state_t;
 

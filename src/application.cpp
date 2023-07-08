@@ -58,45 +58,7 @@ glfw_error_callback(s32 error, const char* desc)
 }
 
 
-internal void
-process_input(GLFWwindow *Window, app_state_t *AppState, f32 time_delta)
-{
-	camera_t *Camera = &AppState->Camera;
-	if(glfwGetKey(Window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
-	{
-		glfwSetWindowShouldClose(Window, true);
-	}
-	else if (glfwGetKey(Window, GLFW_KEY_W) == GLFW_PRESS)
-	{
-		Camera->Pos += time_delta * Camera->speed * glm::vec3(0.0f, 1.0f, 0.0f);
-	}
-	else if (glfwGetKey(Window, GLFW_KEY_A) == GLFW_PRESS)
-	{
-		Camera->Pos += time_delta * Camera->speed * glm::vec3(-1.0f, 0.0f, 0.0f);
-	}
-	else if (glfwGetKey(Window, GLFW_KEY_S) == GLFW_PRESS)
-	{
-		Camera->Pos += time_delta * Camera->speed * glm::vec3(0.0f, -1.0f, 0.0f);
-	}
-	else if (glfwGetKey(Window, GLFW_KEY_D) == GLFW_PRESS)
-	{
-		Camera->Pos += time_delta * Camera->speed * glm::vec3(1.0f, 0.0f, 0.0f);
-	}
-	else if (glfwGetKey(Window, GLFW_KEY_UP) == GLFW_PRESS)
-	{
-		Camera->Pos += time_delta * Camera->speed * glm::vec3(0.0f, 0.0f, -1.0f);
-	}
-	else if (glfwGetKey(Window, GLFW_KEY_DOWN) == GLFW_PRESS)
-	{
-		Camera->Pos += time_delta * Camera->speed * glm::vec3(0.0f, 0.0f, 1.0f);
-	}
-	else if (glfwGetKey(Window, GLFW_KEY_LEFT) == GLFW_PRESS)
-	{
-	}
-	else if (glfwGetKey(Window, GLFW_KEY_RIGHT) == GLFW_PRESS)
-	{
-	}
-}
+
 
 internal void
 glfw_mouse_callback(GLFWwindow *Window, f64 xpos, f64 ypos)
@@ -262,6 +224,7 @@ internal GLuint
 shader_program_create_from_files(const char* vertex_shader_filename, const char* fragment_shader_filename)
 {
 
+	// TODO(Justin): Not sure if Assert is necessary
 	ASSERT(vertex_shader_filename && fragment_shader_filename);
 
 	GLuint shader_program;
@@ -296,6 +259,32 @@ shader_program_create_from_files(const char* vertex_shader_filename, const char*
 
 	shader_program = shader_program_create_from_strings(vertex_shader_src, fragment_shader_src);
 	return(shader_program);
+}
+
+internal void
+shader_program_reload(shader_program_t *ShaderProgram)
+{
+	ASSERT(ShaderProgram->vertex_shader_filename &&
+		   ShaderProgram->fragment_shader_filename &&
+		   ShaderProgram->id);
+
+	shader_program_t TestShaderProgram = {};
+
+	TestShaderProgram.id = shader_program_create_from_files(ShaderProgram->vertex_shader_filename,
+			ShaderProgram->fragment_shader_filename);
+
+	if(TestShaderProgram.id)
+	{
+		glDeleteProgram(ShaderProgram->id);
+		ShaderProgram->id = TestShaderProgram.id;
+		printf("Shader reloaded\n");
+		gl_log_shader_info(ShaderProgram->id);
+		ShaderProgram->reloaded = true;
+	}
+	else
+	{
+		printf("Error shader not reloaded");
+	}
 }
 
 internal texture_t
@@ -356,6 +345,47 @@ uniform_set_mat4f(GLuint shader_program_id, glm::mat4 Transform, const char* uni
 	glUniformMatrix4fv(transform_location, 1, GL_FALSE, glm::value_ptr(Transform));
 }
 
+internal void
+process_input(GLFWwindow *Window, app_state_t *AppState, f32 time_delta)
+{
+	camera_t *Camera = &AppState->Camera;
+	if(glfwGetKey(Window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
+	{
+		glfwSetWindowShouldClose(Window, true);
+	}
+	else if (glfwGetKey(Window, GLFW_KEY_W) == GLFW_PRESS)
+	{
+		Camera->Pos += time_delta * Camera->speed * glm::vec3(0.0f, 1.0f, 0.0f);
+	}
+	else if (glfwGetKey(Window, GLFW_KEY_A) == GLFW_PRESS)
+	{
+		Camera->Pos += time_delta * Camera->speed * glm::vec3(-1.0f, 0.0f, 0.0f);
+	}
+	else if (glfwGetKey(Window, GLFW_KEY_S) == GLFW_PRESS)
+	{
+		Camera->Pos += time_delta * Camera->speed * glm::vec3(0.0f, -1.0f, 0.0f);
+	}
+	else if (glfwGetKey(Window, GLFW_KEY_D) == GLFW_PRESS)
+	{
+		Camera->Pos += time_delta * Camera->speed * glm::vec3(1.0f, 0.0f, 0.0f);
+	}
+	else if (glfwGetKey(Window, GLFW_KEY_UP) == GLFW_PRESS)
+	{
+		Camera->Pos += time_delta * Camera->speed * glm::vec3(0.0f, 0.0f, -1.0f);
+	}
+	else if (glfwGetKey(Window, GLFW_KEY_DOWN) == GLFW_PRESS)
+	{
+		Camera->Pos += time_delta * Camera->speed * glm::vec3(0.0f, 0.0f, 1.0f);
+	}
+	else if (glfwGetKey(Window, GLFW_KEY_R) == GLFW_PRESS)
+	{
+		shader_program_reload(&AppState->ShaderProgram);
+	}
+	else if (glfwGetKey(Window, GLFW_KEY_RIGHT) == GLFW_PRESS)
+	{
+	}
+}
+
 int main(void)
 {
 	gl_log_restart();
@@ -382,10 +412,6 @@ int main(void)
 	Window.height= 540;
 	Window.handle = glfwCreateWindow(Window.width, Window.height, "Hello World", NULL, NULL);
 
-
-	AppInput.Mouse.Pos = glm::vec2((f32)(Window.width / 2), (f32)(Window.height / 2));
-
-
 	if(!Window.handle)
 	{
 		glfwTerminate();
@@ -403,6 +429,8 @@ int main(void)
 	{
 		printf("Oops\n");
 	}
+
+	//TODO(Justin): OpenGL info struct
 	const GLubyte *renderer_name = glGetString(GL_RENDERER);
 	const GLubyte* renderer_version = glGetString(GL_VERSION);
 	printf("Renderer = %s\n", renderer_name);
@@ -411,12 +439,12 @@ int main(void)
 	glEnable(GL_DEPTH_TEST);
 	glDepthFunc(GL_LESS);
 
-	GLuint shader_program;
-	const char* vertex_shader_filename = "shaders/test_vertex_shader.glsl";
-	const char* fragment_shader_filename = "shaders/test_fragment_shader.glsl";
-	shader_program = shader_program_create_from_files(vertex_shader_filename, fragment_shader_filename);
-	gl_log_shader_info(shader_program);
+	shader_program_t ShaderProgram;
 
+	ShaderProgram.vertex_shader_filename = "shaders/test_vertex_shader.glsl";
+	ShaderProgram.fragment_shader_filename = "shaders/test_fragment_shader.glsl";
+	ShaderProgram.id = shader_program_create_from_files(ShaderProgram.vertex_shader_filename, ShaderProgram.fragment_shader_filename);
+	gl_log_shader_info(ShaderProgram.id);
 
 
 	// NOTE(Justin): Can use an array of GLuints for each texture we want
@@ -483,21 +511,7 @@ int main(void)
 		glm::vec3(1.5f,  0.2f, -1.5f),
 		glm::vec3(-1.3f,  1.0f, -1.5f)
 	};
-#if 0
-	f32 vertices[] =
-	{
-		0.5f, 0.5f, 0.0f, 1.0f, 0.0f, 0.0f, 1.0f, 1.0f,
-		0.5f, -0.5f, 0.0f, 0.0f, 1.0f, 0.0f, 1.0f, 0.0f, 	
-		-0.5f, -0.5f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f,
-		-0.5f, 0.5f, 0.0f, 1.0f, 1.0f, 0.0f, 0.0f, 1.0f
-	};
-#endif
 
-	u32 indices[] =
-	{
-		0, 1, 3,
-		1, 2, 3
-	};
 
 	GLuint VBO, VAO, EBO;
 
@@ -510,8 +524,8 @@ int main(void)
 	glBindBuffer(GL_ARRAY_BUFFER, VBO);
 	glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
 
-	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
-	glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices, GL_STATIC_DRAW);
+//	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
+	//glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices, GL_STATIC_DRAW);
 
 	// Positions
 	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)0);
@@ -519,16 +533,17 @@ int main(void)
 	// Texture coords
 	glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)(3 * sizeof(float)));
 
-
 	glEnableVertexAttribArray(0);
 	glEnableVertexAttribArray(1);
 
+	app_state_t AppState = {};
+	AppState.ShaderProgram = ShaderProgram;
 
-	glUseProgram(shader_program);
+	glUseProgram(AppState.ShaderProgram.id);
 
 	// TODO(Justin): How are you supposed to keep track of a bunch of unioform names?
-	uniform_set_s32(shader_program, "texture1", 0);
-	uniform_set_s32(shader_program, "texture2", 1);
+	uniform_set_s32(AppState.ShaderProgram.id, "texture1", 0);
+	uniform_set_s32(AppState.ShaderProgram.id, "texture2", 1);
 
 
 	glm::vec3 WorldOrigin = glm::vec3(0.0f, 0.0f, 0.0f);
@@ -545,11 +560,10 @@ int main(void)
 	Camera.Direction.z = sin(glm::radians(yaw)) * cos(glm::radians(pitch));
 
 	Camera.Up = glm::vec3(0.0f, 1.0f, 0.0f);
-
 	Camera.speed = 10.0f;
 
-	app_state_t AppState = {};
 	AppState.Camera = Camera;
+
 
 	glm::mat4 MapToCamera = glm::lookAt(AppState.Camera.Pos, AppState.Camera.Pos + AppState.Camera.Direction, AppState.Camera.Up);
 	MapToCamera = glm::translate(MapToCamera, glm::vec3(0.0f, 0.0f, -3.0f));
@@ -561,8 +575,8 @@ int main(void)
 
 	glm::mat4 MapToPersp = glm::perspective(field_of_view, aspect_ratio, near, far);
 
-	uniform_set_mat4f(shader_program, MapToPersp, "MapToPersp");
-	uniform_set_mat4f(shader_program, MapToCamera, "MapToCamera");
+	uniform_set_mat4f(AppState.ShaderProgram.id, MapToPersp, "MapToPersp");
+	uniform_set_mat4f(AppState.ShaderProgram.id, MapToCamera, "MapToCamera");
 
 	u32 frame_count = 0;
 	f32 time_delta = 0.0f;
@@ -570,6 +584,13 @@ int main(void)
     while (!glfwWindowShouldClose(Window.handle))
 	{
 		process_input(Window.handle, &AppState, time_delta);
+
+		if(AppState.ShaderProgram.reloaded)
+		{
+			uniform_set_mat4f(AppState.ShaderProgram.id, MapToPersp, "MapToPersp");
+			uniform_set_mat4f(AppState.ShaderProgram.id, MapToCamera, "MapToCamera");
+			AppState.ShaderProgram.reloaded = false;
+		}
 
 		glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -579,10 +600,11 @@ int main(void)
 		glActiveTexture(GL_TEXTURE1);
 		glBindTexture(GL_TEXTURE_2D, Texture2.id);
 
-		glUseProgram(shader_program);
+		glUseProgram(AppState.ShaderProgram.id);
+		GL_CHECK_ERROR();
 
 		MapToCamera = glm::lookAt(AppState.Camera.Pos, AppState.Camera.Pos + AppState.Camera.Direction, AppState.Camera.Up);
-		uniform_set_mat4f(shader_program, MapToCamera, "MapToCamera");
+		uniform_set_mat4f(AppState.ShaderProgram.id, MapToCamera, "MapToCamera");
 
 		glBindVertexArray(VAO);
 		for (u32 i = 0; i < 9; i++)
@@ -590,23 +612,20 @@ int main(void)
 			glm::mat4 ModelTransform = glm::mat4(1.0f);
 			ModelTransform = glm::translate(ModelTransform, cube_positions[i]);
 			ModelTransform = glm::rotate(ModelTransform,
-										((f32)glfwGetTime() * glm::radians(50.0f)) / 1000.0f,
-										glm::vec3(1.0f, 0.3f, 0.5f));
+										 ((f32)time_delta * glm::radians(50.0f)),
+										 glm::vec3(1.0f, 0.3f, 0.5f));
 
 
-			uniform_set_mat4f(shader_program, ModelTransform, "ModelTransform");
+			uniform_set_mat4f(AppState.ShaderProgram.id, ModelTransform, "ModelTransform");
 			glDrawArrays(GL_TRIANGLES, 0, 36);
 		}
-
-		//glDrawElements(GL_TRIANGLES, 36, GL_UNSIGNED_INT, 0);
-		//glBindVertexArray(0);
 
         glfwPollEvents();
         glfwSwapBuffers(Window.handle);
 
 		f32 time_current = glfwGetTime();
 
-		time_delta = time_current- time_previous;
+		time_delta = time_current - time_previous;
 
 		time_previous = time_current;
 
