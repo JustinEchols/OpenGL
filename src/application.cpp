@@ -46,6 +46,7 @@ typedef double f64;
 #define PI32 3.141592653589f
 #define MAX_SHADER_SIZE 100000
 
+// TODO(Justin): Which data structures need to be globals?
 global_variable input_t AppInput;
 
 
@@ -58,18 +59,47 @@ glfw_error_callback(s32 error, const char* desc)
 }
 
 
+internal void
+camera_direction_set(camera_t *Camera, f32 yaw, f32 pitch)
+{
+	Camera->Direction.x = cos(glm::radians(yaw)) * cos(glm::radians(pitch));
+	Camera->Direction.y = sin(glm::radians(pitch));
+	Camera->Direction.z = sin(glm::radians(yaw)) * cos(glm::radians(pitch));
+
+	Camera->Direction = glm::normalize(Camera->Direction);
+}
 
 
 internal void
 glfw_mouse_callback(GLFWwindow *Window, f64 xpos, f64 ypos)
 {
-	// TODO(Justin): Implement this.
+	mouse_t *Mouse = &AppInput.Mouse;
+
+	glm::vec2 Delta;
+	Delta.x = xpos - Mouse->Pos.x;
+	Delta.y = Mouse->Pos.y - ypos;
+
+	Mouse->Pos.x = xpos;
+	Mouse->Pos.y = ypos;
+
+	Delta *= Mouse->sensitivity;
+
+	AppInput.yaw += Delta.x;
+	AppInput.pitch += Delta.y;
+
+	if(AppInput.pitch > 89.0f)
+	{
+		AppInput.pitch = 89.0f;
+	}
+	if(AppInput.pitch < -89.0f)
+	{
+		AppInput.pitch = -89.0f;
+	}
 }
 
 internal void
 glfw_framebuffer_resize_callback(GLFWwindow *Window, int width, int height)
 {
-
 	glViewport(0, 0, width, height);
 }
 
@@ -81,7 +111,6 @@ gl_error_check(const char *filename, s32 line_number)
 
 	if ((error_code = glGetError()) != GL_NO_ERROR)
 	{
-
 		switch (error_code)
 		{
 		case GL_INVALID_ENUM:
@@ -224,7 +253,6 @@ internal GLuint
 shader_program_create_from_files(const char* vertex_shader_filename, const char* fragment_shader_filename)
 {
 
-	// TODO(Justin): Not sure if Assert is necessary
 	ASSERT(vertex_shader_filename && fragment_shader_filename);
 
 	GLuint shader_program;
@@ -384,6 +412,8 @@ process_input(GLFWwindow *Window, app_state_t *AppState, f32 time_delta)
 	else if (glfwGetKey(Window, GLFW_KEY_RIGHT) == GLFW_PRESS)
 	{
 	}
+
+	camera_direction_set(Camera, AppInput.yaw, AppInput.pitch);
 }
 
 int main(void)
@@ -524,8 +554,6 @@ int main(void)
 	glBindBuffer(GL_ARRAY_BUFFER, VBO);
 	glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
 
-//	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
-	//glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices, GL_STATIC_DRAW);
 
 	// Positions
 	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)0);
@@ -548,21 +576,36 @@ int main(void)
 
 	glm::vec3 WorldOrigin = glm::vec3(0.0f, 0.0f, 0.0f);
 
-	f32 yaw = -90.0f;
-	f32 pitch = 0.0f;
+	AppInput.Mouse.Pos.x = Window.width / 2;
+	AppInput.Mouse.Pos.y = Window.height / 2;
+	 
+	AppInput.Mouse.sensitivity = 0.01f;
+
+	AppInput.yaw = -90.0f;
+	AppInput.pitch = 0.0f;
+
 
 	camera_t Camera = {};
+
 	Camera.Pos = glm::vec3(0.0f, 0.0f, 3.0f);
 
-	//Camera.Direction = glm::vec3(0.0f, 0.0f, -1.0f);
-	Camera.Direction.x = cos(glm::radians(yaw)) * cos(glm::radians(pitch));
-	Camera.Direction.y = sin(glm::radians(pitch));
-	Camera.Direction.z = sin(glm::radians(yaw)) * cos(glm::radians(pitch));
+
+	Camera.Direction.x = cos(glm::radians(AppInput.yaw)) * cos(glm::radians(AppInput.pitch));
+	Camera.Direction.y = sin(glm::radians(AppInput.pitch));
+	Camera.Direction.z = sin(glm::radians(AppInput.yaw)) * cos(glm::radians(AppInput.pitch));
+	Camera.Direction = glm::normalize(Camera.Direction);
 
 	Camera.Up = glm::vec3(0.0f, 1.0f, 0.0f);
 	Camera.speed = 10.0f;
 
 	AppState.Camera = Camera;
+
+
+
+	// mouse_yaw, mouse_pitch? Should the yaw and pitch be members of the mouse
+	// struct?
+
+
 
 
 	glm::mat4 MapToCamera = glm::lookAt(AppState.Camera.Pos, AppState.Camera.Pos + AppState.Camera.Direction, AppState.Camera.Up);
