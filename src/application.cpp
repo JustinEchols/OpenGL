@@ -374,9 +374,16 @@ uniform_set_mat4f(GLuint shader_program_id, glm::mat4 Transform, const char* uni
 }
 
 internal void
-process_input(GLFWwindow *Window, app_state_t *AppState, f32 time_delta)
+glfw_process_input(GLFWwindow *Window, app_state_t *AppState, f32 time_delta)
 {
 	camera_t *Camera = &AppState->Camera;
+
+	// To know where to go, first need to know what direction we are headed!
+	camera_direction_set(Camera, AppInput.yaw, AppInput.pitch);
+
+	glm::vec3 Right = glm::cross(Camera->Direction, -1.0f * Camera->Up);
+	Right = glm::normalize(Right);
+
 	if(glfwGetKey(Window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
 	{
 		glfwSetWindowShouldClose(Window, true);
@@ -387,7 +394,7 @@ process_input(GLFWwindow *Window, app_state_t *AppState, f32 time_delta)
 	}
 	else if (glfwGetKey(Window, GLFW_KEY_A) == GLFW_PRESS)
 	{
-		Camera->Pos += time_delta * Camera->speed * glm::vec3(-1.0f, 0.0f, 0.0f);
+		Camera->Pos += time_delta * Camera->speed * Right;
 	}
 	else if (glfwGetKey(Window, GLFW_KEY_S) == GLFW_PRESS)
 	{
@@ -395,15 +402,15 @@ process_input(GLFWwindow *Window, app_state_t *AppState, f32 time_delta)
 	}
 	else if (glfwGetKey(Window, GLFW_KEY_D) == GLFW_PRESS)
 	{
-		Camera->Pos += time_delta * Camera->speed * glm::vec3(1.0f, 0.0f, 0.0f);
+		Camera->Pos += -1.0f * time_delta * Camera->speed * Right;
 	}
 	else if (glfwGetKey(Window, GLFW_KEY_UP) == GLFW_PRESS)
 	{
-		Camera->Pos += time_delta * Camera->speed * glm::vec3(0.0f, 0.0f, -1.0f);
+		Camera->Pos += 1.0f * time_delta * Camera->speed * Camera->Direction;
 	}
 	else if (glfwGetKey(Window, GLFW_KEY_DOWN) == GLFW_PRESS)
 	{
-		Camera->Pos += time_delta * Camera->speed * glm::vec3(0.0f, 0.0f, 1.0f);
+		Camera->Pos += -1.0f * time_delta * Camera->speed * Camera->Direction;
 	}
 	else if (glfwGetKey(Window, GLFW_KEY_R) == GLFW_PRESS)
 	{
@@ -412,8 +419,6 @@ process_input(GLFWwindow *Window, app_state_t *AppState, f32 time_delta)
 	else if (glfwGetKey(Window, GLFW_KEY_RIGHT) == GLFW_PRESS)
 	{
 	}
-
-	camera_direction_set(Camera, AppInput.yaw, AppInput.pitch);
 }
 
 int main(void)
@@ -626,7 +631,7 @@ int main(void)
 	f32 time_previous = glfwGetTime();
     while (!glfwWindowShouldClose(Window.handle))
 	{
-		process_input(Window.handle, &AppState, time_delta);
+		glfw_process_input(Window.handle, &AppState, time_delta);
 
 		if(AppState.ShaderProgram.reloaded)
 		{
