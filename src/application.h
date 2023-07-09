@@ -16,12 +16,11 @@ typedef struct
 
 typedef struct
 {
+	GLuint id;
 	s32 width, height;
 	s32 channel_count;
 	u32 mipmap_level;
 	u8* memory;
-	GLuint id;
-
 } texture_t;
 
 typedef struct
@@ -34,6 +33,12 @@ typedef struct
 
 } camera_t;
 
+typedef struct
+{
+	glm::vec3 Pos;
+	glm::vec3 Color;
+} light_t;
+
 
 typedef struct
 {
@@ -42,8 +47,9 @@ typedef struct
 
 typedef struct
 {
-	f32 sensitivity;
 	glm::vec2 Pos;
+	f32 sensitivity;
+	b32 is_initialized;
 } mouse_t;
 
 enum
@@ -69,6 +75,8 @@ typedef struct
 
 typedef struct
 {
+	shader_program_t LightShader;
+	shader_program_t CubeShader;
 	shader_program_t ShaderProgram;
 	camera_t Camera;
 } app_state_t;
