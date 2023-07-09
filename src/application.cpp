@@ -1,3 +1,20 @@
+/*
+TODO:
+ -Vertex Buffers
+	Lock Modify Unlock
+	Set data
+	streaming
+	.
+	.
+	. 
+
+ -Picking Cache for
+	Selecting object
+		Mouse point to object
+		Click object
+		Send ray to see if it interseects
+	
+*/
 
 #include <GL/glew.h>
 #include <GLFW/glfw3.h>
@@ -6,60 +23,96 @@
 #include <gtc/matrix_transform.hpp>
 #include <gtc/type_ptr.hpp>
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <stdint.h>
-#include <stdarg.h>
-#include <time.h>
+#include "application.h"
+#include "application_log.cpp"
+#include "application_cube.h"
 
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
 
-typedef int8_t s8;
-typedef int16_t s16;
-typedef int32_t s32;
-typedef int64_t s64;
-
-typedef uint8_t u8;
-typedef uint16_t u16;
-typedef uint32_t u32;
-typedef uint64_t u64;
-
-typedef s32 b32;
-
-typedef float f32;
-typedef double f64;
-
-#include "application.h"
-#include "application_cube.h"
-
-
-#define internal static;
-#define global_variable static;
-#define local_persist static;
-
-#define GL_LOG_FILE "gl.log"
-//#include "application_log.cpp"
-
-#define ASSERT(expression) if((!expression)) {*(int *)0 = 0;}
-#define ARRAY_COUNT(a) (sizeof(a) / sizeof(a[0])
-
-
-#define PI32 3.141592653589f
-#define MAX_SHADER_SIZE 100000
-
-// TODO(Justin): Which data structures need to be globals?
 global_variable input_t AppInput;
 
+#define GLCall(gl_func) gl_clear_errors();\
+	gl_func;\
+	ASSERT(GLLogCall(#gl_func, __FILE__, __LINE__))
 
-#define CUBES_WITH_TWO_TEXTURES 0
+internal vertex_array_t
+vertex_array_create()
+{
+	vertex_array_t Result = {};
 
-#define E1 glm::vec3(1.0f, 0.0f, 0.0f)
-#define E2 glm::vec3(0.0f, 1.0f, 0.0f)
-#define E3 glm::vec3(0.0f, 0.0f, 1.0f)
+	glGenVertexArrays(1, &Result.id);
+
+	return(Result);
+}
+
+// TODO(Justin): Should we pass in an index as opposed to storing it in the vertex_array_t struct?
+internal void
+vertex_array_add_buffer_layout(u32 index, vertex_array_t *VertexArray, vertex_buffer_layout_t *VertexBufferLayout)
+{
+	glVertexAttribPointer(index, VertexBufferLayout->element_count_per_attribute,
+			VertexBufferLayout->attribute_type, VertexBufferLayout->normalized,
+			VertexBufferLayout->size_for_each_vertex, VertexBufferLayout->attribute_stride);
+
+	glEnableVertexAttribArray(index);
+	//glEnableVertexAttribArray(VertexArray->attribute_index);
+	//VertexArray->attribute_index++;
+}
 
 
-internal b32
+// NOTE(Justin): Upon creation we will bind the buffer to initiate the copying
+// process then unbind it. Is this bind then unbind completley necessary? Imagine
+// initializing many different buffers with different data then yes it would be
+// necessary
+
+internal vertex_buffer_t
+vertex_buffer_create(void *memory, u32 size)
+{
+	vertex_buffer_t Result = {};
+
+	glGenBuffers(1, &Result.id);
+	glBindBuffer(GL_ARRAY_BUFFER, Result.id);
+	glBufferData(GL_ARRAY_BUFFER, size, memory, GL_STATIC_DRAW);
+
+	Result.memory = memory;
+	Result.size = size;
+
+	glBindBuffer(GL_ARRAY_BUFFER, 0);
+
+	return(Result);
+}
+
+internal void
+vertex_buffer_bind(vertex_buffer_t *VertexBuffer)
+{
+	glBindBuffer(GL_ARRAY_BUFFER, VertexBuffer->id);
+	VertexBuffer->binded = true;
+}
+
+internal void
+vertex_buffer_unbind(vertex_buffer_t *VertexBuffer)
+{
+	glBindBuffer(GL_ARRAY_BUFFER, 0);
+	VertexBuffer->binded = false;
+}
+
+internal void
+vertex_buffer_destroy(vertex_buffer_t *VertexBuffer)
+{
+	if(VertexBuffer)
+	{
+		glDeleteBuffers(1, &VertexBuffer->id);
+	}
+}
+
+
+internal void
+gl_clear_errors()
+{
+	while (glGetError() != GL_NO_ERROR);
+}
+
+internal b32 
 gl_log_restart()
 {
 	FILE *pfile = fopen(GL_LOG_FILE, "w");
@@ -164,7 +217,7 @@ gl_log_params()
 }
 
 internal const char*
-gl_type_to_string(GLenum type)
+gl_enum_type_to_string(GLenum type)
 {
 	switch (type)
 	{
@@ -184,6 +237,20 @@ gl_type_to_string(GLenum type)
 		default: break;
 	}
 	return "other";
+}
+
+internal b32
+GLLogCall(const char *gl_function, const char* file, s32 line_number)
+{
+	b32 Result = false;
+	while(GLenum gl_error = glGetError())
+	{
+		const char* error = gl_enum_type_to_string(gl_error);
+		printf("[OpenGL Error] (%s) %s %s %d", error, gl_function, file, line_number);
+		return(Result);
+	}
+	Result = true;
+	return(Result);
 }
 
 internal void
@@ -225,13 +292,13 @@ gl_log_shader_info(GLuint shader_program)
 				char name_long[64];
 				sprintf(name_long, "%s[%d]", name, j);
 				s32 location = glGetAttribLocation(shader_program, name_long);
-				printf(" %d) TYPE:%s NAME: %s LOCATION:%d\n\n", attr_index, gl_type_to_string(param_type), name_long, location);
+				printf(" %d) TYPE:%s NAME: %s LOCATION:%d\n\n", attr_index, gl_enum_type_to_string	(param_type), name_long, location);
 			}
 		}
 		else 
 		{
 			s32 location = glGetAttribLocation(shader_program, name);
-			printf(" %d) TYPE:%s NAME: %s LOCATION:%d\n\n", attr_index, gl_type_to_string(param_type), name, location);
+			printf(" %d) TYPE:%s NAME: %s LOCATION:%d\n\n", attr_index, gl_enum_type_to_string(param_type), name, location);
 		}
 	}
 
@@ -261,22 +328,26 @@ gl_log_shader_info(GLuint shader_program)
 				char name_long[64];
 				sprintf(name_long, "%s[%d]", name, j);
 				s32 location = glGetUniformLocation(shader_program, name_long);
-				printf(" %d) TYPE:%s NAME:%s LOCATION:%d\n\n", uniform_index, gl_type_to_string(param_type), name_long, location);
+
+				const char* gl_type = gl_enum_type_to_string(param_type);
+				printf(" %d) TYPE:%s NAME:%s LOCATION:%d\n\n", uniform_index, gl_type, name_long, location);
 			}
 		}
 		else
 		{
 			s32 location = glGetUniformLocation(shader_program, name);
-			printf(" %d) TYPE:%s NAME: %s LOCATION:%d\n\n", uniform_index, gl_type_to_string(param_type), name, location);
+			printf(" %d) TYPE:%s NAME: %s LOCATION:%d\n\n", uniform_index, gl_enum_type_to_string(param_type), name, location);
 		}
 	}
 }
+
+
+
 internal void
 glfw_error_callback(s32 error, const char* desc)
 {
 	gl_log_error("GLFW ERROR: Code: %d MSG: %s\n", error, desc);
 }
-
 
 internal void
 camera_direction_set(camera_t *Camera, f32 yaw, f32 pitch)
@@ -287,7 +358,6 @@ camera_direction_set(camera_t *Camera, f32 yaw, f32 pitch)
 
 	Camera->Direction = glm::normalize(Camera->Direction);
 }
-
 
 internal void
 glfw_mouse_callback(GLFWwindow *Window, f64 xpos, f64 ypos)
@@ -728,41 +798,44 @@ int main(void)
 	glEnable(GL_DEPTH_TEST);
 	glDepthFunc(GL_LESS);
 
-
-	GLuint CubeVAO, LightVAO;
-	GLuint VBO;
-
-	glGenVertexArrays(1, &CubeVAO);
-	glGenBuffers(1, &VBO);
-
-
-	glBindBuffer(GL_ARRAY_BUFFER, VBO);
-	glBufferData(GL_ARRAY_BUFFER, sizeof(cube_vertices_and_normals), cube_vertices_and_normals, GL_STATIC_DRAW);
-
-	glBindVertexArray(CubeVAO);
-
-	// Positions
-	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)0);
-	glEnableVertexAttribArray(0);
-
-	// Normals
-	glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)(3 * sizeof(float)));
-	glEnableVertexAttribArray(1);
-
-
-
 	//
-	// NOTE(Justin): Buffers for Lamp
+	// NOTE(Justin): Buffer initializations
 	//
 
-	glGenVertexArrays(1, &LightVAO);
-	glBindVertexArray(LightVAO);
-	glBindBuffer(GL_ARRAY_BUFFER, VBO);
+	// Cube
+	vertex_array_t CubeVertexArray = vertex_array_create();
+	vertex_buffer_t CubeVertexBuffer = vertex_buffer_create(cube_vertices_and_normals, sizeof(cube_vertices_and_normals));
 
-	// Positions
-	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)0);
-	glEnableVertexAttribArray(0);
+	glBindVertexArray(CubeVertexArray.id);
 
+	vertex_buffer_bind(&CubeVertexBuffer);
+
+	vertex_buffer_layout_t CubeVertexBufferLayout;
+
+	CubeVertexBufferLayout.element_count_per_attribute = 3;
+	CubeVertexBufferLayout.attribute_type = GL_FLOAT;
+	CubeVertexBufferLayout.normalized = GL_FALSE;
+	CubeVertexBufferLayout.size_for_each_vertex = 6 * sizeof(float);
+	CubeVertexBufferLayout.attribute_stride = (void*)0;
+
+	vertex_array_add_buffer_layout(0, &CubeVertexArray, &CubeVertexBufferLayout);
+
+	CubeVertexBufferLayout.attribute_stride = (void*)(3 * sizeof(float));
+	vertex_array_add_buffer_layout(1, &CubeVertexArray, &CubeVertexBufferLayout);
+
+	// Lamp
+	vertex_array_t LightVertexArray = vertex_array_create();
+	glBindVertexArray(LightVertexArray.id);
+
+	vertex_buffer_bind(&CubeVertexBuffer);
+
+
+	CubeVertexBufferLayout.attribute_stride = (void*)0;
+	vertex_array_add_buffer_layout(0, &LightVertexArray, &CubeVertexBufferLayout);
+
+	//
+	// NOTE(Justin): Shader initialization
+	//
 	shader_program_t LightShader;
 	shader_program_t CubeShader;
 
@@ -812,12 +885,8 @@ int main(void)
 	glm::vec3 light_pos = glm::vec3(1.0f, 1.0f, 1.0f);
 
 
-
-	u32 frame_count = 0;
 	f32 time_delta = 0.0f;
 	f32 time_previous = glfwGetTime();
-
-	f32 t_step = 0.0f;
     while (!glfwWindowShouldClose(Window.handle))
 	{
 		glfw_process_input(Window.handle, &AppState, time_delta);
@@ -849,11 +918,6 @@ int main(void)
 
 		glUseProgram(AppState.CubeShader.id);
 
-		t_step += time_delta;
-		if(t_step > PI32)
-		{
-			t_step = 0.0f;
-		}
 		uniform_set_v3f(AppState.CubeShader.id, "u_cube_color", 1.0f, 0.5f, 0.31f);
 		uniform_set_v3f(AppState.CubeShader.id, "u_light_color", 1.0f, 1.0f, 1.0f);
 		uniform_set_vec3f(AppState.CubeShader.id, "u_light_pos", light_pos);
@@ -863,7 +927,7 @@ int main(void)
 		uniform_set_mat4f(AppState.CubeShader.id, "MapToCamera", MapToCamera);
 		uniform_set_mat4f(AppState.CubeShader.id,"MapToPersp", MapToPersp);
 
-		glBindVertexArray(CubeVAO);
+		glBindVertexArray(CubeVertexArray.id);
 		glDrawArrays(GL_TRIANGLES, 0, 36);
 
 		//
@@ -874,15 +938,14 @@ int main(void)
 		ModelTransform = glm::translate(ModelTransform, light_pos);
 		ModelTransform = glm::rotate(ModelTransform, time_delta, E2);
 		ModelTransform = glm::scale(ModelTransform, glm::vec3(0.2f));
+
 		glUseProgram(AppState.LightShader.id);
 
 		uniform_set_mat4f(AppState.LightShader.id, "ModelTransform", ModelTransform);
 		uniform_set_mat4f(AppState.LightShader.id, "MapToCamera", MapToCamera);
 		uniform_set_mat4f(AppState.LightShader.id,"MapToPersp", MapToPersp);
 
-
-
-		glBindVertexArray(LightVAO);
+		glBindVertexArray(LightVertexArray.id);
 		glDrawArrays(GL_TRIANGLES, 0, 36);
 
         glfwPollEvents();
