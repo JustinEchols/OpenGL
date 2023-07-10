@@ -668,7 +668,7 @@ uniform_set_s32(GLuint program_id, const char* uniform_name, s32 value)
 internal void
 uniform_set_f32(GLuint program_id, const char* uniform_name, f32 value)
 {
-	glUniform1i(glGetUniformLocation(program_id, uniform_name), value);
+	glUniform1f(glGetUniformLocation(program_id, uniform_name), value);
 }
 
 internal void
@@ -838,8 +838,8 @@ int main(void)
 	shader_program_t LightShader;
 	shader_program_t CubeShader;
 
-	const char* cube_vertex_shader_filename = "shaders/cube_vertex_shader_001.glsl";
-	const char* cube_fragment_shader_filename = "shaders/cube_fragment_shader_001.glsl";
+	const char* cube_vertex_shader_filename = "shaders/cube_vertex_shader_002.glsl";
+	const char* cube_fragment_shader_filename = "shaders/cube_fragment_shader_002.glsl";
 	const char* light_vertex_shader_filename = "shaders/light_vertex_shader_001.glsl";
 	const char* light_fragment_shader_filename = "shaders/light_fragment_shader_001.glsl";
 
@@ -918,20 +918,11 @@ int main(void)
 		//
 
 		glUseProgram(AppState.CubeShader.id);
-#if 1
+
 		light_pos.x = cos(glfwGetTime());
 		light_pos.y = cos(glfwGetTime());
 		light_pos.z = -sin(glfwGetTime());
-#endif
 
-#if 1
-		uniform_set_vec3f(AppState.CubeShader.id, "u_camera_pos", Camera.Pos);
-		uniform_set_vec3f(AppState.CubeShader.id, "u_light_pos", light_pos);
-		uniform_set_vec3f(AppState.CubeShader.id, "u_light_color", glm::vec3(1.0f, 1.0f, 1.0f));
-		uniform_set_vec3f(AppState.CubeShader.id, "u_cube_color", glm::vec3(1.0f, 0.5f, 0.31f));
-#endif
-
-#if 0
 		uniform_set_vec3f(AppState.CubeShader.id, "u_camera_pos", Camera.Pos);
 		uniform_set_vec3f(AppState.CubeShader.id, "u_material.ambient", glm::vec3(1.0f, 0.5f, 0.31f));
 		uniform_set_vec3f(AppState.CubeShader.id, "u_material.diffuse", glm::vec3(1.0f, 0.5f, 0.31f));
@@ -943,14 +934,6 @@ int main(void)
 		uniform_set_vec3f(AppState.CubeShader.id, "u_light.diffuse", glm::vec3(0.5f, 0.5f, 0.5f));
 		uniform_set_vec3f(AppState.CubeShader.id, "u_light.specular", glm::vec3(1.0f, 1.0f, 1.0f));
 
-
-		MapToCamera = glm::lookAt(AppState.Camera.Pos, AppState.Camera.Pos + AppState.Camera.Direction, AppState.Camera.Up);
-		glm::mat4 ModelTransform  = glm::mat4(1.0f);
-
-		uniform_set_mat4f(AppState.CubeShader.id, "ModelTransform", ModelTransform);
-		uniform_set_mat4f(AppState.CubeShader.id, "MapToCamera", MapToCamera);
-		uniform_set_mat4f(AppState.CubeShader.id,"MapToPersp", MapToPersp);
-#endif
 
 		MapToCamera = glm::lookAt(AppState.Camera.Pos, AppState.Camera.Pos + AppState.Camera.Direction, AppState.Camera.Up);
 		glm::mat4 ModelTransform  = glm::mat4(1.0f);
