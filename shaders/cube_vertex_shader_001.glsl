@@ -16,7 +16,10 @@ out vec3 frag_pos;
 void main()
 {
 	vec4 vertex = vec4(vertex_position, 1.0);
-	gl_Position = MapToPersp * MapToCamera * ModelTransform * vertex;
 	frag_pos = vec3(ModelTransform * vertex);
-	vertex_n = mat3(inverse(transpose(ModelTransform))) * vertex_normal;
+
+	// This is now a perp vector not. Almost certainly not a normal vector.
+	vertex_n = mat3(transpose(inverse(ModelTransform))) * vertex_normal;
+
+	gl_Position = MapToPersp * MapToCamera * ModelTransform * vertex;
 }
