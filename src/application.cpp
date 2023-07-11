@@ -609,10 +609,14 @@ shader_program_reload(shader_program_t *ShaderProgram)
 	if(TestShaderProgram.id)
 	{
 		glDeleteProgram(ShaderProgram->id);
+
 		ShaderProgram->id = TestShaderProgram.id;
 		printf("Shader reloaded\n");
 		gl_log_shader_info(ShaderProgram->id);
 		ShaderProgram->reloaded = true;
+
+		glDeleteProgram(TestShaderProgram.id);
+	
 	}
 	else
 	{
@@ -620,14 +624,43 @@ shader_program_reload(shader_program_t *ShaderProgram)
 	}
 }
 
+internal void
+texture_set_active_and_bind(u32 index, texture_t *Texture)
+{
+	// TODO(Justin): Need to use an index to figure out which # texture to
+	// activeate.
+	GLenum TEXTURE_INDEX;
+	switch(index)
+	{
+		case 0:
+		{
+			TEXTURE_INDEX = GL_TEXTURE0;
+		} 
+		break;
+		case 1:
+		{
+			TEXTURE_INDEX = GL_TEXTURE1;
+		}
+		break;
+	}
+	glActiveTexture(TEXTURE_INDEX);
+
+	// TODO(Justin): Need to have the texture structure contain the texture
+	// type.
+	glBindTexture(GL_TEXTURE_2D, Texture->id);
+}
+
 internal texture_t
-texture_simple_init(const char* filename, GLenum IMAGE_TYPE)
+texture_simple_init(const char* filename)
 {
 	texture_t Texture = {};
 	glGenTextures(1, &Texture.id);
 	glBindTexture(GL_TEXTURE_2D, Texture.id);
 
-	// TODO(Justin): Pass these in as arguementsto the function?
+	// TODO(Justin): Pass these in as arguements to the function? Or have the
+	// texture struct itself contain this info. LAtter seems to make more sence
+	// because the parameters can  be thoght of properties of the desired
+	// texture.
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
 
@@ -639,11 +672,34 @@ texture_simple_init(const char* filename, GLenum IMAGE_TYPE)
 
 	if(Texture.memory)
 	{
+		// TODO(Justin): Figure out why the third if is getting completley nuked
+		// even though it should hit for container2.jpg :(
+
+		GLenum PIXEL_FORMAT;
+		if(Texture.channel_count == 1)
+		{
+			PIXEL_FORMAT = GL_RED;
+		} 
+
+	    if(Texture.channel_count == 3)
+		{
+			PIXEL_FORMAT = GL_RGB;
+		}
+
+		if(Texture.channel_count == 4)
+		{
+			PIXEL_FORMAT = GL_RGBA;
+		}
+		
 		Texture.mipmap_level = 0;
+		
 
-
+		//PIXEL_FORMAT = GL_RGBA;
 		// TODO(Justin): How are you supposed to know that imgae type in a general manner? One way is to have a naming convention on the names of files that tell use info about the image data.
-		glTexImage2D(GL_TEXTURE_2D, Texture.mipmap_level, GL_RGB, Texture.width, Texture.height, 0, IMAGE_TYPE, GL_UNSIGNED_BYTE, Texture.memory);
+		glTexImage2D(GL_TEXTURE_2D, Texture.mipmap_level, PIXEL_FORMAT,
+					 Texture.width, Texture.height, 0,
+					 PIXEL_FORMAT, GL_UNSIGNED_BYTE, Texture.memory);
+
 		glGenerateMipmap(GL_TEXTURE_2D);
 
 	}
@@ -779,6 +835,7 @@ int main(void)
 
 	glfwMakeContextCurrent(Window.handle);
 	glfwSetInputMode(Window.handle, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+	glfwSetFramebufferSizeCallback(Window.handle, glfw_framebuffer_resize_callback);
 	glfwSetCursorPosCallback(Window.handle, glfw_mouse_callback);
 
 	gl_log_params();
@@ -799,12 +856,12 @@ int main(void)
 	glDepthFunc(GL_LESS);
 
 	//
-	// NOTE(Justin): Buffer initializations
+	// NOTE(Justin): Buffer initialization
 	//
 
 	// Cube
 	vertex_array_t CubeVertexArray = vertex_array_create();
-	vertex_buffer_t CubeVertexBuffer = vertex_buffer_create(cube_vertices_and_normals, sizeof(cube_vertices_and_normals));
+	vertex_buffer_t CubeVertexBuffer = vertex_buffer_create(cube_vertices_normals_and_tex_coods, sizeof(cube_vertices_normals_and_tex_coods));
 
 	glBindVertexArray(CubeVertexArray.id);
 
@@ -812,16 +869,22 @@ int main(void)
 
 	vertex_buffer_layout_t CubeVertexBufferLayout;
 
+	// Positions
 	CubeVertexBufferLayout.element_count_per_attribute = 3;
 	CubeVertexBufferLayout.attribute_type = GL_FLOAT;
 	CubeVertexBufferLayout.normalized = GL_FALSE;
-	CubeVertexBufferLayout.size_for_each_vertex = 6 * sizeof(float);
+	CubeVertexBufferLayout.size_for_each_vertex = 8 * sizeof(float);
 	CubeVertexBufferLayout.attribute_stride = (void*)0;
-
 	vertex_array_add_buffer_layout(0, &CubeVertexArray, &CubeVertexBufferLayout);
 
+	// Normals
 	CubeVertexBufferLayout.attribute_stride = (void*)(3 * sizeof(float));
 	vertex_array_add_buffer_layout(1, &CubeVertexArray, &CubeVertexBufferLayout);
+
+	// Texture coordinate
+	CubeVertexBufferLayout.element_count_per_attribute = 2;
+	CubeVertexBufferLayout.attribute_stride = (void*)(6 * sizeof(float));
+	vertex_array_add_buffer_layout(2, &CubeVertexArray, &CubeVertexBufferLayout);
 
 	// Lamp
 	vertex_array_t LightVertexArray = vertex_array_create();
@@ -829,17 +892,30 @@ int main(void)
 
 	vertex_buffer_bind(&CubeVertexBuffer);
 
+	// Position
+	CubeVertexBufferLayout.element_count_per_attribute = 3;
 	CubeVertexBufferLayout.attribute_stride = (void*)0;
 	vertex_array_add_buffer_layout(0, &LightVertexArray, &CubeVertexBufferLayout);
 
 	//
+	// NOTE(Justin): Texture initialization
+	//
+
+	texture_t container_diffuse = texture_simple_init("textures/container2.png");
+	texture_t container_specular = texture_simple_init("textures/container2_specular.png");
+
+
+	//
 	// NOTE(Justin): Shader initialization
 	//
+
 	shader_program_t LightShader;
 	shader_program_t CubeShader;
 
-	const char* cube_vertex_shader_filename = "shaders/cube_vertex_shader_002.glsl";
-	const char* cube_fragment_shader_filename = "shaders/cube_fragment_shader_002.glsl";
+	const char* cube_vertex_shader_filename = "shaders/cube_vertex_shader_light_casters.glsl";
+
+	const char* cube_fragment_shader_filename = "shaders/cube_fragment_shader_light_casters.glsl";
+
 	const char* light_vertex_shader_filename = "shaders/light_vertex_shader_001.glsl";
 	const char* light_fragment_shader_filename = "shaders/light_fragment_shader_001.glsl";
 
@@ -891,6 +967,10 @@ int main(void)
 
 	light_pos += offset;
 
+	// /TODO(Justin): Why do we need to do this 
+	glUseProgram(AppState.LightShader.id);
+	uniform_set_s32(AppState.CubeShader.id, "u_material.diffuse", 0);
+	uniform_set_s32(AppState.CubeShader.id, "u_material.specular", 1);
 
 	f32 time_delta = 0.0f;
 	f32 time_previous = glfwGetTime();
@@ -898,14 +978,6 @@ int main(void)
 	{
 		glfw_process_input(Window.handle, &AppState, time_delta);
 
-#if 0
-		if(AppState.ShaderProgram.reloaded)
-		{
-			uniform_set_mat4f(AppState.ShaderProgram.id, "MapToPersp", MapToPersp);
-			uniform_set_mat4f(AppState.ShaderProgram.id, "MapToCamera", MapToCamera);
-			AppState.ShaderProgram.reloaded = false;
-		}
-#endif
 		//
 		// NOTE(Justin): Render
 		//
@@ -924,26 +996,39 @@ int main(void)
 		light_pos.z = -sin(glfwGetTime());
 
 		uniform_set_vec3f(AppState.CubeShader.id, "u_camera_pos", Camera.Pos);
-		uniform_set_vec3f(AppState.CubeShader.id, "u_material.ambient", glm::vec3(1.0f, 0.5f, 0.31f));
+
 		uniform_set_vec3f(AppState.CubeShader.id, "u_material.diffuse", glm::vec3(1.0f, 0.5f, 0.31f));
 		uniform_set_vec3f(AppState.CubeShader.id, "u_material.specular", glm::vec3(0.5f, 0.5f, 0.5f));
 		uniform_set_f32(AppState.CubeShader.id, "u_material.shininess", 32.0f);
 
-		uniform_set_vec3f(AppState.CubeShader.id, "u_light.pos", light_pos);
-		uniform_set_vec3f(AppState.CubeShader.id, "u_light.ambient", glm::vec3(0.2f, 0.2f, 0.2f));
-		uniform_set_vec3f(AppState.CubeShader.id, "u_light.diffuse", glm::vec3(0.5f, 0.5f, 0.5f));
-		uniform_set_vec3f(AppState.CubeShader.id, "u_light.specular", glm::vec3(1.0f, 1.0f, 1.0f));
+		uniform_set_vec3f(AppState.CubeShader.id, "u_light_point.pos", light_pos);
+		uniform_set_vec3f(AppState.CubeShader.id, "u_light_point.ambient", glm::vec3(0.2f, 0.2f, 0.2f));
+		uniform_set_vec3f(AppState.CubeShader.id, "u_light_point.diffuse", glm::vec3(0.5f, 0.5f, 0.5f));
+		uniform_set_vec3f(AppState.CubeShader.id, "u_light_point.specular", glm::vec3(1.0f, 1.0f, 1.0f));
 
+		uniform_set_f32(AppState.CubeShader.id, "u_light_point.atten_constant", 1.0f);
+		uniform_set_f32(AppState.CubeShader.id, "u_light_point.atten_linear", 0.09f);
+		uniform_set_f32(AppState.CubeShader.id, "u_light_point.atten_quadratic", 0.032f);
 
 		MapToCamera = glm::lookAt(AppState.Camera.Pos, AppState.Camera.Pos + AppState.Camera.Direction, AppState.Camera.Up);
-		glm::mat4 ModelTransform  = glm::mat4(1.0f);
 
-		uniform_set_mat4f(AppState.CubeShader.id, "ModelTransform", ModelTransform);
-		uniform_set_mat4f(AppState.CubeShader.id, "MapToCamera", MapToCamera);
-		uniform_set_mat4f(AppState.CubeShader.id,"MapToPersp", MapToPersp);
+		for (u32 i = 0; i < ARRAY_COUNT(cube_positions); i++)
+		{
+			glm::mat4 ModelTransform = glm::mat4(1.0f);
+			glm::vec3 pos = glm::vec3(cube_positions[i][0], cube_positions[i][1], cube_positions[i][2]);
+			ModelTransform = glm::translate(ModelTransform, glm::vec3(pos));
 
-		glBindVertexArray(CubeVertexArray.id);
-		glDrawArrays(GL_TRIANGLES, 0, 36);
+			uniform_set_mat4f(AppState.CubeShader.id, "ModelTransform", ModelTransform);
+			uniform_set_mat4f(AppState.CubeShader.id, "MapToCamera", MapToCamera);
+			uniform_set_mat4f(AppState.CubeShader.id, "MapToPersp", MapToPersp);
+
+			texture_set_active_and_bind(0, &container_diffuse);
+			texture_set_active_and_bind(1, &container_specular);
+
+			glBindVertexArray(CubeVertexArray.id);
+			glDrawArrays(GL_TRIANGLES, 0, 36);
+		}
+
 
 		//
 		// NOTE(Justin): Lamp
@@ -951,7 +1036,7 @@ int main(void)
 
 		glUseProgram(AppState.LightShader.id);
 
-		ModelTransform = glm::mat4(1.0f);
+		glm::mat4 ModelTransform = glm::mat4(1.0f);
 		ModelTransform = glm::translate(ModelTransform, light_pos);
 		ModelTransform = glm::scale(ModelTransform, glm::vec3(0.2f));
 

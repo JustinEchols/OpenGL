@@ -27,7 +27,7 @@ typedef double f64;
 
 #define ASSERT(expression) if((!expression)) {*(int *)0 = 0;}
 //#define ASSERT(expression) if((!expression)) __debugbreak()
-#define ARRAY_COUNT(a) (sizeof(a) / sizeof(a[0])
+#define ARRAY_COUNT(a) (sizeof(a) / sizeof(a[0]))
 
 #define GL_LOG_FILE "gl.log"
 #define E1 glm::vec3(1.0f, 0.0f, 0.0f)
@@ -146,6 +146,7 @@ typedef struct
 
 typedef struct
 {
+	texture_t Textures[16];
 	shader_program_t LightShader;
 	shader_program_t CubeShader;
 	shader_program_t ShaderProgram;
