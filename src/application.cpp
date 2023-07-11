@@ -365,6 +365,8 @@ glfw_mouse_callback(GLFWwindow *Window, f64 xpos, f64 ypos)
 
 	mouse_t *Mouse = &AppInput.Mouse;
 
+	// TODO(Justin): Initilize the mouse during set up. There is no reason why we need to do this check every time in the 
+	// callback. It is completley unecessary... At this stage yes. 
 	glm::vec2 Delta;
 	if(!Mouse->is_initialized)
 	{
