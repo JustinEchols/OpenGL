@@ -31,6 +31,22 @@ struct light_point
 	float atten_quadratic;
 };
 
+
+struct light_spot
+{
+	vec3 pos;
+	vec3 direction;
+	float cos_value_of_cut_off_angle;
+
+	vec3 ambient;
+	vec3 diffuse;
+	vec3 specular;
+
+	float atten_constant;
+	float atten_linear;
+	float atten_quadratic;
+};
+
 struct light_directional
 {
 	vec3 direction;
@@ -43,6 +59,7 @@ struct light_directional
 uniform vec3 u_camera_pos;
 uniform material u_material;
 uniform light_point u_light_point;
+uniform light_spot u_light_spot;
 
 void main()
 {
@@ -55,12 +72,13 @@ void main()
 	vec3 light_direction = normalize(u_light_point.pos - frag_pos);
 	vec3 normal = normalize(vertex_n);
 
+
 	float diffuse_strength = max(dot(light_direction, normal), 0.0);
 	vec3 diffuse = diffuse_strength * vec3(texel_diffuse) * u_light_point.diffuse;
 
 	vec3 frag_to_eye = normalize(u_camera_pos - frag_pos);
 	vec3 reflect = reflect(-light_direction, normal);
-	
+
 	vec3 specular;
 	if(dot(light_direction, normal) > 0.0)
 	{
