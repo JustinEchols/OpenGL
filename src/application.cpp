@@ -559,7 +559,7 @@ shader_program_create_from_files(const char* vertex_shader_filename, const char*
 	Result.fragment_shader_filename = fragment_shader_filename;
 
 	char vertex_shader_src[1024];
-	char fragment_shader_src[2048];
+	char fragment_shader_src[4096];
 
 	vertex_shader_src[0] = fragment_shader_src[0] = '\0';
 
@@ -901,8 +901,8 @@ int main(void)
 	// NOTE(Justin): Texture initialization
 	//
 
-	texture_t container_diffuse = texture_simple_init("textures/container2.png");
-	texture_t container_specular = texture_simple_init("textures/container2_specular.png");
+	texture_t TextureContainerDiffuse = texture_simple_init("textures/container2.png");
+	texture_t TextureContainerSpecular = texture_simple_init("textures/container2_specular.png");
 
 
 	//
@@ -912,9 +912,9 @@ int main(void)
 	shader_program_t LightShader;
 	shader_program_t CubeShader;
 
-	const char* cube_vertex_shader_filename = "shaders/cube_vertex_shader_light_casters.glsl";
+	const char* cube_vertex_shader_filename = "shaders/cube_vertex_shader_spotlight.glsl";
 
-	const char* cube_fragment_shader_filename = "shaders/cube_fragment_shader_light_casters.glsl";
+	const char* cube_fragment_shader_filename = "shaders/cube_fragment_shader_spotlight.glsl";
 
 	const char* light_vertex_shader_filename = "shaders/light_vertex_shader_001.glsl";
 	const char* light_fragment_shader_filename = "shaders/light_fragment_shader_001.glsl";
@@ -991,17 +991,17 @@ int main(void)
 
 		glUseProgram(AppState.CubeShader.id);
 
-		light_pos.x = cos(glfwGetTime());
-		light_pos.y = cos(glfwGetTime());
-		light_pos.z = -sin(glfwGetTime());
-
-		uniform_set_vec3f(AppState.CubeShader.id, "u_camera_pos", Camera.Pos);
+		uniform_set_vec3f(AppState.CubeShader.id, "u_camera_pos", AppState.Camera.Pos);
 
 		uniform_set_vec3f(AppState.CubeShader.id, "u_material.diffuse", glm::vec3(1.0f, 0.5f, 0.31f));
 		uniform_set_vec3f(AppState.CubeShader.id, "u_material.specular", glm::vec3(0.5f, 0.5f, 0.5f));
 		uniform_set_f32(AppState.CubeShader.id, "u_material.shininess", 32.0f);
 
-		uniform_set_vec3f(AppState.CubeShader.id, "u_light_point.pos", light_pos);
+		uniform_set_vec3f(AppState.CubeShader.id, "u_light_point.pos", AppState.Camera.Pos);
+		uniform_set_vec3f(AppState.CubeShader.id, "u_light_point.direction", AppState.Camera.Direction);
+		uniform_set_f32(AppState.CubeShader.id, "u_light_point.cos_of_inner_angle", glm::cos(glm::radians(12.5f)));
+		uniform_set_f32(AppState.CubeShader.id, "u_light_point.cos_of_outer_angle", glm::cos(glm::radians(17.5f)));
+
 		uniform_set_vec3f(AppState.CubeShader.id, "u_light_point.ambient", glm::vec3(0.2f, 0.2f, 0.2f));
 		uniform_set_vec3f(AppState.CubeShader.id, "u_light_point.diffuse", glm::vec3(0.5f, 0.5f, 0.5f));
 		uniform_set_vec3f(AppState.CubeShader.id, "u_light_point.specular", glm::vec3(1.0f, 1.0f, 1.0f));
@@ -1016,14 +1016,14 @@ int main(void)
 		{
 			glm::mat4 ModelTransform = glm::mat4(1.0f);
 			glm::vec3 pos = glm::vec3(cube_positions[i][0], cube_positions[i][1], cube_positions[i][2]);
-			ModelTransform = glm::translate(ModelTransform, glm::vec3(pos));
+			ModelTransform = glm::translate(ModelTransform, pos);
 
 			uniform_set_mat4f(AppState.CubeShader.id, "ModelTransform", ModelTransform);
 			uniform_set_mat4f(AppState.CubeShader.id, "MapToCamera", MapToCamera);
 			uniform_set_mat4f(AppState.CubeShader.id, "MapToPersp", MapToPersp);
 
-			texture_set_active_and_bind(0, &container_diffuse);
-			texture_set_active_and_bind(1, &container_specular);
+			texture_set_active_and_bind(0, &TextureContainerDiffuse);
+			texture_set_active_and_bind(1, &TextureContainerSpecular);
 
 			glBindVertexArray(CubeVertexArray.id);
 			glDrawArrays(GL_TRIANGLES, 0, 36);
@@ -1034,6 +1034,7 @@ int main(void)
 		// NOTE(Justin): Lamp
 		//
 
+#if 0
 		glUseProgram(AppState.LightShader.id);
 
 		glm::mat4 ModelTransform = glm::mat4(1.0f);
@@ -1046,6 +1047,7 @@ int main(void)
 
 		glBindVertexArray(LightVertexArray.id);
 		glDrawArrays(GL_TRIANGLES, 0, 36);
+#endif
 
         glfwPollEvents();
         glfwSwapBuffers(Window.handle);
