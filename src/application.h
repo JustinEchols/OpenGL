@@ -36,22 +36,17 @@ typedef double f64;
 #define PI32 3.141592653589f
 #define MAX_SHADER_SIZE 100000
 
-
 typedef struct
 {
-	// TODO(Justin): Renderer ID?
 	GLuint id;
 	b32 binded;
 	void *memory;
 	u32 size;
 } vertex_buffer_t;
 
-
-
 typedef struct
 {
 	// TODO(Justin): attribute_count?
-	//u32 attribute_index;
 	u32 element_count_per_attribute;
 	GLenum attribute_type;
 	GLenum normalized;
@@ -61,15 +56,37 @@ typedef struct
 
 typedef struct
 {
-	// TODO(Justin): Array of layouts?
 	GLuint id;
-	//u32 attribute_index;
 	vertex_buffer_layout_t VertexBufferLayout;
 
 } vertex_array_t;
 
+typedef struct
+{
+} element_array_t;
 
 
+
+// TODO(Justin): Not sure where the attribute_count should be. In a the vertex
+// buffer layout or in the mesh vertex definition. 
+typedef struct
+{
+	glm::vec3 Position;
+	glm::vec3 Normal;
+	glm::vec2 TexCoord;
+
+	u32 attribute_count;
+} mesh_vertex_t;
+
+typedef struct
+{
+	// TODO(Justin): Implement this.
+} mesh_t;
+
+typedef struct
+{
+	// TODO(Justin): Implement this.
+} model_t;
 
 typedef struct
 {
@@ -85,6 +102,12 @@ typedef struct
 	s32 width, height;
 } window_t;
 
+enum texture_type_t
+{
+	TEXTURE_TYPE_DIFFUSE,
+	TEXTURE_TYPE_SPECULAR
+};
+
 typedef struct
 {
 	GLuint id;
@@ -92,6 +115,8 @@ typedef struct
 	s32 channel_count;
 	u32 mipmap_level;
 	u8* memory;
+	texture_type_t type;
+
 } texture_t;
 
 typedef struct

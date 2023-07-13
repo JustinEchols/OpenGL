@@ -23,6 +23,8 @@ TODO:
 #include <gtc/matrix_transform.hpp>
 #include <gtc/type_ptr.hpp>
 
+#include <assimp/ai_assert.h>
+
 #include "application.h"
 #include "application_log.cpp"
 #include "application_cube.h"
@@ -365,8 +367,6 @@ glfw_mouse_callback(GLFWwindow *Window, f64 xpos, f64 ypos)
 
 	mouse_t *Mouse = &AppInput.Mouse;
 
-	// TODO(Justin): Initilize the mouse during set up. There is no reason why we need to do this check every time in the 
-	// callback. It is completley unecessary... At this stage yes. 
 	glm::vec2 Delta;
 	if(!Mouse->is_initialized)
 	{
@@ -914,9 +914,9 @@ int main(void)
 	shader_program_t LightShader;
 	shader_program_t CubeShader;
 
-	const char* cube_vertex_shader_filename = "shaders/cube_vertex_shader_spotlight.glsl";
+	const char* cube_vertex_shader_filename = "shaders/cube_vertex_shader_multiple_lights.glsl";
 
-	const char* cube_fragment_shader_filename = "shaders/cube_fragment_shader_spotlight.glsl";
+	const char* cube_fragment_shader_filename = "shaders/cube_fragment_shader_multiple_lights.glsl";
 
 	const char* light_vertex_shader_filename = "shaders/light_vertex_shader_001.glsl";
 	const char* light_fragment_shader_filename = "shaders/light_fragment_shader_001.glsl";
@@ -960,23 +960,27 @@ int main(void)
 
 	glm::mat4 MapToPersp = glm::perspective(field_of_view, aspect_ratio, near, far);
 
-	glm::vec3 light_pos;
+	glm::vec3 LightPositions[4];
 	glm::vec3 offset = glm::vec3(1.0f, 1.0f, 1.0f);
 
-	light_pos.x = cube_positions[0][0];
-	light_pos.y = cube_positions[0][1];
-	light_pos.z = cube_positions[0][2];
+	for(int i = 0; i < ARRAY_COUNT(LightPositions); i++)
+	{
+		LightPositions[i].x = cube_positions[i][0];
+		LightPositions[i].y = cube_positions[i][1];
+		LightPositions[i].z = cube_positions[i][2];
 
-	light_pos += offset;
+		LightPositions[i] += offset;
+	}
+
 
 	// /TODO(Justin): Why do we need to do this 
 	glUseProgram(AppState.LightShader.id);
-	uniform_set_s32(AppState.CubeShader.id, "u_material.diffuse", 0);
-	uniform_set_s32(AppState.CubeShader.id, "u_material.specular", 1);
+	uniform_set_s32(AppState.CubeShader.id, "u_Material.Diffuse", 0);
+	uniform_set_s32(AppState.CubeShader.id, "u_Material.Specular", 1);
 
 	f32 time_delta = 0.0f;
 	f32 time_previous = glfwGetTime();
-    while (!glfwWindowShouldClose(Window.handle))
+	while (!glfwWindowShouldClose(Window.handle))
 	{
 		glfw_process_input(Window.handle, &AppState, time_delta);
 
@@ -987,38 +991,87 @@ int main(void)
 		glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
+
+
 		//
 		// NOTE(Justin): Cube
 		//
 
 		glUseProgram(AppState.CubeShader.id);
 
-		uniform_set_vec3f(AppState.CubeShader.id, "u_camera_pos", AppState.Camera.Pos);
+		uniform_set_vec3f(AppState.CubeShader.id, "u_CameraPos", AppState.Camera.Pos);
+		uniform_set_vec3f(AppState.CubeShader.id, "u_Material.Diffuse", glm::vec3(1.0f, 0.5f, 0.31f));
+		uniform_set_vec3f(AppState.CubeShader.id, "u_Material.Specular", glm::vec3(0.5f, 0.5f, 0.5f));
+		uniform_set_f32(AppState.CubeShader.id, "u_Material.shininess", 32.0f);
 
-		uniform_set_vec3f(AppState.CubeShader.id, "u_material.diffuse", glm::vec3(1.0f, 0.5f, 0.31f));
-		uniform_set_vec3f(AppState.CubeShader.id, "u_material.specular", glm::vec3(0.5f, 0.5f, 0.5f));
-		uniform_set_f32(AppState.CubeShader.id, "u_material.shininess", 32.0f);
 
-		uniform_set_vec3f(AppState.CubeShader.id, "u_light_point.pos", AppState.Camera.Pos);
-		uniform_set_vec3f(AppState.CubeShader.id, "u_light_point.direction", AppState.Camera.Direction);
-		uniform_set_f32(AppState.CubeShader.id, "u_light_point.cos_of_inner_angle", glm::cos(glm::radians(12.5f)));
-		uniform_set_f32(AppState.CubeShader.id, "u_light_point.cos_of_outer_angle", glm::cos(glm::radians(17.5f)));
+#if 0
+		uniform_set_vec3f(AppState.CubeShader.id, "u_LightDirectional.Direction", glm::vec3(1.0f, 0.0f, 0.0f));
+		uniform_set_vec3f(AppState.CubeShader.id, "u_LightDirectional.Ambient", glm::vec3(0.2, 0.2, 0.2));
+		uniform_set_vec3f(AppState.CubeShader.id, "u_LightDirectional.Diffuse", glm::vec3(1.0f, 0.5f, 0.31f));
+		uniform_set_vec3f(AppState.CubeShader.id, "u_LightDirectional.Specular", glm::vec3(0.5f, 0.5f, 0.5f));
+#endif
 
-		uniform_set_vec3f(AppState.CubeShader.id, "u_light_point.ambient", glm::vec3(0.2f, 0.2f, 0.2f));
-		uniform_set_vec3f(AppState.CubeShader.id, "u_light_point.diffuse", glm::vec3(0.5f, 0.5f, 0.5f));
-		uniform_set_vec3f(AppState.CubeShader.id, "u_light_point.specular", glm::vec3(1.0f, 1.0f, 1.0f));
 
-		uniform_set_f32(AppState.CubeShader.id, "u_light_point.atten_constant", 1.0f);
-		uniform_set_f32(AppState.CubeShader.id, "u_light_point.atten_linear", 0.09f);
-		uniform_set_f32(AppState.CubeShader.id, "u_light_point.atten_quadratic", 0.032f);
+		LightPositions[0].x = cos(time_delta);
+		LightPositions[0].y = offset.y;
+		LightPositions[0].z = -sin(time_delta);
+
+		uniform_set_vec3f(AppState.CubeShader.id, "u_LightPointArray[0].Pos", LightPositions[0]);
+
+		uniform_set_vec3f(AppState.CubeShader.id, "u_LightPointArray[0].Ambient", glm::vec3(0.2f, 0.2f, 0.2f));
+		uniform_set_vec3f(AppState.CubeShader.id, "u_LightPointArray[0].Diffuse", glm::vec3(0.5f, 0.5f, 0.5f));
+		uniform_set_vec3f(AppState.CubeShader.id, "u_LightPointArray[0].Specular", glm::vec3(1.0f, 1.0f, 1.0f));
+
+
+		uniform_set_f32(AppState.CubeShader.id, "u_LightPointArray[0].atten_constant", 1.0f);
+		uniform_set_f32(AppState.CubeShader.id, "u_LightPointArray[0].atten_linear", 0.09f);
+		uniform_set_f32(AppState.CubeShader.id, "u_LightPointArray[0].atten_quadratic", 0.032f);
+
+		uniform_set_vec3f(AppState.CubeShader.id, "u_LightPointArray[1].Pos", LightPositions[1]);
+
+		uniform_set_vec3f(AppState.CubeShader.id, "u_LightPointArray[1].Ambient", glm::vec3(0.2f, 0.2f, 0.2f));
+		uniform_set_vec3f(AppState.CubeShader.id, "u_LightPointArray[1].Diffuse", glm::vec3(0.5f, 0.5f, 0.5f));
+		uniform_set_vec3f(AppState.CubeShader.id, "u_LightPointArray[1].Specular", glm::vec3(1.0f, 1.0f, 1.0f));
+
+		uniform_set_f32(AppState.CubeShader.id, "u_LightPointArray[1].atten_constant", 1.0f);
+		uniform_set_f32(AppState.CubeShader.id, "u_LightPointArray[1].atten_linear", 0.09f);
+		uniform_set_f32(AppState.CubeShader.id, "u_LightPointArray[1].atten_quadratic", 0.032f);
+
+#if 1
+		uniform_set_vec3f(AppState.CubeShader.id, "u_LightPointArray[2].Pos", LightPositions[2]);
+
+		uniform_set_vec3f(AppState.CubeShader.id, "u_LightPointArray[2].Ambient", glm::vec3(0.2f, 0.2f, 0.2f));
+		uniform_set_vec3f(AppState.CubeShader.id, "u_LightPointArray[2].Diffuse", glm::vec3(0.5f, 0.5f, 0.5f));
+		uniform_set_vec3f(AppState.CubeShader.id, "u_LightPointArray[2].Specular", glm::vec3(1.0f, 1.0f, 1.0f));
+
+		uniform_set_f32(AppState.CubeShader.id, "u_LightPointArray[2].atten_constant", 1.0f);
+		uniform_set_f32(AppState.CubeShader.id, "u_LightPointArray[2].atten_linear", 0.09f);
+		uniform_set_f32(AppState.CubeShader.id, "u_LightPointArray[2].atten_quadratic", 0.032f);
+
+
+		uniform_set_vec3f(AppState.CubeShader.id, "u_LightPointArray[3].Pos", LightPositions[3]);
+
+		uniform_set_vec3f(AppState.CubeShader.id, "u_LightPointArray[3].Ambient", glm::vec3(0.2f, 0.2f, 0.2f));
+		uniform_set_vec3f(AppState.CubeShader.id, "u_LightPointArray[3].Diffuse", glm::vec3(0.5f, 0.5f, 0.5f));
+		uniform_set_vec3f(AppState.CubeShader.id, "u_LightPointArray[3].Specular", glm::vec3(1.0f, 1.0f, 1.0f));
+
+		uniform_set_f32(AppState.CubeShader.id, "u_LightPointArray[3].atten_constant", 1.0f);
+		uniform_set_f32(AppState.CubeShader.id, "u_LightPointArray[3].atten_linear", 0.09f);
+		uniform_set_f32(AppState.CubeShader.id, "u_LightPointArray[3].atten_quadratic", 0.032f);
+#endif
 
 		MapToCamera = glm::lookAt(AppState.Camera.Pos, AppState.Camera.Pos + AppState.Camera.Direction, AppState.Camera.Up);
 
 		for (u32 i = 0; i < ARRAY_COUNT(cube_positions); i++)
 		{
 			glm::mat4 ModelTransform = glm::mat4(1.0f);
-			glm::vec3 pos = glm::vec3(cube_positions[i][0], cube_positions[i][1], cube_positions[i][2]);
-			ModelTransform = glm::translate(ModelTransform, pos);
+			glm::vec3 Pos = glm::vec3(cube_positions[i]);
+			ModelTransform = glm::translate(ModelTransform, Pos);
+
+
+			float angle = 50.0f * glfwGetTime();
+			ModelTransform = glm::rotate(ModelTransform, glm::radians(angle), (E1 + E2));
 
 			uniform_set_mat4f(AppState.CubeShader.id, "ModelTransform", ModelTransform);
 			uniform_set_mat4f(AppState.CubeShader.id, "MapToCamera", MapToCamera);
@@ -1036,19 +1089,27 @@ int main(void)
 		// NOTE(Justin): Lamp
 		//
 
-#if 0
+#if 1
+
 		glUseProgram(AppState.LightShader.id);
 
-		glm::mat4 ModelTransform = glm::mat4(1.0f);
-		ModelTransform = glm::translate(ModelTransform, light_pos);
-		ModelTransform = glm::scale(ModelTransform, glm::vec3(0.2f));
+		for(u32 i = 0; i < ARRAY_COUNT(LightPositions); i++)
+		{
+			glm::mat4 ModelTransform = glm::mat4(1.0f);
+			ModelTransform = glm::translate(ModelTransform, LightPositions[i]);
+			ModelTransform = glm::scale(ModelTransform, glm::vec3(0.2f));
 
-		uniform_set_mat4f(AppState.LightShader.id, "ModelTransform", ModelTransform);
-		uniform_set_mat4f(AppState.LightShader.id, "MapToCamera", MapToCamera);
-		uniform_set_mat4f(AppState.LightShader.id,"MapToPersp", MapToPersp);
+			glm::vec3 RotateXZ = glm::vec3(10.0f * cos(glfwGetTime()), 0.0f, -10.0f * sin(glfwGetTime()));
+			ModelTransform = glm::translate(ModelTransform, RotateXZ);
 
-		glBindVertexArray(LightVertexArray.id);
-		glDrawArrays(GL_TRIANGLES, 0, 36);
+			uniform_set_mat4f(AppState.LightShader.id, "ModelTransform", ModelTransform);
+			uniform_set_mat4f(AppState.LightShader.id, "MapToCamera", MapToCamera);
+			uniform_set_mat4f(AppState.LightShader.id,"MapToPersp", MapToPersp);
+
+			glBindVertexArray(LightVertexArray.id);
+			glDrawArrays(GL_TRIANGLES, 0, 36);
+		}
+
 #endif
 
         glfwPollEvents();
