@@ -23,7 +23,9 @@ TODO:
 #include <gtc/matrix_transform.hpp>
 #include <gtc/type_ptr.hpp>
 
-#include <assimp/ai_assert.h>
+#include <assimp/Importer.hpp>
+#include <assimp/scene.h>
+#include <assimp/postprocess.h>
 
 #include "application.h"
 #include "application_log.cpp"
@@ -32,11 +34,18 @@ TODO:
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
 
-global_variable input_t AppInput;
-
 #define GLCall(gl_func) gl_clear_errors();\
 	gl_func;\
 	ASSERT(GLLogCall(#gl_func, __FILE__, __LINE__))
+
+#define ASSIMP_LOAD_FLAGS (aiProcess_Triangulate | aiProcess_GenSmoothNormals | aiProcess_FlipUVs | aiProcess_JoinIdenticalVertices)
+
+#define IntFromPtr(ptr) (unsigned long long)((char *)ptr - (char *)0)
+#define Member(Type, member) (((Type*)0)->member)
+#define OffsetOfMember(Type,member) IntFromPtr(&Member(Type,member))
+
+
+global_variable input_t AppInput;
 
 internal vertex_array_t
 vertex_array_create()
@@ -856,6 +865,128 @@ int main(void)
 
 	glEnable(GL_DEPTH_TEST);
 	glDepthFunc(GL_LESS);
+
+	//
+	// NOTE(Justin): Model Initalization
+	//
+
+	// TODO(Justin) ALso implement an SOA model loading
+	Assimp::Importer Importer;
+	const aiScene* Scene = Importer.ReadFile("models/backpack/backpack.obj", ASSIMP_LOAD_FLAGS);
+
+	u32 mesh_count = Scene->mNumMeshes;
+
+	// NOTE(Justin): This mesh is a mesh of the first child node.
+	// NOTE a mesh of the root node. The root node does not have a mesh.
+	// Each node has an mMeshes array. This is an array of INDICES in to 
+	// the top/root arrary Scene->mMeshes. each node has this index array
+	// because each node can have 0 to n1 meshes the number of meshes for each
+	// mode is stored in 
+	//
+	//
+	//
+
+	// Mesh of first childe node
+	const aiMesh* Mesh = Scene->mMeshes[0];
+	u32 vertices_count = Mesh->mNumVertices;
+	u32 indices_count = Mesh->mNumFaces * 3;
+
+
+	// Allocate memory for single mesh
+	size_t vertex_size = sizeof(mesh_vertex_t);
+	u32 vertex_buffer_memory_size = vertex_size * vertices_count;
+	mesh_vertex_t* MeshVertices = (mesh_vertex_t*)calloc((size_t)vertices_count, vertex_size);
+
+	size_t index_size = sizeof(u32);
+	u32 index_buffer_memory_size = index_size * indices_count;
+	u32 *MeshIndices = (u32 *)calloc((size_t)indices_count, index_size);
+
+
+	// Mesh Pos, Normals, TexCood
+	// TODO(Justin): Experiment to see if you can just deference pointers and copy instead of copying component wise
+	mesh_vertex_t* DestMeshVertex = MeshVertices;
+	for (u32 i = 0; i < vertices_count; i++)
+	{
+		DestMeshVertex->Position.x = Mesh->mVertices[i].x;
+		DestMeshVertex->Position.y = Mesh->mVertices[i].y;
+		DestMeshVertex->Position.z = Mesh->mVertices[i].z;
+
+		DestMeshVertex->Normal.x = Mesh->mNormals[i].x;
+		DestMeshVertex->Normal.y = Mesh->mNormals[i].y;
+		DestMeshVertex->Normal.z = Mesh->mNormals[i].z;
+
+		if (Mesh->mTextureCoords[0])
+		{
+			// TODO(Justin): This check every loop is completley redundant?
+			DestMeshVertex->TexCoord.x = Mesh->mTextureCoords[0][i].x;
+			DestMeshVertex->TexCoord.y = Mesh->mTextureCoords[0][i].y;
+		}
+		else
+		{
+			DestMeshVertex->TexCoord = glm::vec2(0.0f, 0.0f);
+		}
+		DestMeshVertex++;
+	}
+
+	u32* DestMeshIndex = MeshIndices;
+	for (u32 i = 0; i < Mesh->mNumFaces; i++)
+	{
+		aiFace *MeshFace = &Mesh->mFaces[i];
+		// Becareful here the MeshIndices array is inidices_count long not mNumInidices
+		// Do believe allocation was correct though.
+		for (u32 j = 0; j < MeshFace->mNumIndices; j++)
+		{
+			// This line does not workk
+			//*MeshIndices++ = *MeshFace->mIndices++;
+
+			// These three do. Why?
+			*DestMeshIndex = *MeshFace->mIndices;
+			DestMeshIndex++;
+			MeshFace->mIndices++;
+		}
+	}
+
+	GLuint MeshVAO, MeshVBO, MeshEBO;
+	glGenVertexArrays(1, &MeshVAO);
+	glGenBuffers(1, &MeshVBO);
+	glGenBuffers(1, &MeshEBO);
+
+	glBindVertexArray(MeshVAO);
+	glBindBuffer(GL_ARRAY_BUFFER, MeshVBO);
+
+	glBufferData(GL_ARRAY_BUFFER, vertices_count * vertex_size, MeshVertices, GL_STATIC_DRAW);
+
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, MeshEBO);
+	glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices_count * sizeof(u32), MeshIndices, GL_STATIC_DRAW);
+
+	glEnableVertexAttribArray(0);
+	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(mesh_vertex_t), (void*)0);
+
+	glEnableVertexAttribArray(1);
+	glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(mesh_vertex_t), (void*)OffsetOfMember(mesh_vertex_t, Normal));
+
+	glEnableVertexAttribArray(2);
+	glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, sizeof(mesh_vertex_t), (void*)OffsetOfMember(mesh_vertex_t, TexCoord));
+
+	glBindVertexArray(0);
+
+	// MeshMaterials
+
+
+	aiMaterial* MeshMaterial = Scene->mMaterials[0];
+	u32 texture_diffuse_count = MeshMaterial->GetTextureCount(aiTextureType_DIFFUSE);
+	u32 texture_specular_count = MeshMaterial->GetTextureCount(aiTextureType_SPECULAR);
+
+	aiString Text;
+	MeshMaterial->GetTexture(aiTextureType_DIFFUSE, 0, &Text);
+	texture_t Texture;
+	
+	
+
+
+
+
+
 
 	//
 	// NOTE(Justin): Buffer initialization

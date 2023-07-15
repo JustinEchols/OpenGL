@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <stdint.h>
 #include <stdlib.h>
+
 #include <stdarg.h>
 #include <time.h>
 
@@ -74,8 +75,6 @@ typedef struct
 	glm::vec3 Position;
 	glm::vec3 Normal;
 	glm::vec2 TexCoord;
-
-	u32 attribute_count;
 } mesh_vertex_t;
 
 typedef struct
