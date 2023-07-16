@@ -495,6 +495,8 @@ shader_program_create_from_strings(const char* vertex_shader_str, const char* fr
 	glGetShaderiv(vertex_shader_handle, GL_COMPILE_STATUS, &lparams);
 	if(lparams != GL_TRUE)
 	{
+		// TODO(Justin): The filename is probably going to be more useful here
+		// instead of just a number...
 		fprintf(stderr, "ERROR: vertex shader index %u did not compile\n", vertex_shader_handle);
 
 		const int length_max = 2048;
@@ -561,6 +563,7 @@ shader_program_create_from_strings(const char* vertex_shader_str, const char* fr
 internal shader_program_t
 shader_program_create_from_files(const char* vertex_shader_filename, const char* fragment_shader_filename)
 {
+	// Check to make sure extensions are correct?
 
 	ASSERT(vertex_shader_filename && fragment_shader_filename);
 
@@ -570,7 +573,7 @@ shader_program_create_from_files(const char* vertex_shader_filename, const char*
 	Result.fragment_shader_filename = fragment_shader_filename;
 
 	char vertex_shader_src[1024];
-	char fragment_shader_src[4096];
+	char fragment_shader_src[MAX_SHADER_SIZE];
 
 	vertex_shader_src[0] = fragment_shader_src[0] = '\0';
 
@@ -638,8 +641,6 @@ shader_program_reload(shader_program_t *ShaderProgram)
 internal void
 texture_set_active_and_bind(u32 index, texture_t *Texture)
 {
-	// TODO(Justin): Need to use an index to figure out which # texture to
-	// activeate.
 	GLenum TEXTURE_INDEX;
 	switch(index)
 	{
@@ -656,15 +657,21 @@ texture_set_active_and_bind(u32 index, texture_t *Texture)
 	}
 	glActiveTexture(TEXTURE_INDEX);
 
-	// TODO(Justin): Need to have the texture structure contain the texture
-	// type.
+	// TODO(Justin): Either pass in the first argument, or rename this function
+	// to include the fact that this is for 2D textures.
 	glBindTexture(GL_TEXTURE_2D, Texture->id);
 }
 
 internal texture_t
-texture_simple_init(const char* filename)
+texture_simple_init(const char* filename, texture_type_t texture_type)
 {
+	//TODO(Justin): Loop through app state struct and check if texture already
+	//loaded.
 	texture_t Texture = {};
+
+	Texture.path = filename;
+	Texture.type = texture_type;
+
 	glGenTextures(1, &Texture.id);
 	glBindTexture(GL_TEXTURE_2D, Texture.id);
 
@@ -683,9 +690,6 @@ texture_simple_init(const char* filename)
 
 	if(Texture.memory)
 	{
-		// TODO(Justin): Figure out why the third if is getting completley nuked
-		// even though it should hit for container2.jpg :(
-
 		GLenum PIXEL_FORMAT;
 		if(Texture.channel_count == 1)
 		{
@@ -703,19 +707,17 @@ texture_simple_init(const char* filename)
 		}
 		
 		Texture.mipmap_level = 0;
-		
 
-		//PIXEL_FORMAT = GL_RGBA;
-		// TODO(Justin): How are you supposed to know that imgae type in a general manner? One way is to have a naming convention on the names of files that tell use info about the image data.
 		glTexImage2D(GL_TEXTURE_2D, Texture.mipmap_level, PIXEL_FORMAT,
 					 Texture.width, Texture.height, 0,
 					 PIXEL_FORMAT, GL_UNSIGNED_BYTE, Texture.memory);
 
 		glGenerateMipmap(GL_TEXTURE_2D);
-
 	}
-	// TODO(Justin): Do we really need to free the memory?
-	stbi_image_free(Texture.memory);
+	// TODO(Justin): Do we really need to free the memory? Only need to free
+	// when we nolonger need the texture otherwise if we need it would have to
+	// load the texture again which we do not want to do if we do not have to.
+	//stbi_image_free(Texture.memory);
 	return(Texture);
 }
 
@@ -805,10 +807,178 @@ glfw_process_input(GLFWwindow *Window, app_state_t *AppState, f32 time_delta)
 	}
 	else if (glfwGetKey(Window, GLFW_KEY_R) == GLFW_PRESS)
 	{
-		shader_program_reload(&AppState->ShaderProgram);
+		//shader_program_reload(&AppState->ShaderProgram);
 	}
 	else if (glfwGetKey(Window, GLFW_KEY_RIGHT) == GLFW_PRESS)
 	{
+	}
+}
+
+
+#if 0
+internal mesh_t
+mesh_process(aiMesh *Mesh)
+{
+	mesh_t Result = {};
+	u32 vertices_count = Mesh->mNumVertices;
+	u32 indices_count = Mesh->mNumFaces * 3;
+
+	// Allocate memory for Mesh vertices and indices
+	size_t vertex_size = sizeof(mesh_vertex_t);
+	u32 vertex_buffer_memory_size = vertex_size * vertices_count;
+	mesh_vertex_t* MeshVertices = (mesh_vertex_t*)calloc((size_t)vertices_count, vertex_size);
+
+	size_t index_size = sizeof(u32);
+	u32 index_buffer_memory_size = index_size * indices_count;
+	u32 *MeshIndices = (u32 *)calloc((size_t)indices_count, index_size);
+
+
+	// Mesh Pos, Normals, TexCood
+	// TODO(Justin): Experiment to see if you can just deference pointers and copy instead of copying component wise
+	mesh_vertex_t* DestMeshVertex = MeshVertices;
+	for (u32 i = 0; i < vertices_count; i++)
+	{
+		DestMeshVertex->Position.x = Mesh->mVertices[i].x;
+		DestMeshVertex->Position.y = Mesh->mVertices[i].y;
+		DestMeshVertex->Position.z = Mesh->mVertices[i].z;
+
+		DestMeshVertex->Normal.x = Mesh->mNormals[i].x;
+		DestMeshVertex->Normal.y = Mesh->mNormals[i].y;
+		DestMeshVertex->Normal.z = Mesh->mNormals[i].z;
+
+		if (Mesh->mTextureCoords[0])
+		{
+			// TODO(Justin): This check every loop is completley redundant?  Is
+			// doing in loop but in think this is wrong. you should only check
+			// this once, before the loop and then if they do exist then just
+			// process them in the loop. This assumes that the number of tex
+			// coords willbe the same as thenumber of cvertices thought will
+			// need to verify this.
+			DestMeshVertex->TexCoord.x = Mesh->mTextureCoords[0][i].x;
+			DestMeshVertex->TexCoord.y = Mesh->mTextureCoords[0][i].y;
+		}
+		else
+		{
+			DestMeshVertex->TexCoord = glm::vec2(0.0f, 0.0f);
+		}
+		DestMeshVertex++;
+	}
+
+
+	u32* DestMeshIndex = MeshIndices;
+	for (u32 i = 0; i < Mesh->mNumFaces; i++)
+	{
+		aiFace *MeshFace = &Mesh->mFaces[i];
+
+		u32* SrcMeshIndex = MeshFace->mIndices;
+		for (u32 j = 0; j < MeshFace->mNumIndices; j++)
+		{
+			// This line does not workk
+			//*MeshIndices++ = *MeshFace->mIndices++;
+
+			// These three do. Why?
+			*DestMeshIndex = *SrcMeshIndex;
+			DestMeshIndex++;
+			SrcMeshIndex++;
+		}
+	}
+
+	GLuint MeshVAO, MeshVBO, MeshEBO;
+	glGenVertexArrays(1, &MeshVAO);
+	glGenBuffers(1, &MeshVBO);
+	glGenBuffers(1, &MeshEBO);
+
+	glBindVertexArray(MeshVAO);
+	glBindBuffer(GL_ARRAY_BUFFER, MeshVBO);
+
+	glBufferData(GL_ARRAY_BUFFER, vertices_count * vertex_size, MeshVertices, GL_STATIC_DRAW);
+
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, MeshEBO);
+	glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices_count * sizeof(u32), MeshIndices, GL_STATIC_DRAW);
+
+	glEnableVertexAttribArray(0);
+	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(mesh_vertex_t), (void*)0);
+
+	glEnableVertexAttribArray(1);
+	glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(mesh_vertex_t), (void*)OffsetOfMember(mesh_vertex_t, Normal));
+
+	glEnableVertexAttribArray(2);
+	glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, sizeof(mesh_vertex_t), (void*)OffsetOfMember(mesh_vertex_t, TexCoord));
+
+	glBindVertexArray(0);
+
+
+
+}
+#endif
+
+#if 0
+internal texture_t *
+mesh_material_texture_load(app_state_t *AppState, aiMaterial *MeshMaterial)
+{
+	texture_t *Result;
+
+	u32 texture_diffuse_count = MeshMaterial->GetTextureCount(aiTextureType_DIFFUSE);
+	u32 texture_specular_count = MeshMaterial->GetTextureCount(aiTextureType_SPECULAR);
+
+
+}
+#endif
+internal texture_type_t
+assimp_texture_type_convert(aiTextureType texture_type)
+{
+	texture_type_t Result;
+
+	// TODO(Justin): More cases
+	if(texture_type == aiTextureType_DIFFUSE)
+	{
+		Result = TEXTURE_TYPE_DIFFUSE;
+	}
+	else(texture_type == aiTextureType_SPECULAR)
+	{
+		Result = TEXTURE_TYPE_SPECULAR;
+	}
+	return(Result);
+}
+
+internal void
+mesh_process_texture_map(app_state_t *AppState, aiMaterial *MeshMaterial, texture_t *Texture, 
+		u32 texture_count, aiTextureType texture_type, aiString path_to_texture)
+{
+	for(u32 i = 0; i < texture_count; i++)
+	{
+		aiString texture_filename;
+		MeshMaterial->GetTexture(texture_type, i, &texture_filename);
+		path_to_texture.Append(texture_filename.C_Str());
+
+		b32 texture_is_loaded = false;
+		for(u32 j = 0; j < AppState->loaded_texture_count; j++)
+		{
+			// Change to name??
+			const char * loaded_texture_path = AppState->LoadedTextures[j].path;
+			if(loaded_texture_path)
+			{
+				if(strcmp(loaded_texture_path, path_to_texture.C_Str()) == 0)
+				{
+					// Texture already previously loaded do not load memory again, only copy data from
+					// previously loaded state.
+					texture_is_loaded = true;
+					*Texture = AppState->LoadedTextures[j];
+					break;
+				}
+			}
+		}
+		if(!texture_is_loaded)
+		{
+			// Texture does not exist, load the texture into the mesh
+			// diffuse array and also into the loaded textures of the app
+			// state
+			texture_type_t TextureType = assimp_texture_type_convert(texture_type);
+			*Texture = texture_simple_init(path_to_texture.C_Str(), TextureType);
+			AppState->LoadedTextures[AppState->loaded_texture_count] = *Texture;
+			AppState->loaded_texture_count++;
+		}
+		Texture++;
 	}
 }
 
@@ -866,11 +1036,13 @@ int main(void)
 	glEnable(GL_DEPTH_TEST);
 	glDepthFunc(GL_LESS);
 
+	app_state_t AppState = {};
 	//
 	// NOTE(Justin): Model Initalization
 	//
 
 	// TODO(Justin) ALso implement an SOA model loading
+#if 1
 	Assimp::Importer Importer;
 	const aiScene* Scene = Importer.ReadFile("models/backpack/backpack.obj", ASSIMP_LOAD_FLAGS);
 
@@ -882,9 +1054,6 @@ int main(void)
 	// the top/root arrary Scene->mMeshes. each node has this index array
 	// because each node can have 0 to n1 meshes the number of meshes for each
 	// mode is stored in 
-	//
-	//
-	//
 
 	// Mesh of first childe node
 	const aiMesh* Mesh = Scene->mMeshes[0];
@@ -929,22 +1098,26 @@ int main(void)
 	}
 
 	u32* DestMeshIndex = MeshIndices;
+
 	for (u32 i = 0; i < Mesh->mNumFaces; i++)
 	{
 		aiFace *MeshFace = &Mesh->mFaces[i];
-		// Becareful here the MeshIndices array is inidices_count long not mNumInidices
-		// Do believe allocation was correct though.
+
+		u32* SrcMeshIndex = MeshFace->mIndices;
 		for (u32 j = 0; j < MeshFace->mNumIndices; j++)
 		{
 			// This line does not workk
 			//*MeshIndices++ = *MeshFace->mIndices++;
 
 			// These three do. Why?
-			*DestMeshIndex = *MeshFace->mIndices;
+			*DestMeshIndex = *SrcMeshIndex;
 			DestMeshIndex++;
-			MeshFace->mIndices++;
+			SrcMeshIndex++;
 		}
 	}
+
+	// TODO(Justin): Put these in mesh struct. should we use the buffer layout
+	// structs too?
 
 	GLuint MeshVAO, MeshVBO, MeshEBO;
 	glGenVertexArrays(1, &MeshVAO);
@@ -970,23 +1143,66 @@ int main(void)
 
 	glBindVertexArray(0);
 
-	// MeshMaterials
+	//
+	// NOTE(Justin): Materials
+	//
 
+	//TODO(Justin): Instead of allocating, push onto memory arena previously
+	//allocated.
+	
+	// DO this iff a material exits
+	// Why >= 0?
+	//if(Mesh->mMaterialIndex >= 0)
+	//{
+	aiMaterial* MeshMaterial = Scene->mMaterials[Mesh->mMaterialIndex];
 
-	aiMaterial* MeshMaterial = Scene->mMaterials[0];
 	u32 texture_diffuse_count = MeshMaterial->GetTextureCount(aiTextureType_DIFFUSE);
 	u32 texture_specular_count = MeshMaterial->GetTextureCount(aiTextureType_SPECULAR);
 
-	aiString Text;
-	MeshMaterial->GetTexture(aiTextureType_DIFFUSE, 0, &Text);
-	texture_t Texture;
+	size_t texture_size = sizeof(texture_t);
+	u32 texture_count = texture_diffuse_count + texture_specular_count;
+	u32 texture_memory_size = texture_count * texture_size;
+	texture_t* MeshTextures = (texture_t*)calloc((size_t)texture_count, texture_size);
+
+	aiString path_to_texture = aiString("models/backpack/");
+
+	texture_t *Texture = MeshTextures;
+	mesh_process_texture_map(&AppState, MeshMaterial, Texture, texture_diffuse_count, aiTextureType_DIFFUSE, 
+																					path_to_texture);
+
+	// TODO(Justin): Make sure that path_to_texture can be passed here i.e. make sure the string is still models/backpack/
+	//aiString path_to_specular_texture("models/backpack/");
+	mesh_process_texture_map(&AppState, MeshMaterial, Texture, texture_specular_count, aiTextureType_SPECULAR,
+																					path_to_texture);
+
+	mesh_t BackPackFirstMesh;
 	
-	
+	BackPackFirstMesh.vertices_count = vertices_count;
+	BackPackFirstMesh.indices_count = indices_count;
+	BackPackFirstMesh.texture_count = texture_count;
+	// TODO(Justin): Not sure if we want to have separate arrays of different
+	// texture types. Could just have one arrray and inteligently index it?
+	//BackPackFirstMesh.texture_diffuse_count = texture_diffuse_count;
+	//BackPackFirstMesh.texture_specular_count = texture_specular_count;
+	//BackPackFirstMesh.TexturesDiffuse = MeshTexturesDiffuse;
+	//BackPackFirstMesh.TexturesSpecular = MeshTexturesSpecular; 
+
+	BackPackFirstMesh.Vertices = MeshVertices;
+	BackPackFirstMesh.Indices = MeshIndices;
+	BackPackFirstMesh.Textures= MeshTextures;
+
+	shader_program_t BackPackShader;
+	const char * backpack_vertex_shader_filename = "shaders/backpack.vs";
+	const char * backpack_fragment_shader_filename = "shaders/backpack.fs";
+	BackPackShader = shader_program_create_from_files(backpack_vertex_shader_filename,
+													  backpack_fragment_shader_filename);
+
+
+	gl_log_shader_info(BackPackShader.id);
 
 
 
-
-
+#endif
 
 	//
 	// NOTE(Justin): Buffer initialization
@@ -1034,8 +1250,8 @@ int main(void)
 	// NOTE(Justin): Texture initialization
 	//
 
-	texture_t TextureContainerDiffuse = texture_simple_init("textures/container2.png");
-	texture_t TextureContainerSpecular = texture_simple_init("textures/container2_specular.png");
+	texture_t TextureContainerDiffuse = texture_simple_init("textures/container2.png", TEXTURE_TYPE_DIFFUSE);
+	texture_t TextureContainerSpecular = texture_simple_init("textures/container2_specular.png", TEXTURE_TYPE_SPECULAR);
 
 
 	//
@@ -1045,12 +1261,10 @@ int main(void)
 	shader_program_t LightShader;
 	shader_program_t CubeShader;
 
-	const char* cube_vertex_shader_filename = "shaders/cube_vertex_shader_multiple_lights.glsl";
-
-	const char* cube_fragment_shader_filename = "shaders/cube_fragment_shader_multiple_lights.glsl";
-
-	const char* light_vertex_shader_filename = "shaders/light_vertex_shader_001.glsl";
-	const char* light_fragment_shader_filename = "shaders/light_fragment_shader_001.glsl";
+	const char* cube_vertex_shader_filename = "shaders/cube_light_casters.vs";
+	const char* cube_fragment_shader_filename = "shaders/cube_light_casters.fs";
+	const char* light_vertex_shader_filename = "shaders/light_001.vs";
+	const char* light_fragment_shader_filename = "shaders/light_001.fs";
 
 	// TODO(Justin) is_valid member?
 	LightShader = shader_program_create_from_files(light_vertex_shader_filename, light_fragment_shader_filename);
@@ -1075,9 +1289,9 @@ int main(void)
 	Camera.Up = E2;
 	Camera.speed = 5.0f;
 
-	app_state_t AppState = {};
 	AppState.LightShader = LightShader;
 	AppState.CubeShader = CubeShader;
+	AppState.BackPackShader = BackPackShader;
 	AppState.Camera = Camera;
 
 
@@ -1105,9 +1319,17 @@ int main(void)
 
 
 	// /TODO(Justin): Why do we need to do this 
-	glUseProgram(AppState.LightShader.id);
-	uniform_set_s32(AppState.CubeShader.id, "u_Material.Diffuse", 0);
-	uniform_set_s32(AppState.CubeShader.id, "u_Material.Specular", 1);
+	//glUseProgram(AppState.CubeShader.id);
+	glUseProgram(AppState.CubeShader.id);
+	uniform_set_s32(AppState.CubeShader.id, "u_material.diffuse", 0);
+	uniform_set_s32(AppState.CubeShader.id, "u_material.specular", 1);
+
+
+#if 1
+	glUseProgram(AppState.BackPackShader.id);
+	uniform_set_s32(AppState.BackPackShader.id, "u_Material.Diffuse1", 0);
+	uniform_set_s32(AppState.BackPackShader.id, "u_Material.Specular1", 1);
+#endif
 
 	f32 time_delta = 0.0f;
 	f32 time_previous = glfwGetTime();
@@ -1119,129 +1341,138 @@ int main(void)
 		// NOTE(Justin): Render
 		//
 
-		glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+		glClearColor(0.5f, 0.5f, 0.5f, 1.0f);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
+		//
+		// NOTE(Justin): First mesh of BackPack.
+		//
 
 
-		//
-		// NOTE(Justin): Cube
-		//
+
+#if 1
+		glUseProgram(AppState.BackPackShader.id);
+
+		glm::mat4 ModelTransform = glm::mat4(1.0f);
+		ModelTransform = glm::translate(ModelTransform, E1 + E2);
+
+		uniform_set_mat4f(AppState.BackPackShader.id, "ModelTransform", ModelTransform);
+		uniform_set_mat4f(AppState.BackPackShader.id, "MapToCamera", MapToCamera);
+		uniform_set_mat4f(AppState.BackPackShader.id,"MapToPersp", MapToPersp);
+
+		uniform_set_vec3f(AppState.BackPackShader.id, "u_CameraPos", AppState.Camera.Pos);
+		uniform_set_f32(AppState.BackPackShader.id, "u_Material.shininess", 32.0f);
+
+		LightPositions[0].x = cos(glfwGetTime());
+		LightPositions[0].y = E2.y;
+		LightPositions[0].z = -sin(glfwGetTime());
+
+		uniform_set_vec3f(AppState.BackPackShader.id, "u_LightPoint.Pos", LightPositions[0]);
+		uniform_set_vec3f(AppState.BackPackShader.id, "u_LightPoint.Ambient", glm::vec3(0.2f, 0.2f, 0.2f));
+		uniform_set_vec3f(AppState.BackPackShader.id, "u_LightPoint.Diffuse", glm::vec3(0.5f, 0.5f, 0.5f));
+		uniform_set_vec3f(AppState.BackPackShader.id, "u_LightPoint.Specular", glm::vec3(1.0f, 1.0f, 1.0f));
+
+		uniform_set_f32(AppState.BackPackShader.id, "u_LightPoint.atten_constant", 1.0f);
+		uniform_set_f32(AppState.BackPackShader.id, "u_LightPoint.atten_linear", 0.09f);
+		uniform_set_f32(AppState.BackPackShader.id, "u_LightPoint.atten_quadratic", 0.032f);
+
+		texture_t *BackPackTexture = BackPackFirstMesh.Textures;
+		texture_set_active_and_bind(0, BackPackTexture);
+		BackPackTexture++;
+		texture_set_active_and_bind(1, BackPackTexture);
+
+		glBindVertexArray(MeshVAO);
+		glDrawElements(GL_TRIANGLES, BackPackFirstMesh.indices_count, GL_UNSIGNED_INT, 0);
+		glBindVertexArray(0);
+#endif
 
 		glUseProgram(AppState.CubeShader.id);
 
-		uniform_set_vec3f(AppState.CubeShader.id, "u_CameraPos", AppState.Camera.Pos);
-		uniform_set_vec3f(AppState.CubeShader.id, "u_Material.Diffuse", glm::vec3(1.0f, 0.5f, 0.31f));
-		uniform_set_vec3f(AppState.CubeShader.id, "u_Material.Specular", glm::vec3(0.5f, 0.5f, 0.5f));
-		uniform_set_f32(AppState.CubeShader.id, "u_Material.shininess", 32.0f);
+		uniform_set_vec3f(AppState.CubeShader.id, "u_camera_pos", AppState.Camera.Pos);
+		uniform_set_vec3f(AppState.CubeShader.id, "u_material.diffuse", glm::vec3(1.0f, 0.5f, 0.31f));
+		uniform_set_vec3f(AppState.CubeShader.id, "u_material.specular", glm::vec3(0.5f, 0.5f, 0.5f));
+		uniform_set_f32(AppState.CubeShader.id, "u_material.shininess", 32.0f);
 
 
-#if 0
-		uniform_set_vec3f(AppState.CubeShader.id, "u_LightDirectional.Direction", glm::vec3(1.0f, 0.0f, 0.0f));
-		uniform_set_vec3f(AppState.CubeShader.id, "u_LightDirectional.Ambient", glm::vec3(0.2, 0.2, 0.2));
-		uniform_set_vec3f(AppState.CubeShader.id, "u_LightDirectional.Diffuse", glm::vec3(1.0f, 0.5f, 0.31f));
-		uniform_set_vec3f(AppState.CubeShader.id, "u_LightDirectional.Specular", glm::vec3(0.5f, 0.5f, 0.5f));
-#endif
 
 
-		LightPositions[0].x = cos(time_delta);
-		LightPositions[0].y = offset.y;
-		LightPositions[0].z = -sin(time_delta);
+		// WARNING(Justin): THE time between frames CANNOT be used for the circular functions. YOU MUST USE glfwGetTime();
+		// or for each fram add the time delta to itseulf and use tha as the value. NOTE to self the light was fixed at a spot in
+		// but  the cube was moving. Now you know to double checl how you are updating the positon FIRST!!!
+		//LightPositions[0].x = cos(time_delta);
+		//LightPositions[0].y = 0.0f;
+		//LightPositions[0].z = -sin(time_delta);
 
-		uniform_set_vec3f(AppState.CubeShader.id, "u_LightPointArray[0].Pos", LightPositions[0]);
+		uniform_set_vec3f(AppState.CubeShader.id, "u_light_point.pos", LightPositions[0]);
+		uniform_set_vec3f(AppState.CubeShader.id, "u_light_point.ambient", glm::vec3(0.2f, 0.2f, 0.2f));
+		uniform_set_vec3f(AppState.CubeShader.id, "u_light_point.diffuse", glm::vec3(0.5f, 0.5f, 0.5f));
+		uniform_set_vec3f(AppState.CubeShader.id, "u_light_point.specular", glm::vec3(1.0f, 1.0f, 1.0f));
 
-		uniform_set_vec3f(AppState.CubeShader.id, "u_LightPointArray[0].Ambient", glm::vec3(0.2f, 0.2f, 0.2f));
-		uniform_set_vec3f(AppState.CubeShader.id, "u_LightPointArray[0].Diffuse", glm::vec3(0.5f, 0.5f, 0.5f));
-		uniform_set_vec3f(AppState.CubeShader.id, "u_LightPointArray[0].Specular", glm::vec3(1.0f, 1.0f, 1.0f));
+		uniform_set_f32(AppState.CubeShader.id, "u_light_point.atten_constant", 1.0f);
+		uniform_set_f32(AppState.CubeShader.id, "u_light_point.atten_linear", 0.09f);
+		uniform_set_f32(AppState.CubeShader.id, "u_light_point.atten_quadratic", 0.032f);
 
-
-		uniform_set_f32(AppState.CubeShader.id, "u_LightPointArray[0].atten_constant", 1.0f);
-		uniform_set_f32(AppState.CubeShader.id, "u_LightPointArray[0].atten_linear", 0.09f);
-		uniform_set_f32(AppState.CubeShader.id, "u_LightPointArray[0].atten_quadratic", 0.032f);
-
-		uniform_set_vec3f(AppState.CubeShader.id, "u_LightPointArray[1].Pos", LightPositions[1]);
-
-		uniform_set_vec3f(AppState.CubeShader.id, "u_LightPointArray[1].Ambient", glm::vec3(0.2f, 0.2f, 0.2f));
-		uniform_set_vec3f(AppState.CubeShader.id, "u_LightPointArray[1].Diffuse", glm::vec3(0.5f, 0.5f, 0.5f));
-		uniform_set_vec3f(AppState.CubeShader.id, "u_LightPointArray[1].Specular", glm::vec3(1.0f, 1.0f, 1.0f));
-
-		uniform_set_f32(AppState.CubeShader.id, "u_LightPointArray[1].atten_constant", 1.0f);
-		uniform_set_f32(AppState.CubeShader.id, "u_LightPointArray[1].atten_linear", 0.09f);
-		uniform_set_f32(AppState.CubeShader.id, "u_LightPointArray[1].atten_quadratic", 0.032f);
-
-#if 1
-		uniform_set_vec3f(AppState.CubeShader.id, "u_LightPointArray[2].Pos", LightPositions[2]);
-
-		uniform_set_vec3f(AppState.CubeShader.id, "u_LightPointArray[2].Ambient", glm::vec3(0.2f, 0.2f, 0.2f));
-		uniform_set_vec3f(AppState.CubeShader.id, "u_LightPointArray[2].Diffuse", glm::vec3(0.5f, 0.5f, 0.5f));
-		uniform_set_vec3f(AppState.CubeShader.id, "u_LightPointArray[2].Specular", glm::vec3(1.0f, 1.0f, 1.0f));
-
-		uniform_set_f32(AppState.CubeShader.id, "u_LightPointArray[2].atten_constant", 1.0f);
-		uniform_set_f32(AppState.CubeShader.id, "u_LightPointArray[2].atten_linear", 0.09f);
-		uniform_set_f32(AppState.CubeShader.id, "u_LightPointArray[2].atten_quadratic", 0.032f);
-
-
-		uniform_set_vec3f(AppState.CubeShader.id, "u_LightPointArray[3].Pos", LightPositions[3]);
-
-		uniform_set_vec3f(AppState.CubeShader.id, "u_LightPointArray[3].Ambient", glm::vec3(0.2f, 0.2f, 0.2f));
-		uniform_set_vec3f(AppState.CubeShader.id, "u_LightPointArray[3].Diffuse", glm::vec3(0.5f, 0.5f, 0.5f));
-		uniform_set_vec3f(AppState.CubeShader.id, "u_LightPointArray[3].Specular", glm::vec3(1.0f, 1.0f, 1.0f));
-
-		uniform_set_f32(AppState.CubeShader.id, "u_LightPointArray[3].atten_constant", 1.0f);
-		uniform_set_f32(AppState.CubeShader.id, "u_LightPointArray[3].atten_linear", 0.09f);
-		uniform_set_f32(AppState.CubeShader.id, "u_LightPointArray[3].atten_quadratic", 0.032f);
-#endif
 
 		MapToCamera = glm::lookAt(AppState.Camera.Pos, AppState.Camera.Pos + AppState.Camera.Direction, AppState.Camera.Up);
 
-		for (u32 i = 0; i < ARRAY_COUNT(cube_positions); i++)
-		{
-			glm::mat4 ModelTransform = glm::mat4(1.0f);
-			glm::vec3 Pos = glm::vec3(cube_positions[i]);
-			ModelTransform = glm::translate(ModelTransform, Pos);
+		ModelTransform = glm::mat4(1.0f);
+		ModelTransform = glm::translate(ModelTransform, cube_positions[0]);
+
+		uniform_set_mat4f(AppState.CubeShader.id, "ModelTransform", ModelTransform);
+		uniform_set_mat4f(AppState.CubeShader.id, "MapToCamera", MapToCamera);
+		uniform_set_mat4f(AppState.CubeShader.id,"MapToPersp", MapToPersp);
+#if 0
+		uniform_set_vec3f(AppState.CubeShader.id, "u_CameraPos", AppState.Camera.Pos);
+		uniform_set_f32(AppState.CubeShader.id, "u_Material.shininess", 32.0f);
+
+		uniform_set_vec3f(AppState.CubeShader.id, "u_LightPoint.Pos", LightPositions[0]);
+		uniform_set_vec3f(AppState.CubeShader.id, "u_LightPoint.Ambient", glm::vec3(0.2f, 0.2f, 0.2f));
+		uniform_set_vec3f(AppState.CubeShader.id, "u_LightPoint.Diffuse", glm::vec3(0.5f, 0.5f, 0.5f));
+		uniform_set_vec3f(AppState.CubeShader.id, "u_LightPoint.Specular", glm::vec3(1.0f, 1.0f, 1.0f));
+
+		uniform_set_f32(AppState.CubeShader.id, "u_LightPoint.atten_constant", 1.0f);
+		uniform_set_f32(AppState.CubeShader.id, "u_LightPoint.atten_linear", 0.09f);
+		uniform_set_f32(AppState.CubeShader.id, "u_LightPoint.atten_quadratic", 0.032f);
 
 
-			float angle = 50.0f * glfwGetTime();
-			ModelTransform = glm::rotate(ModelTransform, glm::radians(angle), (E1 + E2));
+		ModelTransform = glm::mat4(1.0f);
+		ModelTransform = glm::translate(ModelTransform, cube_positions[0]);
 
-			uniform_set_mat4f(AppState.CubeShader.id, "ModelTransform", ModelTransform);
-			uniform_set_mat4f(AppState.CubeShader.id, "MapToCamera", MapToCamera);
-			uniform_set_mat4f(AppState.CubeShader.id, "MapToPersp", MapToPersp);
+		uniform_set_mat4f(AppState.CubeShader.id, "ModelTransform", ModelTransform);
+		uniform_set_mat4f(AppState.CubeShader.id, "MapToCamera", MapToCamera);
+		uniform_set_mat4f(AppState.CubeShader.id,"MapToPersp", MapToPersp);
+#endif
 
-			texture_set_active_and_bind(0, &TextureContainerDiffuse);
-			texture_set_active_and_bind(1, &TextureContainerSpecular);
+		texture_set_active_and_bind(0, &TextureContainerDiffuse);
+		texture_set_active_and_bind(1, &TextureContainerSpecular);
 
-			glBindVertexArray(CubeVertexArray.id);
-			glDrawArrays(GL_TRIANGLES, 0, 36);
-		}
+		glBindVertexArray(CubeVertexArray.id);
+		glDrawArrays(GL_TRIANGLES, 0, 36);
 
-
+		
 		//
 		// NOTE(Justin): Lamp
 		//
 
-#if 1
-
 		glUseProgram(AppState.LightShader.id);
 
-		for(u32 i = 0; i < ARRAY_COUNT(LightPositions); i++)
-		{
-			glm::mat4 ModelTransform = glm::mat4(1.0f);
-			ModelTransform = glm::translate(ModelTransform, LightPositions[i]);
-			ModelTransform = glm::scale(ModelTransform, glm::vec3(0.2f));
+		// NOTE that we are updating and setting the global unifrom light position above which is why the cube is transformed accordingly
+		// it is because we have alrady calculated the lamps new position above and are just using it here
+		ModelTransform = glm::mat4(1.0f);
+		ModelTransform = glm::translate(ModelTransform, LightPositions[0]);
+		ModelTransform = glm::scale(ModelTransform, glm::vec3(0.2f));
 
-			glm::vec3 RotateXZ = glm::vec3(10.0f * cos(glfwGetTime()), 0.0f, -10.0f * sin(glfwGetTime()));
-			ModelTransform = glm::translate(ModelTransform, RotateXZ);
+		//glm::vec3 RotateXZ = glm::vec3(10.0f * cos(glfwGetTime()), 0.0f, -10.0f * sin(glfwGetTime()));
 
-			uniform_set_mat4f(AppState.LightShader.id, "ModelTransform", ModelTransform);
-			uniform_set_mat4f(AppState.LightShader.id, "MapToCamera", MapToCamera);
-			uniform_set_mat4f(AppState.LightShader.id,"MapToPersp", MapToPersp);
+		//glm::vec3 RotateXZ = glm::vec3(10.0f * cos(glfwGetTime()), 0.0f, -10.0f * sin(glfwGetTime()));
+		//ModelTransform = glm::translate(ModelTransform, RotateXZ);
 
-			glBindVertexArray(LightVertexArray.id);
-			glDrawArrays(GL_TRIANGLES, 0, 36);
-		}
+		uniform_set_mat4f(AppState.LightShader.id, "ModelTransform", ModelTransform);
+		uniform_set_mat4f(AppState.LightShader.id, "MapToCamera", MapToCamera);
+		uniform_set_mat4f(AppState.LightShader.id,"MapToPersp", MapToPersp);
 
-#endif
+		glBindVertexArray(LightVertexArray.id);
+		glDrawArrays(GL_TRIANGLES, 0, 36);
 
         glfwPollEvents();
         glfwSwapBuffers(Window.handle);

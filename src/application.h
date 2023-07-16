@@ -39,87 +39,6 @@ typedef double f64;
 
 typedef struct
 {
-	GLuint id;
-	b32 binded;
-	void *memory;
-	u32 size;
-} vertex_buffer_t;
-
-typedef struct
-{
-	// TODO(Justin): attribute_count?
-	u32 element_count_per_attribute;
-	GLenum attribute_type;
-	GLenum normalized;
-	u32 size_for_each_vertex;
-	void* attribute_stride;
-} vertex_buffer_layout_t;
-
-typedef struct
-{
-	GLuint id;
-	vertex_buffer_layout_t VertexBufferLayout;
-
-} vertex_array_t;
-
-typedef struct
-{
-} element_array_t;
-
-
-
-// TODO(Justin): Not sure where the attribute_count should be. In a the vertex
-// buffer layout or in the mesh vertex definition. 
-typedef struct
-{
-	glm::vec3 Position;
-	glm::vec3 Normal;
-	glm::vec2 TexCoord;
-} mesh_vertex_t;
-
-typedef struct
-{
-	// TODO(Justin): Implement this.
-} mesh_t;
-
-typedef struct
-{
-	// TODO(Justin): Implement this.
-} model_t;
-
-typedef struct
-{
-	GLuint id;
-	const char *vertex_shader_filename;
-	const char *fragment_shader_filename;
-	b32 reloaded;
-} shader_program_t;
-
-typedef struct
-{
-	GLFWwindow* handle;
-	s32 width, height;
-} window_t;
-
-enum texture_type_t
-{
-	TEXTURE_TYPE_DIFFUSE,
-	TEXTURE_TYPE_SPECULAR
-};
-
-typedef struct
-{
-	GLuint id;
-	s32 width, height;
-	s32 channel_count;
-	u32 mipmap_level;
-	u8* memory;
-	texture_type_t type;
-
-} texture_t;
-
-typedef struct
-{
 	glm::vec3 Pos;
 	glm::vec3 Direction;
 	glm::vec3 Up;
@@ -170,10 +89,125 @@ typedef struct
 
 typedef struct
 {
-	texture_t Textures[16];
+	GLuint id;
+	b32 binded;
+	void *memory;
+	u32 size;
+} vertex_buffer_t;
+
+typedef struct
+{
+	// TODO(Justin): attribute_count?
+	u32 element_count_per_attribute;
+	GLenum attribute_type;
+	GLenum normalized;
+	u32 size_for_each_vertex;
+	void* attribute_stride;
+} vertex_buffer_layout_t;
+
+typedef struct
+{
+	GLuint id;
+	vertex_buffer_layout_t VertexBufferLayout;
+
+} vertex_array_t;
+
+// TODO(Justin): index buffer/ element array buffer...j
+typedef struct
+{
+	u32* indices;
+	u32 count;
+} index_buffer_t;
+
+
+
+// TODO(Justin): Not sure where the attribute_count should be. In a the vertex
+// buffer layout or in the mesh vertex definition. 
+typedef struct
+{
+	glm::vec3 Position;
+	glm::vec3 Normal;
+	glm::vec2 TexCoord;
+} mesh_vertex_t;
+
+
+
+typedef struct
+{
+	GLuint id;
+	const char *vertex_shader_filename;
+	const char *fragment_shader_filename;
+	b32 reloaded;
+} shader_program_t;
+
+typedef struct
+{
+	GLFWwindow* handle;
+	s32 width, height;
+} window_t;
+
+enum texture_type_t
+{
+	TEXTURE_TYPE_DIFFUSE,
+	TEXTURE_TYPE_SPECULAR,
+
+	TEXTURE_TYPE_COUNT
+};
+
+typedef struct
+{
+	GLuint id;
+	s32 width, height;
+	s32 channel_count;
+	u32 mipmap_level;
+	u8* memory;
+	const char* path;
+	texture_type_t type;
+} texture_t;
+
+typedef struct
+{
+	u32 diffuse_maps_count;
+	u32 specular_maps_count;
+
+	texture_t *DiffuseMaps;
+	texture_t *SpecularMaps;
+} material_t;
+
+typedef struct
+{
+	u32 vertices_count;
+	u32 indices_count;
+	u32 texture_count;
+	//u32 texture_diffuse_count;
+	//u32 texture_specular_count;
+
+	u32 *Indices;
+	mesh_vertex_t *Vertices;
+	texture_t *Textures;
+	//texture_t *TexturesDiffuse;
+	//texture_t *TexturesSpecular; 
+	
+	// TODO(Justin): Each mesh has a shader reason why is because each mesh has
+	// a different set of data attached to it?
+} mesh_t;
+
+typedef struct
+{
+	// TODO(Justin): Implement this.
+	u32 mesh_count;
+	mesh_t *Meshes;
+} model_t;
+
+
+typedef struct
+{
+	// Count or index??
+	u32 loaded_texture_count;
+	texture_t LoadedTextures[16];
+	shader_program_t BackPackShader;
 	shader_program_t LightShader;
 	shader_program_t CubeShader;
-	shader_program_t ShaderProgram;
 	camera_t Camera;
 } app_state_t;
 
