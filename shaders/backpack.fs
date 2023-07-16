@@ -2,14 +2,19 @@
 
 out vec4 Color;
 
-in vec3 vertex_n;
-in vec3 frag_pos;
-in vec2 tex_cood;
+in vec3 v_Norm;
+in vec3 v_FragPos;
+in vec2 v_TexCoord;
 
 struct material
 {
-	sampler2D Diffuse;
-	sampler2D Specular;
+	sampler2D Diffuse1;
+	sampler2D Diffuse2;
+	sampler2D Diffuse3;
+
+	sampler2D Specular1;
+	sampler2D Specular2;
+	sampler2D Specular3;
 
 	float shininess;
 };
@@ -59,8 +64,6 @@ uniform light_point			u_LightPoint;
 uniform light_directional	u_LightDirectional;
 uniform light_spot			u_LightSpot;
 
-#define LIGHT_POINT_COUNT 4
-uniform light_point u_LightPointArray[LIGHT_POINT_COUNT];
 
 vec3 light_directional_calc(light_directional LightDir, vec3 Normal, vec3 FragToCameraDir, vec3 TexelDiffuse, vec3 TexelSpecular)
 {
@@ -87,7 +90,7 @@ vec3 light_directional_calc(light_directional LightDir, vec3 Normal, vec3 FragTo
 
 vec3 light_point_calc(light_point LightPoint, vec3 Normal, vec3 FragToCameraDir, vec3 TexelDiffuse, vec3 TexelSpecular)
 {
-	vec3 FragToLightDir = normalize(LightPoint.Pos - frag_pos);
+	vec3 FragToLightDir = normalize(LightPoint.Pos - v_FragPos);
 	float diffuse = max(dot(FragToLightDir, Normal), 0.0);
 	vec3 Reflect = reflect(-FragToLightDir, Normal);
 
@@ -112,19 +115,13 @@ void main()
 {
 	vec3 Result;
 
-	vec3 TexelDiffuse = vec3(texture(u_Material.Diffuse, tex_cood));
-	vec3 TexelSpecular = vec3(texture(u_Material.Specular, tex_cood));
+	vec3 TexelDiffuse = vec3(texture(u_Material.Diffuse1, v_TexCoord));
+	vec3 TexelSpecular = vec3(texture(u_Material.Specular1, v_TexCoord));
 
-	vec3 Normal = normalize(vertex_n);
-	vec3 FragToLightDir = normalize(-u_LightDirectional.Direction);
-	vec3 FragToCameraDir = normalize(u_CameraPos - frag_pos);
+	vec3 Normal = normalize(v_Norm);
+	vec3 FragToCameraDir = normalize(u_CameraPos - v_FragPos);
 
-	Result = light_directional_calc(u_LightDirectional, Normal, FragToCameraDir, TexelDiffuse, TexelSpecular);
-
-	for(int i = 0; i < LIGHT_POINT_COUNT; i++)
-	{
-		Result += light_point_calc(u_LightPointArray[i], Normal, FragToCameraDir, TexelDiffuse, TexelSpecular);
-	}
+	Result += light_point_calc(u_LightPoint, Normal, FragToCameraDir, TexelDiffuse, TexelSpecular);
 
 	Color = vec4(Result, 1.0f);
 }
