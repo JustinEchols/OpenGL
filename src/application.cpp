@@ -1,6 +1,6 @@
 /*
 TODO:
- -Vertex Buffers
+ - Vertex Buffers
 	Lock Modify Unlock
 	Set data
 	streaming
@@ -8,12 +8,13 @@ TODO:
 	.
 	. 
 
- -Picking Cache for
+ - Picking Cache for
 	Selecting object
 		Mouse point to object
 		Click object
 		Send ray to see if it interseects
 	
+ - Testing framework
 */
 
 #include <GL/glew.h>
@@ -814,116 +815,6 @@ glfw_process_input(GLFWwindow *Window, app_state_t *AppState, f32 time_delta)
 	}
 }
 
-
-#if 0
-internal mesh_t
-mesh_process(aiMesh *Mesh)
-{
-	mesh_t Result = {};
-	u32 vertices_count = Mesh->mNumVertices;
-	u32 indices_count = Mesh->mNumFaces * 3;
-
-	// Allocate memory for Mesh vertices and indices
-	size_t vertex_size = sizeof(mesh_vertex_t);
-	u32 vertex_buffer_memory_size = vertex_size * vertices_count;
-	mesh_vertex_t* MeshVertices = (mesh_vertex_t*)calloc((size_t)vertices_count, vertex_size);
-
-	size_t index_size = sizeof(u32);
-	u32 index_buffer_memory_size = index_size * indices_count;
-	u32 *MeshIndices = (u32 *)calloc((size_t)indices_count, index_size);
-
-
-	// Mesh Pos, Normals, TexCood
-	// TODO(Justin): Experiment to see if you can just deference pointers and copy instead of copying component wise
-	mesh_vertex_t* DestMeshVertex = MeshVertices;
-	for (u32 i = 0; i < vertices_count; i++)
-	{
-		DestMeshVertex->Position.x = Mesh->mVertices[i].x;
-		DestMeshVertex->Position.y = Mesh->mVertices[i].y;
-		DestMeshVertex->Position.z = Mesh->mVertices[i].z;
-
-		DestMeshVertex->Normal.x = Mesh->mNormals[i].x;
-		DestMeshVertex->Normal.y = Mesh->mNormals[i].y;
-		DestMeshVertex->Normal.z = Mesh->mNormals[i].z;
-
-		if (Mesh->mTextureCoords[0])
-		{
-			// TODO(Justin): This check every loop is completley redundant?  Is
-			// doing in loop but in think this is wrong. you should only check
-			// this once, before the loop and then if they do exist then just
-			// process them in the loop. This assumes that the number of tex
-			// coords willbe the same as thenumber of cvertices thought will
-			// need to verify this.
-			DestMeshVertex->TexCoord.x = Mesh->mTextureCoords[0][i].x;
-			DestMeshVertex->TexCoord.y = Mesh->mTextureCoords[0][i].y;
-		}
-		else
-		{
-			DestMeshVertex->TexCoord = glm::vec2(0.0f, 0.0f);
-		}
-		DestMeshVertex++;
-	}
-
-
-	u32* DestMeshIndex = MeshIndices;
-	for (u32 i = 0; i < Mesh->mNumFaces; i++)
-	{
-		aiFace *MeshFace = &Mesh->mFaces[i];
-
-		u32* SrcMeshIndex = MeshFace->mIndices;
-		for (u32 j = 0; j < MeshFace->mNumIndices; j++)
-		{
-			// This line does not workk
-			//*MeshIndices++ = *MeshFace->mIndices++;
-
-			// These three do. Why?
-			*DestMeshIndex = *SrcMeshIndex;
-			DestMeshIndex++;
-			SrcMeshIndex++;
-		}
-	}
-
-	GLuint MeshVAO, MeshVBO, MeshEBO;
-	glGenVertexArrays(1, &MeshVAO);
-	glGenBuffers(1, &MeshVBO);
-	glGenBuffers(1, &MeshEBO);
-
-	glBindVertexArray(MeshVAO);
-	glBindBuffer(GL_ARRAY_BUFFER, MeshVBO);
-
-	glBufferData(GL_ARRAY_BUFFER, vertices_count * vertex_size, MeshVertices, GL_STATIC_DRAW);
-
-	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, MeshEBO);
-	glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices_count * sizeof(u32), MeshIndices, GL_STATIC_DRAW);
-
-	glEnableVertexAttribArray(0);
-	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(mesh_vertex_t), (void*)0);
-
-	glEnableVertexAttribArray(1);
-	glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(mesh_vertex_t), (void*)OffsetOfMember(mesh_vertex_t, Normal));
-
-	glEnableVertexAttribArray(2);
-	glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, sizeof(mesh_vertex_t), (void*)OffsetOfMember(mesh_vertex_t, TexCoord));
-
-	glBindVertexArray(0);
-
-
-
-}
-#endif
-
-#if 0
-internal texture_t *
-mesh_material_texture_load(app_state_t *AppState, aiMaterial *MeshMaterial)
-{
-	texture_t *Result;
-
-	u32 texture_diffuse_count = MeshMaterial->GetTextureCount(aiTextureType_DIFFUSE);
-	u32 texture_specular_count = MeshMaterial->GetTextureCount(aiTextureType_SPECULAR);
-
-
-}
-#endif
 internal texture_type_t
 assimp_texture_type_convert(aiTextureType texture_type)
 {
@@ -934,17 +825,97 @@ assimp_texture_type_convert(aiTextureType texture_type)
 	{
 		Result = TEXTURE_TYPE_DIFFUSE;
 	}
-	else(texture_type == aiTextureType_SPECULAR)
+	else if(texture_type == aiTextureType_SPECULAR)
 	{
 		Result = TEXTURE_TYPE_SPECULAR;
 	}
 	return(Result);
 }
 
-internal void
-mesh_process_texture_map(app_state_t *AppState, aiMaterial *MeshMaterial, texture_t *Texture, 
-		u32 texture_count, aiTextureType texture_type, aiString path_to_texture)
+internal mesh_indices_t
+mesh_process_indices(aiMesh *Mesh)
 {
+	mesh_indices_t MeshIndices = {};
+
+	size_t index_size = sizeof(u32);
+
+	// TODO(Justin): Thinjk about whether or not we need to store the index
+	// buffer memory size. We can always calculate it because we are storing the 
+	// index count and we know the size of an index therefore we can always
+	// calculate the size of the memory.
+
+	u32 indices_count = Mesh->mNumFaces * 3;
+	u32 index_buffer_memory_size = index_size * indices_count;
+
+	MeshIndices.indices = (u32 *)calloc((size_t)indices_count, index_size);
+	MeshIndices.indices_count = indices_count;
+
+	u32* DestMeshIndex = MeshIndices.indices;
+
+	//  Loop through each face
+	for (u32 i = 0; i < Mesh->mNumFaces; i++)
+	{
+		aiFace *MeshFace = &Mesh->mFaces[i];
+		u32* SrcMeshIndex = MeshFace->mIndices;
+		// For each face, loop through the indices. When using GL_TRIANGULATE
+		// the number of indices is always 3.
+		for (u32 j = 0; j < MeshFace->mNumIndices; j++)
+		{
+			// TODO(Justin): Check *MeshIndices++ = *MeshFace->mIndices++;
+			*DestMeshIndex = *SrcMeshIndex;
+			DestMeshIndex++;
+			SrcMeshIndex++;
+		}
+	}
+	return(MeshIndices);
+}
+
+internal mesh_vertices_t 
+mesh_process_vertices(aiMesh *Mesh)
+{
+	mesh_vertices_t MeshVertices = {};
+
+	u32 vertices_count = Mesh->mNumVertices;
+	size_t vertex_size = sizeof(mesh_vertex_t);
+	u32 vertex_buffer_memory_size = vertex_size * vertices_count;
+
+	// Allocate an array of mesh_vertex_t vertices (postion, normal, and texture coordinates)
+	MeshVertices.Vertices = (mesh_vertex_t*)calloc((size_t)vertices_count, vertex_size);
+	MeshVertices.vertices_count = vertices_count;
+
+	mesh_vertex_t *MeshVertex = MeshVertices.Vertices;
+	for (u32 i = 0; i < vertices_count; i++)
+	{
+		MeshVertex->Position.x = Mesh->mVertices[i].x;
+		MeshVertex->Position.y = Mesh->mVertices[i].y;
+		MeshVertex->Position.z = Mesh->mVertices[i].z;
+
+		MeshVertex->Normal.x = Mesh->mNormals[i].x;
+		MeshVertex->Normal.y = Mesh->mNormals[i].y;
+		MeshVertex->Normal.z = Mesh->mNormals[i].z;
+
+		if (Mesh->mTextureCoords[0])
+		{
+			// TODO(Justin): This check every loop is completley redundant?
+			MeshVertex->TexCoord.x = Mesh->mTextureCoords[0][i].x;
+			MeshVertex->TexCoord.y = Mesh->mTextureCoords[0][i].y;
+		}
+		else
+		{
+			MeshVertex->TexCoord = glm::vec2(0.0f, 0.0f);
+		}
+		MeshVertex++;
+	}
+	return(MeshVertices);
+}
+
+
+internal void
+mesh_process_texture_map(app_state_t *AppState, aiMaterial *MeshMaterial,
+		mesh_textures_t *MeshTextures, u32 texture_count, aiTextureType texture_type,
+		aiString path_to_texture)
+{
+	texture_t* Texture = &MeshTextures->Textures[MeshTextures->texture_count];
 	for(u32 i = 0; i < texture_count; i++)
 	{
 		aiString texture_filename;
@@ -954,7 +925,6 @@ mesh_process_texture_map(app_state_t *AppState, aiMaterial *MeshMaterial, textur
 		b32 texture_is_loaded = false;
 		for(u32 j = 0; j < AppState->loaded_texture_count; j++)
 		{
-			// Change to name??
 			const char * loaded_texture_path = AppState->LoadedTextures[j].path;
 			if(loaded_texture_path)
 			{
@@ -964,23 +934,165 @@ mesh_process_texture_map(app_state_t *AppState, aiMaterial *MeshMaterial, textur
 					// previously loaded state.
 					texture_is_loaded = true;
 					*Texture = AppState->LoadedTextures[j];
+					MeshTextures->texture_count++;
 					break;
 				}
 			}
 		}
 		if(!texture_is_loaded)
 		{
-			// Texture does not exist, load the texture into the mesh
-			// diffuse array and also into the loaded textures of the app
-			// state
+			// Texture does not exist, load the texture into the mesh array and also into the loaded 
+			// textures of the app state.
 			texture_type_t TextureType = assimp_texture_type_convert(texture_type);
 			*Texture = texture_simple_init(path_to_texture.C_Str(), TextureType);
+			MeshTextures->texture_count++;
 			AppState->LoadedTextures[AppState->loaded_texture_count] = *Texture;
 			AppState->loaded_texture_count++;
 		}
 		Texture++;
 	}
 }
+
+internal mesh_textures_t
+mesh_process_material(app_state_t *AppState, aiMaterial *MeshMaterial)
+{
+	mesh_textures_t MeshTextures = {};
+
+	u32 texture_diffuse_count = MeshMaterial->GetTextureCount(aiTextureType_DIFFUSE);
+	u32 texture_specular_count = MeshMaterial->GetTextureCount(aiTextureType_SPECULAR);
+
+	size_t texture_size = sizeof(texture_t);
+	u32 texture_count = texture_diffuse_count + texture_specular_count;
+	u32 texture_memory_size = texture_count * texture_size;
+
+	MeshTextures.Textures = (texture_t*)calloc((size_t)texture_count, texture_size);
+
+	aiString path_to_texture = aiString("models/backpack/");
+
+	mesh_process_texture_map(AppState, MeshMaterial, &MeshTextures, texture_diffuse_count, aiTextureType_DIFFUSE, 
+			path_to_texture);
+
+	mesh_process_texture_map(AppState, MeshMaterial, &MeshTextures, texture_specular_count, aiTextureType_SPECULAR,
+			path_to_texture);
+
+	return(MeshTextures);
+}
+
+internal void
+node_process(app_state_t *AppState, const aiScene *Scene, aiNode *Node, model_t *Model)
+{
+	mesh_t* ModelMesh = &Model->Meshes[Model->mesh_count];
+	for (u32 i = 0; i < Node->mNumMeshes; i++)
+	{
+		aiMesh* Mesh = Scene->mMeshes[Node->mMeshes[i]];
+
+		mesh_vertices_t MeshVertices = mesh_process_vertices(Mesh);
+		mesh_indices_t MeshIndices = mesh_process_indices(Mesh);
+
+		// TODO(Justin): Clean this up.
+		GLuint MeshVAO, MeshVBO, MeshEBO;
+		glGenVertexArrays(1, &MeshVAO);
+		glGenBuffers(1, &MeshVBO);
+		glGenBuffers(1, &MeshEBO);
+
+		glBindVertexArray(MeshVAO);
+		glBindBuffer(GL_ARRAY_BUFFER, MeshVBO);
+
+		glBufferData(GL_ARRAY_BUFFER, MeshVertices.vertices_count * sizeof(mesh_vertex_t), MeshVertices.Vertices, GL_STATIC_DRAW);
+
+		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, MeshEBO);
+		glBufferData(GL_ELEMENT_ARRAY_BUFFER, MeshIndices.indices_count * sizeof(u32), MeshIndices.indices, GL_STATIC_DRAW);
+
+		glEnableVertexAttribArray(0);
+		glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(mesh_vertex_t), (void*)0);
+
+		glEnableVertexAttribArray(1);
+		glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(mesh_vertex_t), (void*)OffsetOfMember(mesh_vertex_t, Normal));
+
+		glEnableVertexAttribArray(2);
+		glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, sizeof(mesh_vertex_t), (void*)OffsetOfMember(mesh_vertex_t, TexCoord));
+
+		glBindVertexArray(0);
+
+		//
+		// NOTE(Justin): Materials
+		//
+
+		mesh_textures_t MeshTextures = {};
+		// Do this iff a material exits. Why >= 0?
+		if (Mesh->mMaterialIndex >= 0)
+		{
+			aiMaterial* MeshMaterial = Scene->mMaterials[Mesh->mMaterialIndex];
+			MeshTextures = mesh_process_material(AppState, MeshMaterial);
+		}
+
+		ModelMesh->MeshVBO = MeshVBO;
+		ModelMesh->MeshEBO = MeshEBO;
+		ModelMesh->MeshVAO = MeshVAO;
+
+		ModelMesh->MeshVertices = MeshVertices;
+		ModelMesh->MeshIndices = MeshIndices;
+		ModelMesh->MeshTextures = MeshTextures;
+
+		shader_program_t MeshShader;
+		const char* backpack_vertex_shader_filename = "shaders/backpack.vs";
+		const char* backpack_fragment_shader_filename = "shaders/backpack.fs";
+		MeshShader = shader_program_create_from_files(backpack_vertex_shader_filename, backpack_fragment_shader_filename);
+		gl_log_shader_info(MeshShader.id);
+
+		ModelMesh->MeshShader = MeshShader;
+		
+		Model->mesh_count++;
+	}
+	for(u32 i = 0; i < Node->mNumChildren; i++)
+	{
+		node_process(AppState, Scene, Node->mChildren[i], Model);
+	}
+}
+
+internal void
+mesh_draw(app_state_t *AppState, mesh_t *Mesh, glm::mat4 MapToCamera, glm::mat4 MapToPersp, glm::vec3 LightPosition)
+{
+	shader_program_t Shader = Mesh->MeshShader;
+	glUseProgram(Shader.id);
+
+	glm::mat4 ModelTransform = glm::mat4(1.0f);
+
+	uniform_set_mat4f(Shader.id, "ModelTransform", ModelTransform);
+	uniform_set_mat4f(Shader.id, "MapToCamera", MapToCamera);
+	uniform_set_mat4f(Shader.id,"MapToPersp", MapToPersp);
+
+	uniform_set_vec3f(Shader.id, "u_CameraPos", AppState->Camera.Pos);
+	uniform_set_f32(Shader.id, "u_Material.shininess", 32.0f);
+
+	LightPosition.x = 5.0f * cos(glfwGetTime());
+	LightPosition.y = 0.0f;
+	LightPosition.z = -5.0f * sin(glfwGetTime());
+
+	uniform_set_vec3f(Shader.id, "u_LightPoint.Pos", LightPosition);
+	uniform_set_vec3f(Shader.id, "u_LightPoint.Ambient", glm::vec3(0.2f, 0.2f, 0.2f));
+	uniform_set_vec3f(Shader.id, "u_LightPoint.Diffuse", glm::vec3(0.5f, 0.5f, 0.5f));
+	uniform_set_vec3f(Shader.id, "u_LightPoint.Specular", glm::vec3(1.0f, 1.0f, 1.0f));
+
+	uniform_set_f32(Shader.id, "u_LightPoint.atten_constant", 1.0f);
+	uniform_set_f32(Shader.id, "u_LightPoint.atten_linear", 0.09f);
+	uniform_set_f32(Shader.id, "u_LightPoint.atten_quadratic", 0.032f);
+
+	// TODO(Justin): Loop through all the textures for each mesh and set them.
+	if (Mesh->MeshTextures.texture_count)
+	{
+		texture_t* MeshTexture = Mesh->MeshTextures.Textures;
+		texture_set_active_and_bind(0, MeshTexture);
+		MeshTexture++;
+		texture_set_active_and_bind(1, MeshTexture);
+	}
+
+	glBindVertexArray(Mesh->MeshVAO);
+	glDrawElements(GL_TRIANGLES, Mesh->MeshIndices.indices_count, GL_UNSIGNED_INT, 0);
+	glBindVertexArray(0);
+}
+
+
 
 int main(void)
 {
@@ -1000,7 +1112,7 @@ int main(void)
 	glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 	glfwWindowHint(GLFW_SAMPLES, 4);
 
-	//TODO(Justin): Need a build option to for debug build. The debug context is usefule but slow
+	// TODO(Justin): Need a build option to for debug build. The debug context is usefule but slow
 	glfwWindowHint(GLFW_OPENGL_DEBUG_CONTEXT, true);
 
 	window_t Window = {};
@@ -1027,7 +1139,7 @@ int main(void)
 		printf("Oops\n");
 	}
 
-	//TODO(Justin): OpenGL info struct
+	// TODO(Justin): OpenGL info struct
 	const GLubyte *renderer_name = glGetString(GL_RENDERER);
 	const GLubyte* renderer_version = glGetString(GL_VERSION);
 	printf("Renderer = %s\n", renderer_name);
@@ -1037,173 +1149,47 @@ int main(void)
 	glDepthFunc(GL_LESS);
 
 	app_state_t AppState = {};
+
 	//
 	// NOTE(Justin): Model Initalization
 	//
 
 	// TODO(Justin) ALso implement an SOA model loading
-#if 1
+
 	Assimp::Importer Importer;
 	const aiScene* Scene = Importer.ReadFile("models/backpack/backpack.obj", ASSIMP_LOAD_FLAGS);
 
+	// TODO(Justin): Allocate all the required memory upfront? This is the
+	// current implementation. Moreoever when processing the mesh data we are
+	// allocating even more memory for the attributes which is wasteful.
+	// Therefore change the implementation slightly so as to not do this.
+
+	// TODO(Justin): Instead of allocating, push onto memory arena previously
+	// allocated.
+
+	model_t BackpackModel;
+
 	u32 mesh_count = Scene->mNumMeshes;
+	size_t mesh_size = sizeof(mesh_t);
+	BackpackModel.Meshes = (mesh_t *)calloc((size_t)mesh_count, mesh_size);
+	BackpackModel.mesh_count = 0;
 
-	// NOTE(Justin): This mesh is a mesh of the first child node.
-	// NOTE a mesh of the root node. The root node does not have a mesh.
-	// Each node has an mMeshes array. This is an array of INDICES in to 
-	// the top/root arrary Scene->mMeshes. each node has this index array
-	// because each node can have 0 to n1 meshes the number of meshes for each
-	// mode is stored in 
+	// TODO(Justin): We have allocated all the memory for the model here before
+	// even trying to load everythinhg. IN the processing phase of model we
+	// allocate memory for vertices which but we already have allocated this
+	// memory before the processing starts in the lines above. So do not
+	// allocate in the middle of processingf the model. 
 
-	// Mesh of first childe node
-	const aiMesh* Mesh = Scene->mMeshes[0];
-	u32 vertices_count = Mesh->mNumVertices;
-	u32 indices_count = Mesh->mNumFaces * 3;
+	aiNode *Node = Scene->mRootNode;
 
+	// TODO(Justin): model_process
+	node_process(&AppState, Scene, Node, &BackpackModel);
 
-	// Allocate memory for single mesh
-	size_t vertex_size = sizeof(mesh_vertex_t);
-	u32 vertex_buffer_memory_size = vertex_size * vertices_count;
-	mesh_vertex_t* MeshVertices = (mesh_vertex_t*)calloc((size_t)vertices_count, vertex_size);
+	ASSERT(mesh_count == BackpackModel.mesh_count);
 
-	size_t index_size = sizeof(u32);
-	u32 index_buffer_memory_size = index_size * indices_count;
-	u32 *MeshIndices = (u32 *)calloc((size_t)indices_count, index_size);
-
-
-	// Mesh Pos, Normals, TexCood
-	// TODO(Justin): Experiment to see if you can just deference pointers and copy instead of copying component wise
-	mesh_vertex_t* DestMeshVertex = MeshVertices;
-	for (u32 i = 0; i < vertices_count; i++)
-	{
-		DestMeshVertex->Position.x = Mesh->mVertices[i].x;
-		DestMeshVertex->Position.y = Mesh->mVertices[i].y;
-		DestMeshVertex->Position.z = Mesh->mVertices[i].z;
-
-		DestMeshVertex->Normal.x = Mesh->mNormals[i].x;
-		DestMeshVertex->Normal.y = Mesh->mNormals[i].y;
-		DestMeshVertex->Normal.z = Mesh->mNormals[i].z;
-
-		if (Mesh->mTextureCoords[0])
-		{
-			// TODO(Justin): This check every loop is completley redundant?
-			DestMeshVertex->TexCoord.x = Mesh->mTextureCoords[0][i].x;
-			DestMeshVertex->TexCoord.y = Mesh->mTextureCoords[0][i].y;
-		}
-		else
-		{
-			DestMeshVertex->TexCoord = glm::vec2(0.0f, 0.0f);
-		}
-		DestMeshVertex++;
-	}
-
-	u32* DestMeshIndex = MeshIndices;
-
-	for (u32 i = 0; i < Mesh->mNumFaces; i++)
-	{
-		aiFace *MeshFace = &Mesh->mFaces[i];
-
-		u32* SrcMeshIndex = MeshFace->mIndices;
-		for (u32 j = 0; j < MeshFace->mNumIndices; j++)
-		{
-			// This line does not workk
-			//*MeshIndices++ = *MeshFace->mIndices++;
-
-			// These three do. Why?
-			*DestMeshIndex = *SrcMeshIndex;
-			DestMeshIndex++;
-			SrcMeshIndex++;
-		}
-	}
-
-	// TODO(Justin): Put these in mesh struct. should we use the buffer layout
-	// structs too?
-
-	GLuint MeshVAO, MeshVBO, MeshEBO;
-	glGenVertexArrays(1, &MeshVAO);
-	glGenBuffers(1, &MeshVBO);
-	glGenBuffers(1, &MeshEBO);
-
-	glBindVertexArray(MeshVAO);
-	glBindBuffer(GL_ARRAY_BUFFER, MeshVBO);
-
-	glBufferData(GL_ARRAY_BUFFER, vertices_count * vertex_size, MeshVertices, GL_STATIC_DRAW);
-
-	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, MeshEBO);
-	glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices_count * sizeof(u32), MeshIndices, GL_STATIC_DRAW);
-
-	glEnableVertexAttribArray(0);
-	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(mesh_vertex_t), (void*)0);
-
-	glEnableVertexAttribArray(1);
-	glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(mesh_vertex_t), (void*)OffsetOfMember(mesh_vertex_t, Normal));
-
-	glEnableVertexAttribArray(2);
-	glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, sizeof(mesh_vertex_t), (void*)OffsetOfMember(mesh_vertex_t, TexCoord));
-
-	glBindVertexArray(0);
-
-	//
-	// NOTE(Justin): Materials
-	//
-
-	//TODO(Justin): Instead of allocating, push onto memory arena previously
-	//allocated.
+	AppState.Models[AppState.model_count] = BackpackModel;
+	AppState.model_count++;
 	
-	// DO this iff a material exits
-	// Why >= 0?
-	//if(Mesh->mMaterialIndex >= 0)
-	//{
-	aiMaterial* MeshMaterial = Scene->mMaterials[Mesh->mMaterialIndex];
-
-	u32 texture_diffuse_count = MeshMaterial->GetTextureCount(aiTextureType_DIFFUSE);
-	u32 texture_specular_count = MeshMaterial->GetTextureCount(aiTextureType_SPECULAR);
-
-	size_t texture_size = sizeof(texture_t);
-	u32 texture_count = texture_diffuse_count + texture_specular_count;
-	u32 texture_memory_size = texture_count * texture_size;
-	texture_t* MeshTextures = (texture_t*)calloc((size_t)texture_count, texture_size);
-
-	aiString path_to_texture = aiString("models/backpack/");
-
-	texture_t *Texture = MeshTextures;
-	mesh_process_texture_map(&AppState, MeshMaterial, Texture, texture_diffuse_count, aiTextureType_DIFFUSE, 
-																					path_to_texture);
-
-	// TODO(Justin): Make sure that path_to_texture can be passed here i.e. make sure the string is still models/backpack/
-	//aiString path_to_specular_texture("models/backpack/");
-	mesh_process_texture_map(&AppState, MeshMaterial, Texture, texture_specular_count, aiTextureType_SPECULAR,
-																					path_to_texture);
-
-	mesh_t BackPackFirstMesh;
-	
-	BackPackFirstMesh.vertices_count = vertices_count;
-	BackPackFirstMesh.indices_count = indices_count;
-	BackPackFirstMesh.texture_count = texture_count;
-	// TODO(Justin): Not sure if we want to have separate arrays of different
-	// texture types. Could just have one arrray and inteligently index it?
-	//BackPackFirstMesh.texture_diffuse_count = texture_diffuse_count;
-	//BackPackFirstMesh.texture_specular_count = texture_specular_count;
-	//BackPackFirstMesh.TexturesDiffuse = MeshTexturesDiffuse;
-	//BackPackFirstMesh.TexturesSpecular = MeshTexturesSpecular; 
-
-	BackPackFirstMesh.Vertices = MeshVertices;
-	BackPackFirstMesh.Indices = MeshIndices;
-	BackPackFirstMesh.Textures= MeshTextures;
-
-	shader_program_t BackPackShader;
-	const char * backpack_vertex_shader_filename = "shaders/backpack.vs";
-	const char * backpack_fragment_shader_filename = "shaders/backpack.fs";
-	BackPackShader = shader_program_create_from_files(backpack_vertex_shader_filename,
-													  backpack_fragment_shader_filename);
-
-
-	gl_log_shader_info(BackPackShader.id);
-
-
-
-#endif
-
 	//
 	// NOTE(Justin): Buffer initialization
 	//
@@ -1291,7 +1277,6 @@ int main(void)
 
 	AppState.LightShader = LightShader;
 	AppState.CubeShader = CubeShader;
-	AppState.BackPackShader = BackPackShader;
 	AppState.Camera = Camera;
 
 
@@ -1326,9 +1311,11 @@ int main(void)
 
 
 #if 1
-	glUseProgram(AppState.BackPackShader.id);
-	uniform_set_s32(AppState.BackPackShader.id, "u_Material.Diffuse1", 0);
-	uniform_set_s32(AppState.BackPackShader.id, "u_Material.Specular1", 1);
+	// Will need to loop through each mesh and do this. Wait.. why does the model render even thought we only set some of the materials here?
+
+	glUseProgram(AppState.Models[0].Meshes->MeshShader.id);
+	uniform_set_s32(AppState.Models[0].Meshes->MeshShader.id, "u_Material.Diffuse1", 0);
+	uniform_set_s32(AppState.Models[0].Meshes->MeshShader.id, "u_Material.Specular1", 1);
 #endif
 
 	f32 time_delta = 0.0f;
@@ -1341,115 +1328,23 @@ int main(void)
 		// NOTE(Justin): Render
 		//
 
-		glClearColor(0.5f, 0.5f, 0.5f, 1.0f);
+		glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-		//
-		// NOTE(Justin): First mesh of BackPack.
-		//
-
-
-
-#if 1
-		glUseProgram(AppState.BackPackShader.id);
-
-		glm::mat4 ModelTransform = glm::mat4(1.0f);
-		ModelTransform = glm::translate(ModelTransform, E1 + E2);
-
-		uniform_set_mat4f(AppState.BackPackShader.id, "ModelTransform", ModelTransform);
-		uniform_set_mat4f(AppState.BackPackShader.id, "MapToCamera", MapToCamera);
-		uniform_set_mat4f(AppState.BackPackShader.id,"MapToPersp", MapToPersp);
-
-		uniform_set_vec3f(AppState.BackPackShader.id, "u_CameraPos", AppState.Camera.Pos);
-		uniform_set_f32(AppState.BackPackShader.id, "u_Material.shininess", 32.0f);
-
-		LightPositions[0].x = cos(glfwGetTime());
-		LightPositions[0].y = E2.y;
-		LightPositions[0].z = -sin(glfwGetTime());
-
-		uniform_set_vec3f(AppState.BackPackShader.id, "u_LightPoint.Pos", LightPositions[0]);
-		uniform_set_vec3f(AppState.BackPackShader.id, "u_LightPoint.Ambient", glm::vec3(0.2f, 0.2f, 0.2f));
-		uniform_set_vec3f(AppState.BackPackShader.id, "u_LightPoint.Diffuse", glm::vec3(0.5f, 0.5f, 0.5f));
-		uniform_set_vec3f(AppState.BackPackShader.id, "u_LightPoint.Specular", glm::vec3(1.0f, 1.0f, 1.0f));
-
-		uniform_set_f32(AppState.BackPackShader.id, "u_LightPoint.atten_constant", 1.0f);
-		uniform_set_f32(AppState.BackPackShader.id, "u_LightPoint.atten_linear", 0.09f);
-		uniform_set_f32(AppState.BackPackShader.id, "u_LightPoint.atten_quadratic", 0.032f);
-
-		texture_t *BackPackTexture = BackPackFirstMesh.Textures;
-		texture_set_active_and_bind(0, BackPackTexture);
-		BackPackTexture++;
-		texture_set_active_and_bind(1, BackPackTexture);
-
-		glBindVertexArray(MeshVAO);
-		glDrawElements(GL_TRIANGLES, BackPackFirstMesh.indices_count, GL_UNSIGNED_INT, 0);
-		glBindVertexArray(0);
-#endif
-
-		glUseProgram(AppState.CubeShader.id);
-
-		uniform_set_vec3f(AppState.CubeShader.id, "u_camera_pos", AppState.Camera.Pos);
-		uniform_set_vec3f(AppState.CubeShader.id, "u_material.diffuse", glm::vec3(1.0f, 0.5f, 0.31f));
-		uniform_set_vec3f(AppState.CubeShader.id, "u_material.specular", glm::vec3(0.5f, 0.5f, 0.5f));
-		uniform_set_f32(AppState.CubeShader.id, "u_material.shininess", 32.0f);
-
-
-
-
-		// WARNING(Justin): THE time between frames CANNOT be used for the circular functions. YOU MUST USE glfwGetTime();
-		// or for each fram add the time delta to itseulf and use tha as the value. NOTE to self the light was fixed at a spot in
-		// but  the cube was moving. Now you know to double checl how you are updating the positon FIRST!!!
-		//LightPositions[0].x = cos(time_delta);
-		//LightPositions[0].y = 0.0f;
-		//LightPositions[0].z = -sin(time_delta);
-
-		uniform_set_vec3f(AppState.CubeShader.id, "u_light_point.pos", LightPositions[0]);
-		uniform_set_vec3f(AppState.CubeShader.id, "u_light_point.ambient", glm::vec3(0.2f, 0.2f, 0.2f));
-		uniform_set_vec3f(AppState.CubeShader.id, "u_light_point.diffuse", glm::vec3(0.5f, 0.5f, 0.5f));
-		uniform_set_vec3f(AppState.CubeShader.id, "u_light_point.specular", glm::vec3(1.0f, 1.0f, 1.0f));
-
-		uniform_set_f32(AppState.CubeShader.id, "u_light_point.atten_constant", 1.0f);
-		uniform_set_f32(AppState.CubeShader.id, "u_light_point.atten_linear", 0.09f);
-		uniform_set_f32(AppState.CubeShader.id, "u_light_point.atten_quadratic", 0.032f);
 
 
 		MapToCamera = glm::lookAt(AppState.Camera.Pos, AppState.Camera.Pos + AppState.Camera.Direction, AppState.Camera.Up);
 
-		ModelTransform = glm::mat4(1.0f);
-		ModelTransform = glm::translate(ModelTransform, cube_positions[0]);
+		for (u32 i = 0; i < AppState.model_count; i++)
+		{
+			model_t Model = AppState.Models[i];
+			for(u32 j = 0; j < Model.mesh_count; j++)
+			{
+				mesh_t ModelMesh = Model.Meshes[j];
+				mesh_draw(&AppState, &ModelMesh, MapToCamera, MapToPersp, LightPositions[0]);
+			}
+		}
 
-		uniform_set_mat4f(AppState.CubeShader.id, "ModelTransform", ModelTransform);
-		uniform_set_mat4f(AppState.CubeShader.id, "MapToCamera", MapToCamera);
-		uniform_set_mat4f(AppState.CubeShader.id,"MapToPersp", MapToPersp);
-#if 0
-		uniform_set_vec3f(AppState.CubeShader.id, "u_CameraPos", AppState.Camera.Pos);
-		uniform_set_f32(AppState.CubeShader.id, "u_Material.shininess", 32.0f);
-
-		uniform_set_vec3f(AppState.CubeShader.id, "u_LightPoint.Pos", LightPositions[0]);
-		uniform_set_vec3f(AppState.CubeShader.id, "u_LightPoint.Ambient", glm::vec3(0.2f, 0.2f, 0.2f));
-		uniform_set_vec3f(AppState.CubeShader.id, "u_LightPoint.Diffuse", glm::vec3(0.5f, 0.5f, 0.5f));
-		uniform_set_vec3f(AppState.CubeShader.id, "u_LightPoint.Specular", glm::vec3(1.0f, 1.0f, 1.0f));
-
-		uniform_set_f32(AppState.CubeShader.id, "u_LightPoint.atten_constant", 1.0f);
-		uniform_set_f32(AppState.CubeShader.id, "u_LightPoint.atten_linear", 0.09f);
-		uniform_set_f32(AppState.CubeShader.id, "u_LightPoint.atten_quadratic", 0.032f);
-
-
-		ModelTransform = glm::mat4(1.0f);
-		ModelTransform = glm::translate(ModelTransform, cube_positions[0]);
-
-		uniform_set_mat4f(AppState.CubeShader.id, "ModelTransform", ModelTransform);
-		uniform_set_mat4f(AppState.CubeShader.id, "MapToCamera", MapToCamera);
-		uniform_set_mat4f(AppState.CubeShader.id,"MapToPersp", MapToPersp);
-#endif
-
-		texture_set_active_and_bind(0, &TextureContainerDiffuse);
-		texture_set_active_and_bind(1, &TextureContainerSpecular);
-
-		glBindVertexArray(CubeVertexArray.id);
-		glDrawArrays(GL_TRIANGLES, 0, 36);
-
-		
 		//
 		// NOTE(Justin): Lamp
 		//
@@ -1458,11 +1353,13 @@ int main(void)
 
 		// NOTE that we are updating and setting the global unifrom light position above which is why the cube is transformed accordingly
 		// it is because we have alrady calculated the lamps new position above and are just using it here
-		ModelTransform = glm::mat4(1.0f);
-		ModelTransform = glm::translate(ModelTransform, LightPositions[0]);
-		ModelTransform = glm::scale(ModelTransform, glm::vec3(0.2f));
+		glm::mat4 ModelTransform = glm::mat4(1.0f);
 
-		//glm::vec3 RotateXZ = glm::vec3(10.0f * cos(glfwGetTime()), 0.0f, -10.0f * sin(glfwGetTime()));
+		ModelTransform = glm::translate(ModelTransform, LightPositions[0]);
+		glm::vec3 RotateXZ = glm::vec3(5.0f * cos(glfwGetTime()), 0.0f, -5.0f * sin(glfwGetTime()));
+		ModelTransform = glm::translate(ModelTransform, RotateXZ);
+
+		ModelTransform = glm::scale(ModelTransform, glm::vec3(0.2f));
 
 		//glm::vec3 RotateXZ = glm::vec3(10.0f * cos(glfwGetTime()), 0.0f, -10.0f * sin(glfwGetTime()));
 		//ModelTransform = glm::translate(ModelTransform, RotateXZ);

@@ -121,14 +121,7 @@ typedef struct
 
 
 
-// TODO(Justin): Not sure where the attribute_count should be. In a the vertex
-// buffer layout or in the mesh vertex definition. 
-typedef struct
-{
-	glm::vec3 Position;
-	glm::vec3 Normal;
-	glm::vec2 TexCoord;
-} mesh_vertex_t;
+
 
 
 
@@ -154,6 +147,41 @@ enum texture_type_t
 	TEXTURE_TYPE_COUNT
 };
 
+
+
+#if 0
+typedef struct
+{
+	u32 diffuse_maps_count;
+	u32 specular_maps_count;
+
+	texture_t *DiffuseMaps;
+	texture_t *SpecularMaps;
+} material_t;
+#endif
+
+// TODO(Justin): Not sure where the attribute_count should be. In a the vertex
+// buffer layout or in the mesh vertex definition. 
+typedef struct
+{
+	glm::vec3 Position;
+	glm::vec3 Normal;
+	glm::vec2 TexCoord;
+} mesh_vertex_t;
+
+typedef struct
+{
+	u32 vertices_count;
+	mesh_vertex_t *Vertices;
+} mesh_vertices_t;
+
+typedef struct
+{
+	u32 indices_count;
+	u32* indices;
+} mesh_indices_t;
+
+
 typedef struct
 {
 	GLuint id;
@@ -167,26 +195,25 @@ typedef struct
 
 typedef struct
 {
-	u32 diffuse_maps_count;
-	u32 specular_maps_count;
+	u32 texture_count;
+	texture_t* Textures;
+} mesh_textures_t;
 
-	texture_t *DiffuseMaps;
-	texture_t *SpecularMaps;
-} material_t;
 
+// TODO(Justin): Eventually we may want to individually classify each
+// individual mesh for a model to do animations and so on. Therefore 
+// Do we need to generate like an enum for each model we load that refers
+// to a particular mesh of the model Backpack[TORCH].MeshVertices
 typedef struct
 {
-	u32 vertices_count;
-	u32 indices_count;
-	u32 texture_count;
-	//u32 texture_diffuse_count;
-	//u32 texture_specular_count;
+	GLuint MeshVBO, MeshVAO, MeshEBO;
 
-	u32 *Indices;
-	mesh_vertex_t *Vertices;
-	texture_t *Textures;
-	//texture_t *TexturesDiffuse;
-	//texture_t *TexturesSpecular; 
+	mesh_vertices_t MeshVertices;
+	mesh_indices_t  MeshIndices;
+	mesh_textures_t MeshTextures;
+
+	shader_program_t MeshShader;
+
 	
 	// TODO(Justin): Each mesh has a shader reason why is because each mesh has
 	// a different set of data attached to it?
@@ -205,7 +232,10 @@ typedef struct
 	// Count or index??
 	u32 loaded_texture_count;
 	texture_t LoadedTextures[16];
-	shader_program_t BackPackShader;
+
+	u32 model_count;
+	model_t Models[10];
+	//shader_program_t BackPackShader;
 	shader_program_t LightShader;
 	shader_program_t CubeShader;
 	camera_t Camera;
