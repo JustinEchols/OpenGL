@@ -1,6 +1,13 @@
 /*
 TODO:
- - Vertex Buffers
+- Depth Testing
+- Stenciling
+	Whenever a clickable object is selected outline it using stenciling
+- Skeletal animations
+- Framebuffer
+- Uniform buffer
+- Cubemaps
+- Vertex Buffers
 	Lock Modify Unlock
 	Set data
 	streaming
@@ -986,6 +993,8 @@ node_process(app_state_t *AppState, const aiScene *Scene, aiNode *Node, model_t 
 	{
 		aiMesh* Mesh = Scene->mMeshes[Node->mMeshes[i]];
 
+		// TODO(Justin): Get pointers to array of MeshVertices, MeshIndices, MeshTextures,
+		// and MeshShaders that we have already allocated before calling this function.
 		mesh_vertices_t MeshVertices = mesh_process_vertices(Mesh);
 		mesh_indices_t MeshIndices = mesh_process_indices(Mesh);
 
@@ -1179,6 +1188,9 @@ int main(void)
 	// allocate memory for vertices which but we already have allocated this
 	// memory before the processing starts in the lines above. So do not
 	// allocate in the middle of processingf the model. 
+
+	// TODO(Justin): Pass in filename and scene to model_process() and return a loaded
+	// model?
 
 	aiNode *Node = Scene->mRootNode;
 
