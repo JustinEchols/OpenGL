@@ -121,7 +121,7 @@ void main()
 	vec3 Normal = normalize(v_Norm);
 	vec3 FragToCameraDir = normalize(u_CameraPos - v_FragPos);
 
-	Result += light_point_calc(u_LightPoint, Normal, FragToCameraDir, TexelDiffuse, TexelSpecular);
+	Result = light_point_calc(u_LightPoint, Normal, FragToCameraDir, TexelDiffuse, TexelSpecular);
 
 	Color = vec4(Result, 1.0f);
 }
