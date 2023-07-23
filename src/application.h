@@ -89,7 +89,6 @@ typedef enum
 	Solid,
 	Walkable,
 	WindAnimation,
-
 	TranslucentUseEnvironmentMap,
 	TranslucentEnvironmentMapIsFiltered,
 	TranslucentSortMeshByCentroid,

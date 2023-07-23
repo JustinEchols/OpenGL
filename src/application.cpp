@@ -39,9 +39,6 @@ TODO:
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
 
-
-
-
 global_variable input_t AppInput;
 
 internal vertex_array_t
@@ -126,16 +123,16 @@ gl_clear_errors()
 internal b32 
 gl_log_restart()
 {
-	FILE *pfile = fopen(GL_LOG_FILE, "w");
-	if(!pfile)
+	FILE *FileHandle = fopen(GL_LOG_FILE, "w");
+	if(!FileHandle)
 	{
 		fprintf(stderr, "ERROR: Could not open GL_LOG_FILE %s for writing\n", GL_LOG_FILE);
 		return(false);
 	}
 	time_t now = time(NULL);
 	char *date = ctime(&now);
-	fprintf(pfile, "GL_LOG_FILE log. local time %s\n", date);
-	fclose(pfile);
+	fprintf(FileHandle, "GL_LOG_FILE log. local time %s\n", date);
+	fclose(FileHandle);
 	return(true);
 }
 
@@ -143,16 +140,16 @@ internal b32
 gl_log_message(const char *message, ...)
 {
 	va_list arg_ptr;
-	FILE* pfile = fopen(GL_LOG_FILE, "a");
-	if(!pfile)
+	FILE* FileHandle = fopen(GL_LOG_FILE, "a");
+	if(!FileHandle)
 	{
 		fprintf(stderr, "ERROR: Could not open GL_LOG_FILE %s for appending\n", GL_LOG_FILE);
 		return(false);
 	}
 	va_start(arg_ptr, message);
-	vfprintf(pfile, message, arg_ptr);
+	vfprintf(FileHandle, message, arg_ptr);
 	va_end(arg_ptr);
-	fclose(pfile);
+	fclose(FileHandle);
 	return(true);
 }
 
@@ -160,19 +157,19 @@ internal b32
 gl_log_error(const char* message, ...)
 {
 	va_list arg_ptr;
-	FILE* pfile = fopen(GL_LOG_FILE, "a");
-	if(!pfile)
+	FILE* FileHandle = fopen(GL_LOG_FILE, "a");
+	if(!FileHandle)
 	{
 		fprintf(stderr, "ERROR: Could not open GL_LOG_FILE %s for appending\n", GL_LOG_FILE);
 		return(false);
 	}
 	va_start(arg_ptr, message);
-	vfprintf(pfile, message, arg_ptr);
+	vfprintf(FileHandle, message, arg_ptr);
 	va_end(arg_ptr);
 	va_start(arg_ptr, message);
 	vfprintf(stderr, message, arg_ptr);
 	va_end(arg_ptr);
-	fclose(pfile);
+	fclose(FileHandle);
 	return(true);
 }
 
@@ -213,17 +210,19 @@ gl_log_params()
 	char msg[256];
 	for(int i = 0; i < 10; i++)
 	{
-		int v = 0;
-		glGetIntegerv(params[i], &v);
-		gl_log_message("%s %i\n", names[i], v);
+		s32 integer_value = 0;
+		glGetIntegerv(params[i], &integer_value);
+		gl_log_message("%s %i\n", names[i], integer_value);
 	}
-	int v[2];
-	v[0] = v[1] = 0;
-	glGetIntegerv(params[10], v);
-	gl_log_message("%s %i %i\n", names[10], v[0], v[1]);
-	unsigned char s = 0;
-	glGetBooleanv(params[11], &s);
-	gl_log_message("%s %u\n", names[11], (u32)s);
+
+	s32 integer_values[2];
+	integer_values[0] = integer_values[1] = 0;
+	glGetIntegerv(params[10], integer_values);
+	gl_log_message("%s %i %i\n", names[10], integer_values[0], integer_values[1]);
+
+	u8 bool_value = 0;
+	glGetBooleanv(params[11], &bool_value);
+	gl_log_message("%s %u\n", names[11], (u32)bool_value);
 	gl_log_message("--------------------------\n");
 }
 
@@ -962,11 +961,9 @@ node_process(app_state_t *AppState, const aiScene *Scene, aiNode *Node, model_t 
 	{
 		aiMesh* Mesh = Scene->mMeshes[Node->mMeshes[i]];
 
-
 		mesh_vertices_t MeshVertices = mesh_process_vertices(Mesh);
 		mesh_indices_t MeshIndices = mesh_process_indices(Mesh);
 
-		// TODO(Justin): Clean this up.
 		GLuint MeshVAO, MeshVBO, MeshEBO;
 		glGenVertexArrays(1, &MeshVAO);
 		glGenBuffers(1, &MeshVBO);
@@ -996,7 +993,6 @@ node_process(app_state_t *AppState, const aiScene *Scene, aiNode *Node, model_t 
 		//
 
 		mesh_textures_t MeshTextures = {};
-		// Do this iff a material exits. Why >= 0?
 		if (Mesh->mMaterialIndex >= 0)
 		{
 			aiMaterial* MeshMaterial = Scene->mMaterials[Mesh->mMaterialIndex];
@@ -1026,6 +1022,35 @@ node_process(app_state_t *AppState, const aiScene *Scene, aiNode *Node, model_t 
 	for(u32 i = 0; i < Node->mNumChildren; i++)
 	{
 		node_process(AppState, Scene, Node->mChildren[i], Model);
+	}
+}
+
+// NOTE(Justin): Should this return a model?
+internal void
+model_process(app_state_t *AppState, const char *model_filename)
+{
+	Assimp::Importer Importer;
+	const aiScene* Scene = Importer.ReadFile(model_filename, ASSIMP_LOAD_FLAGS);
+
+	model_t Result;
+
+	u32 mesh_count = Scene->mNumMeshes;
+	size_t mesh_size = sizeof(mesh_t);
+	Result.Meshes = (mesh_t *)calloc((size_t)mesh_count, mesh_size);
+	Result.mesh_count = 0;
+	
+	aiNode *Node = Scene->mRootNode;
+
+	node_process(AppState, Scene, Node, &Result);
+	//ASSERT(mesh_count == BackpackModel.mesh_count);
+
+	if(mesh_count == Result.mesh_count)
+	{
+		AppState->Models[AppState->model_count] = Result;
+		AppState->model_count++;
+	}
+	else
+	{
 	}
 }
 
@@ -1112,28 +1137,32 @@ internal skybox_t
 skybox_init(const char **texture_files, f32 *skybox_vertices, u32 vertices_count,
 		const char* vertex_shader_filename, const char *fragment_shader_filename)
 {
-	// Assert num texture is 6
-
 	skybox_t Result = {};
 
-	//
-	// NOTE(Justin): Texture initialization
-	//
-
 	Result.texture_files = texture_files;
+
+	glActiveTexture(GL_TEXTURE0);
 	glGenTextures(1, &Result.TextureCubeMap.id);
 	glBindTexture(GL_TEXTURE_CUBE_MAP, Result.TextureCubeMap.id);
 
 	// A cubemap is assumed to always have 6 textures, one for each face.
-	for (u32 texture_count = 0; texture_count < 6; texture_count++)
+	for (u32 texture_index = 0; texture_index < 6; texture_index++)
 	{
-		Result.TextureCubeMap.memory = stbi_load(*(Result.texture_files + texture_count),
-			&Result.TextureCubeMap.width, &Result.TextureCubeMap.height,
-			&Result.TextureCubeMap.channel_count, 0);
+		stbi_set_flip_vertically_on_load(true);
+		Result.TextureCubeMap.memory = stbi_load(*(texture_files + texture_index),
+												 &Result.TextureCubeMap.width,
+												 &Result.TextureCubeMap.height,
+												 &Result.TextureCubeMap.channel_count, 0);
 		if (Result.TextureCubeMap.memory)
 		{
-			glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + texture_count, 0, GL_RGB, Result.TextureCubeMap.width, 
-					Result.TextureCubeMap.height, 0, GL_RGB, GL_UNSIGNED_BYTE, Result.TextureCubeMap.memory);
+			glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + texture_index,
+						0, GL_RGB, 
+						Result.TextureCubeMap.width, 
+						Result.TextureCubeMap.height,
+						0, GL_RGB, 
+						GL_UNSIGNED_BYTE, 
+						Result.TextureCubeMap.memory);
+
 			stbi_image_free(Result.TextureCubeMap.memory);
 		}
 		else
@@ -1147,12 +1176,12 @@ skybox_init(const char **texture_files, f32 *skybox_vertices, u32 vertices_count
 	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
 
-	//
-	// NOTE(Justin): Vertex data initialization
-	//
-
 	Result.VertexArray = vertex_array_create();
-	Result.VertexBuffer = vertex_buffer_create(&skybox_vertices, vertices_count * sizeof(f32));
+
+	// WARNING(Justin): NASTY bug here I was passing in &skybox_vertices which is actually **float NOT *float and
+	// *float is the correct arguement type. Result was black textures for
+	// skybox
+	Result.VertexBuffer = vertex_buffer_create(skybox_vertices, vertices_count * sizeof(f32));
 
 	glBindVertexArray(Result.VertexArray.id);
 	vertex_buffer_bind(&Result.VertexBuffer);
@@ -1236,43 +1265,11 @@ int main(void)
 	// NOTE(Justin): Model Initalization
 	//
 
-	// TODO(Justin) ALso implement an SOA model loading
+	// TODO(Justin): Still need to remove hardcoded values in the model loading
+	// sub routines.
+	model_process(&AppState, "models/backpack/backpack.obj");
 
-	Assimp::Importer Importer;
-	const aiScene* Scene = Importer.ReadFile("models/backpack/backpack.obj", ASSIMP_LOAD_FLAGS);
-
-	// TODO(Justin): Allocate all the required memory upfront? This is the
-	// current implementation. Moreoever when processing the mesh data we are
-	// allocating even more memory for the attributes which is wasteful.
-	// Therefore change the implementation slightly so as to not do this.
-
-	// TODO(Justin): Instead of allocating, push onto memory arena previously
-	// allocated.
-
-	model_t BackpackModel;
-
-	u32 mesh_count = Scene->mNumMeshes;
-	size_t mesh_size = sizeof(mesh_t);
-	BackpackModel.Meshes = (mesh_t *)calloc((size_t)mesh_count, mesh_size);
-	BackpackModel.mesh_count = 0;
-
-	// TODO(Justin): We have allocated all the memory for the model here before
-	// even trying to load everythinhg. IN the processing phase of model we
-	// allocate memory for vertices which but we already have allocated this
-	// memory before the processing starts in the lines above. So do not
-	// allocate in the middle of processingf the model. 
-
-	aiNode *Node = Scene->mRootNode;
-
-	// TODO(Justin): model_process
-	node_process(&AppState, Scene, Node, &BackpackModel);
-
-	ASSERT(mesh_count == BackpackModel.mesh_count);
-
-	AppState.Models[AppState.model_count] = BackpackModel;
-	AppState.model_count++;
 	
-	// Cube
 	cube_t Cube = cube_init(&cube_vertices_normals_and_tex_coods[0], ArrayCount(cube_vertices_normals_and_tex_coods));
 
 	// Lamp
@@ -1296,12 +1293,12 @@ int main(void)
 	texture_t TextureContainerSpecular = texture_simple_init("textures/container2_specular.png", TEXTURE_TYPE_SPECULAR);
 
 
-	const char *sky_box_texture_files[] =  
+	const char *skybox_texture_files[] =  
 	{
 		"textures/skybox/right.jpg",
 		"textures/skybox/left.jpg",
-		"textures/skybox/top.jpg",
 		"textures/skybox/bottom.jpg",
+		"textures/skybox/top.jpg",
 		"textures/skybox/front.jpg",
 		"textures/skybox/back.jpg"
 	};
@@ -1309,32 +1306,11 @@ int main(void)
 	const char* skybox_vertex_shader_filename = "shaders/skybox.vs";
 	const char* skybox_fragment_shader_filename = "shaders/skybox.fs";
 
-#if 0
-	skybox_t SkyBox = skybox_init(sky_box_texture_files, &skybox_vertices[0], ArrayCount(skybox_vertices),
+	skybox_t SkyBox = skybox_init(skybox_texture_files, &skybox_vertices[0], ArrayCount(skybox_vertices),
 			skybox_vertex_shader_filename, skybox_fragment_shader_filename);
-#endif
 
-
-#if 1
-	vertex_array_t SkyboxCubeVertexArray = vertex_array_create();
-	vertex_buffer_t SkyboxCubeVertexBuffer = vertex_buffer_create(&skybox_vertices, ArrayCount(skybox_vertices) * sizeof(f32));
-	vertex_buffer_layout_t SkyboxVertexBufferLayout;
-
-	vertex_buffer_bind(&SkyboxCubeVertexBuffer);
-
-	SkyboxVertexBufferLayout.element_count_per_attribute = 3;
-	SkyboxVertexBufferLayout.attribute_type = GL_FLOAT;
-	SkyboxVertexBufferLayout.normalized = GL_FALSE;
-	SkyboxVertexBufferLayout.size_for_each_vertex = 3 * sizeof(f32);
-	SkyboxVertexBufferLayout.attribute_stride = (void *)0;
-
-	vertex_array_add_buffer_layout(0, &SkyboxCubeVertexArray, &SkyboxVertexBufferLayout);
-	
-	shader_program_t SkyBoxShader;
-#endif
 	shader_program_t LightShader;
 	shader_program_t CubeShader;
-
 
 	const char* cube_vertex_shader_filename = "shaders/cube_light_casters.vs";
 	const char* cube_fragment_shader_filename = "shaders/cube_light_casters.fs";
@@ -1342,13 +1318,9 @@ int main(void)
 	const char* light_vertex_shader_filename = "shaders/light_001.vs";
 	const char* light_fragment_shader_filename = "shaders/light_001.fs";
 
-	// TODO(Justin) is_valid member?
-
-	SkyBoxShader = shader_program_create_from_files(skybox_vertex_shader_filename, skybox_fragment_shader_filename);
 	LightShader = shader_program_create_from_files(light_vertex_shader_filename, light_fragment_shader_filename);
 	CubeShader = shader_program_create_from_files(cube_vertex_shader_filename, cube_fragment_shader_filename);
 
-	gl_log_shader_info(SkyBoxShader.id);
 	gl_log_shader_info(LightShader.id);
 	gl_log_shader_info(CubeShader.id);
 
@@ -1388,15 +1360,11 @@ int main(void)
 
 	LightPositions[0] = cube_positions[0];
 
-	// /TODO(Justin): Why do we need to do this 
-	//glUseProgram(AppState.CubeShader.id);
 	glUseProgram(AppState.CubeShader.id);
 	uniform_set_s32(AppState.CubeShader.id, "u_material.diffuse", 0);
 	uniform_set_s32(AppState.CubeShader.id, "u_material.specular", 1);
 
 
-#if 1
-	// Will need to loop through each mesh and do this. Wait.. why does the model render even thought we only set some of the materials here?
 	for(u32 MeshIndex = 0; MeshIndex < AppState.Models[0].mesh_count; MeshIndex++)
 	{
 		mesh_t *Mesh = AppState.Models[0].Meshes + MeshIndex;
@@ -1404,7 +1372,7 @@ int main(void)
 		uniform_set_s32(Mesh->MeshShader.id, "u_Material.Diffuse1", 0);
 		uniform_set_s32(Mesh->MeshShader.id, "u_Material.Specular1", 1);
 	}
-#endif
+
 	glUseProgram(SkyBox.Shader.id);
 	uniform_set_s32(SkyBox.Shader.id, "SkyBox", 0);
 	
@@ -1421,20 +1389,25 @@ int main(void)
 
 		glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
-		glDepthMask(GL_FALSE);
 
+		//
+		// NOTE(Justin): SkyBox
+		//
+
+		glDepthMask(GL_FALSE);
 		glUseProgram(SkyBox.Shader.id);
+		glActiveTexture(GL_TEXTURE0);
 
 		MapToCamera = glm::mat4(glm::mat3(MapToCamera));
 		uniform_set_mat4f(SkyBox.Shader.id, "MapToCamera", MapToCamera);
 		uniform_set_mat4f(SkyBox.Shader.id,"MapToPersp", MapToPersp);
 
-		glBindVertexArray(SkyBox.VertexArray.id);
-		//glActiveTexture(GL_TEXTURE0);
-		glBindTexture(GL_TEXTURE_CUBE_MAP, SkyBox.TextureCubeMap.id);
+		GLCall(glBindVertexArray(SkyBox.VertexArray.id));
+		GLCall(glBindTexture(GL_TEXTURE_CUBE_MAP, SkyBox.TextureCubeMap.id));
 
-		glDrawArrays(GL_TRIANGLES, 0, 36);
+		GLCall(glDrawArrays(GL_TRIANGLES, 0, 36));
 		glDepthMask(GL_TRUE);
+
 
 		glm::mat4 ModelTransform = glm::mat4(1.0f);
 		MapToCamera = glm::lookAt(AppState.Camera.Pos, AppState.Camera.Pos + AppState.Camera.Direction, AppState.Camera.Up);
