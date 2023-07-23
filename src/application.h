@@ -26,16 +26,77 @@ typedef double f64;
 #define global_variable static;
 #define local_persist static;
 
-#define ASSERT(expression) if((!expression)) {*(int *)0 = 0;}
-//#define ASSERT(expression) if((!expression)) __debugbreak()
-#define ARRAY_COUNT(a) (sizeof(a) / sizeof(a[0]))
-
 #define GL_LOG_FILE "gl.log"
 #define E1 glm::vec3(1.0f, 0.0f, 0.0f)
 #define E2 glm::vec3(0.0f, 1.0f, 0.0f)
 #define E3 glm::vec3(0.0f, 0.0f, 1.0f)
 #define PI32 3.141592653589f
 #define MAX_SHADER_SIZE 100000
+
+#define ASSERT(expression) if((!expression)) {*(int *)0 = 0;}
+//#define ASSERT(expression) if((!expression)) __debugbreak()
+#define ArrayCount(a) (sizeof(a) / sizeof(a[0]))
+
+#define GLCall(gl_func) gl_clear_errors();\
+	gl_func;\
+	ASSERT(GLLogCall(#gl_func, __FILE__, __LINE__))
+
+#define ASSIMP_LOAD_FLAGS (aiProcess_Triangulate | aiProcess_GenSmoothNormals | aiProcess_FlipUVs | aiProcess_JoinIdenticalVertices)
+
+#define IntFromPtr(ptr) (unsigned long long)((char *)ptr - (char *)0)
+#define Member(Type, member) (((Type*)0)->member)
+#define OffsetOfMember(Type,member) IntFromPtr(&Member(Type,member))
+
+typedef enum
+{
+	Standard,
+	Foliage,
+	Lake,
+	Reflective,
+	Blended,
+	Distant,
+	Refract,
+	Translucent,
+	ShadowOnly,
+	Tinted,
+	Vegetation,
+	Occluder,
+	CollisionOnly,
+	Cloud,
+	Laser,
+} material_type_t;
+
+typedef struct
+{
+	glm::vec3 Tangent;
+	glm::vec3 BiTangent;
+	glm::vec3 Normal;
+} local_frame_t;
+
+typedef struct
+{
+	glm::vec3 Min;
+	glm::vec3 Max;
+} bounding_box_t;
+
+typedef enum
+{
+	CastsShadow,
+	LightMapped,
+	UnderWater,
+	VertexLightMap,
+	Ground,
+	Solid,
+	Walkable,
+	WindAnimation,
+
+	TranslucentUseEnvironmentMap,
+	TranslucentEnvironmentMapIsFiltered,
+	TranslucentSortMeshByCentroid,
+	TranslucentHasVertexColors,
+
+} material_flags_t;
+
 
 typedef struct
 {
@@ -44,7 +105,6 @@ typedef struct
 	glm::vec3 Up;
 
 	f32 speed;
-
 } camera_t;
 
 typedef struct
@@ -52,7 +112,6 @@ typedef struct
 	glm::vec3 Pos;
 	glm::vec3 Color;
 } light_t;
-
 
 typedef struct
 {
@@ -119,12 +178,6 @@ typedef struct
 	u32 count;
 } index_buffer_t;
 
-
-
-
-
-
-
 typedef struct
 {
 	GLuint id;
@@ -146,19 +199,6 @@ enum texture_type_t
 
 	TEXTURE_TYPE_COUNT
 };
-
-
-
-#if 0
-typedef struct
-{
-	u32 diffuse_maps_count;
-	u32 specular_maps_count;
-
-	texture_t *DiffuseMaps;
-	texture_t *SpecularMaps;
-} material_t;
-#endif
 
 // TODO(Justin): Not sure where the attribute_count should be. In a the vertex
 // buffer layout or in the mesh vertex definition. 
@@ -195,6 +235,15 @@ typedef struct
 
 typedef struct
 {
+	vertex_array_t VertexArray;
+	vertex_buffer_t VertexBuffer;
+	vertex_buffer_layout_t VertexBufferLayout;
+
+	glm::vec3 Pos;
+} cube_t;
+
+typedef struct
+{
 	u32 texture_count;
 	texture_t* Textures;
 } mesh_textures_t;
@@ -214,28 +263,38 @@ typedef struct
 
 	shader_program_t MeshShader;
 
-	
 	// TODO(Justin): Each mesh has a shader reason why is because each mesh has
 	// a different set of data attached to it?
 } mesh_t;
 
 typedef struct
 {
-	// TODO(Justin): Implement this.
+	glm::vec3 Pos;
 	u32 mesh_count;
 	mesh_t *Meshes;
 } model_t;
 
+typedef struct
+{
+	texture_t TextureCubeMap;
+	const char** texture_files;
+
+	vertex_array_t VertexArray;
+	vertex_buffer_t VertexBuffer; 
+	vertex_buffer_layout_t VertexBufferLayout;
+
+	shader_program_t Shader;
+
+} skybox_t;
+
 
 typedef struct
 {
-	// Count or index??
 	u32 loaded_texture_count;
 	texture_t LoadedTextures[16];
 
 	u32 model_count;
 	model_t Models[10];
-	//shader_program_t BackPackShader;
 	shader_program_t LightShader;
 	shader_program_t CubeShader;
 	camera_t Camera;

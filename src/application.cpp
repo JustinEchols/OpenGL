@@ -15,10 +15,14 @@ TODO:
 		Send ray to see if it interseects
 	
  - Testing framework
+ - Memory arena
+
 */
 
 #include <GL/glew.h>
 #include <GLFW/glfw3.h>
+
+#include <windows.h>
 
 #include <glm.hpp>
 #include <gtc/matrix_transform.hpp>
@@ -35,15 +39,7 @@ TODO:
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
 
-#define GLCall(gl_func) gl_clear_errors();\
-	gl_func;\
-	ASSERT(GLLogCall(#gl_func, __FILE__, __LINE__))
 
-#define ASSIMP_LOAD_FLAGS (aiProcess_Triangulate | aiProcess_GenSmoothNormals | aiProcess_FlipUVs | aiProcess_JoinIdenticalVertices)
-
-#define IntFromPtr(ptr) (unsigned long long)((char *)ptr - (char *)0)
-#define Member(Type, member) (((Type*)0)->member)
-#define OffsetOfMember(Type,member) IntFromPtr(&Member(Type,member))
 
 
 global_variable input_t AppInput;
@@ -54,11 +50,13 @@ vertex_array_create()
 	vertex_array_t Result = {};
 
 	glGenVertexArrays(1, &Result.id);
+	// TODO(Justin): Not sure if this is a good idea
+	//glBindVertexArray(Result.id);
 
 	return(Result);
 }
 
-// TODO(Justin): Should we pass in an index as opposed to storing it in the vertex_array_t struct?
+
 internal void
 vertex_array_add_buffer_layout(u32 index, vertex_array_t *VertexArray, vertex_buffer_layout_t *VertexBufferLayout)
 {
@@ -67,6 +65,7 @@ vertex_array_add_buffer_layout(u32 index, vertex_array_t *VertexArray, vertex_bu
 			VertexBufferLayout->size_for_each_vertex, VertexBufferLayout->attribute_stride);
 
 	glEnableVertexAttribArray(index);
+	// TODO(Justin): Should we pass in an index as opposed to storing it in the vertex_array_t struct?
 	//glEnableVertexAttribArray(VertexArray->attribute_index);
 	//VertexArray->attribute_index++;
 }
@@ -582,7 +581,6 @@ shader_program_create_from_files(const char* vertex_shader_filename, const char*
 	if (VertexShaderFileHandle)
 	{
 		size_t count = fread(vertex_shader_src, 1, sizeof(vertex_shader_src), VertexShaderFileHandle);
-		//ASSERT((count < MAX_SHADER_SIZE - 1) && (count != 0));
 		vertex_shader_src[count] = '\0';
 		fclose(VertexShaderFileHandle);
 	}
@@ -595,10 +593,8 @@ shader_program_create_from_files(const char* vertex_shader_filename, const char*
 	if(FragmentShaderFileHandle)
 	{
 		size_t count = fread(fragment_shader_src, 1, sizeof(fragment_shader_src), FragmentShaderFileHandle);
-		//ASSERT(count < (MAX_SHADER_SIZE - 1));
 		fragment_shader_src[count] = '\0';
 		fclose(FragmentShaderFileHandle);
-
 	}
 	else
 	{
@@ -642,21 +638,7 @@ shader_program_reload(shader_program_t *ShaderProgram)
 internal void
 texture_set_active_and_bind(u32 index, texture_t *Texture)
 {
-	GLenum TEXTURE_INDEX;
-	switch(index)
-	{
-		case 0:
-		{
-			TEXTURE_INDEX = GL_TEXTURE0;
-		} 
-		break;
-		case 1:
-		{
-			TEXTURE_INDEX = GL_TEXTURE1;
-		}
-		break;
-	}
-	glActiveTexture(TEXTURE_INDEX);
+	glActiveTexture(GL_TEXTURE0 + index);
 
 	// TODO(Justin): Either pass in the first argument, or rename this function
 	// to include the fact that this is for 2D textures.
@@ -832,6 +814,8 @@ assimp_texture_type_convert(aiTextureType texture_type)
 	return(Result);
 }
 
+// For each face, loop through the indices and copy them. When using GL_TRIANGULATE
+// the number of indices is always 3.
 internal mesh_indices_t
 mesh_process_indices(aiMesh *Mesh)
 {
@@ -839,11 +823,9 @@ mesh_process_indices(aiMesh *Mesh)
 
 	size_t index_size = sizeof(u32);
 
-	// TODO(Justin): Thinjk about whether or not we need to store the index
-	// buffer memory size. We can always calculate it because we are storing the 
-	// index count and we know the size of an index therefore we can always
-	// calculate the size of the memory.
 
+	// NOTE(Justin): This assignmenet of indices count only works for meshes
+	// composed of triangles only.
 	u32 indices_count = Mesh->mNumFaces * 3;
 	u32 index_buffer_memory_size = index_size * indices_count;
 
@@ -851,20 +833,13 @@ mesh_process_indices(aiMesh *Mesh)
 	MeshIndices.indices_count = indices_count;
 
 	u32* DestMeshIndex = MeshIndices.indices;
-
-	//  Loop through each face
 	for (u32 i = 0; i < Mesh->mNumFaces; i++)
 	{
 		aiFace *MeshFace = &Mesh->mFaces[i];
 		u32* SrcMeshIndex = MeshFace->mIndices;
-		// For each face, loop through the indices. When using GL_TRIANGULATE
-		// the number of indices is always 3.
 		for (u32 j = 0; j < MeshFace->mNumIndices; j++)
 		{
-			// TODO(Justin): Check *MeshIndices++ = *MeshFace->mIndices++;
-			*DestMeshIndex = *SrcMeshIndex;
-			DestMeshIndex++;
-			SrcMeshIndex++;
+			*DestMeshIndex++ = *SrcMeshIndex++;
 		}
 	}
 	return(MeshIndices);
@@ -978,6 +953,7 @@ mesh_process_material(app_state_t *AppState, aiMaterial *MeshMaterial)
 	return(MeshTextures);
 }
 
+// TODO(Justin): Need to remove hardcoded inputs.
 internal void
 node_process(app_state_t *AppState, const aiScene *Scene, aiNode *Node, model_t *Model)
 {
@@ -985,6 +961,7 @@ node_process(app_state_t *AppState, const aiScene *Scene, aiNode *Node, model_t 
 	for (u32 i = 0; i < Node->mNumMeshes; i++)
 	{
 		aiMesh* Mesh = Scene->mMeshes[Node->mMeshes[i]];
+
 
 		mesh_vertices_t MeshVertices = mesh_process_vertices(Mesh);
 		mesh_indices_t MeshIndices = mesh_process_indices(Mesh);
@@ -1043,6 +1020,8 @@ node_process(app_state_t *AppState, const aiScene *Scene, aiNode *Node, model_t 
 		ModelMesh->MeshShader = MeshShader;
 		
 		Model->mesh_count++;
+
+		// free memory allocated?
 	}
 	for(u32 i = 0; i < Node->mNumChildren; i++)
 	{
@@ -1051,12 +1030,10 @@ node_process(app_state_t *AppState, const aiScene *Scene, aiNode *Node, model_t 
 }
 
 internal void
-mesh_draw(app_state_t *AppState, mesh_t *Mesh, glm::mat4 MapToCamera, glm::mat4 MapToPersp, glm::vec3 LightPosition)
+mesh_draw(app_state_t *AppState, mesh_t *Mesh, glm::mat4 ModelTransform, glm::mat4 MapToCamera, glm::mat4 MapToPersp, glm::vec3 LightPosition)
 {
 	shader_program_t Shader = Mesh->MeshShader;
 	glUseProgram(Shader.id);
-
-	glm::mat4 ModelTransform = glm::mat4(1.0f);
 
 	uniform_set_mat4f(Shader.id, "ModelTransform", ModelTransform);
 	uniform_set_mat4f(Shader.id, "MapToCamera", MapToCamera);
@@ -1086,13 +1063,116 @@ mesh_draw(app_state_t *AppState, mesh_t *Mesh, glm::mat4 MapToCamera, glm::mat4 
 		MeshTexture++;
 		texture_set_active_and_bind(1, MeshTexture);
 	}
-
 	glBindVertexArray(Mesh->MeshVAO);
 	glDrawElements(GL_TRIANGLES, Mesh->MeshIndices.indices_count, GL_UNSIGNED_INT, 0);
 	glBindVertexArray(0);
 }
 
 
+internal cube_t
+cube_init(f32 *vertices, u32 vertices_count)
+{
+	cube_t Result = {};
+
+	vertex_array_t VertexArray = vertex_array_create();
+	vertex_buffer_t VertexBuffer = vertex_buffer_create(vertices, vertices_count * sizeof(f32));
+
+	glBindVertexArray(VertexArray.id);
+
+	vertex_buffer_bind(&VertexBuffer);
+
+	vertex_buffer_layout_t VertexBufferLayout;
+
+	// Positions
+	VertexBufferLayout.element_count_per_attribute = 3;
+	VertexBufferLayout.attribute_type = GL_FLOAT;
+	VertexBufferLayout.normalized = GL_FALSE;
+	VertexBufferLayout.size_for_each_vertex = 8 * sizeof(float);
+	VertexBufferLayout.attribute_stride = (void*)0;
+
+	vertex_array_add_buffer_layout(0, &VertexArray, &VertexBufferLayout);
+
+	// Normals
+	VertexBufferLayout.attribute_stride = (void*)(3 * sizeof(float));
+	vertex_array_add_buffer_layout(1, &VertexArray, &VertexBufferLayout);
+
+	// Texture coordinates
+	VertexBufferLayout.element_count_per_attribute = 2;
+	VertexBufferLayout.attribute_stride = (void*)(6 * sizeof(float));
+	vertex_array_add_buffer_layout(2, &VertexArray, &VertexBufferLayout);
+
+	Result.VertexArray = VertexArray;
+	Result.VertexBuffer = VertexBuffer;
+	Result.VertexBufferLayout = VertexBufferLayout;
+
+	return(Result);
+}
+
+internal skybox_t
+skybox_init(const char **texture_files, f32 *skybox_vertices, u32 vertices_count,
+		const char* vertex_shader_filename, const char *fragment_shader_filename)
+{
+	// Assert num texture is 6
+
+	skybox_t Result = {};
+
+	//
+	// NOTE(Justin): Texture initialization
+	//
+
+	Result.texture_files = texture_files;
+	glGenTextures(1, &Result.TextureCubeMap.id);
+	glBindTexture(GL_TEXTURE_CUBE_MAP, Result.TextureCubeMap.id);
+
+	// A cubemap is assumed to always have 6 textures, one for each face.
+	for (u32 texture_count = 0; texture_count < 6; texture_count++)
+	{
+		Result.TextureCubeMap.memory = stbi_load(*(Result.texture_files + texture_count),
+			&Result.TextureCubeMap.width, &Result.TextureCubeMap.height,
+			&Result.TextureCubeMap.channel_count, 0);
+		if (Result.TextureCubeMap.memory)
+		{
+			glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + texture_count, 0, GL_RGB, Result.TextureCubeMap.width, 
+					Result.TextureCubeMap.height, 0, GL_RGB, GL_UNSIGNED_BYTE, Result.TextureCubeMap.memory);
+			stbi_image_free(Result.TextureCubeMap.memory);
+		}
+		else
+		{
+		}
+	}
+	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
+
+	//
+	// NOTE(Justin): Vertex data initialization
+	//
+
+	Result.VertexArray = vertex_array_create();
+	Result.VertexBuffer = vertex_buffer_create(&skybox_vertices, vertices_count * sizeof(f32));
+
+	glBindVertexArray(Result.VertexArray.id);
+	vertex_buffer_bind(&Result.VertexBuffer);
+
+	Result.VertexBufferLayout.element_count_per_attribute = 3;
+	Result.VertexBufferLayout.attribute_type = GL_FLOAT;
+	Result.VertexBufferLayout.normalized = GL_FALSE;
+	Result.VertexBufferLayout.size_for_each_vertex = 3 * sizeof(f32);
+	Result.VertexBufferLayout.attribute_stride = (void *)0;
+
+	vertex_array_add_buffer_layout(0, &Result.VertexArray, &Result.VertexBufferLayout);
+
+	Result.Shader.vertex_shader_filename = vertex_shader_filename;
+	Result.Shader.fragment_shader_filename = fragment_shader_filename;
+	Result.Shader = shader_program_create_from_files(Result.Shader.vertex_shader_filename, 
+													 Result.Shader.fragment_shader_filename);
+	gl_log_shader_info(Result.Shader.id);
+
+	return(Result);
+}
 
 int main(void)
 {
@@ -1147,6 +1227,8 @@ int main(void)
 
 	glEnable(GL_DEPTH_TEST);
 	glDepthFunc(GL_LESS);
+	glEnable(GL_STENCIL_TEST);
+
 
 	app_state_t AppState = {};
 
@@ -1190,72 +1272,83 @@ int main(void)
 	AppState.Models[AppState.model_count] = BackpackModel;
 	AppState.model_count++;
 	
-	//
-	// NOTE(Justin): Buffer initialization
-	//
-
 	// Cube
-	vertex_array_t CubeVertexArray = vertex_array_create();
-	vertex_buffer_t CubeVertexBuffer = vertex_buffer_create(cube_vertices_normals_and_tex_coods, sizeof(cube_vertices_normals_and_tex_coods));
-
-	glBindVertexArray(CubeVertexArray.id);
-
-	vertex_buffer_bind(&CubeVertexBuffer);
-
-	vertex_buffer_layout_t CubeVertexBufferLayout;
-
-	// Positions
-	CubeVertexBufferLayout.element_count_per_attribute = 3;
-	CubeVertexBufferLayout.attribute_type = GL_FLOAT;
-	CubeVertexBufferLayout.normalized = GL_FALSE;
-	CubeVertexBufferLayout.size_for_each_vertex = 8 * sizeof(float);
-	CubeVertexBufferLayout.attribute_stride = (void*)0;
-	vertex_array_add_buffer_layout(0, &CubeVertexArray, &CubeVertexBufferLayout);
-
-	// Normals
-	CubeVertexBufferLayout.attribute_stride = (void*)(3 * sizeof(float));
-	vertex_array_add_buffer_layout(1, &CubeVertexArray, &CubeVertexBufferLayout);
-
-	// Texture coordinate
-	CubeVertexBufferLayout.element_count_per_attribute = 2;
-	CubeVertexBufferLayout.attribute_stride = (void*)(6 * sizeof(float));
-	vertex_array_add_buffer_layout(2, &CubeVertexArray, &CubeVertexBufferLayout);
+	cube_t Cube = cube_init(&cube_vertices_normals_and_tex_coods[0], ArrayCount(cube_vertices_normals_and_tex_coods));
 
 	// Lamp
 	vertex_array_t LightVertexArray = vertex_array_create();
-	glBindVertexArray(LightVertexArray.id);
 
-	vertex_buffer_bind(&CubeVertexBuffer);
+	glBindVertexArray(LightVertexArray.id);
+	vertex_buffer_bind(&Cube.VertexBuffer);
 
 	// Position
-	CubeVertexBufferLayout.element_count_per_attribute = 3;
-	CubeVertexBufferLayout.attribute_stride = (void*)0;
-	vertex_array_add_buffer_layout(0, &LightVertexArray, &CubeVertexBufferLayout);
+	Cube.VertexBufferLayout.element_count_per_attribute = 3;
+	Cube.VertexBufferLayout.attribute_stride = (void*)0;
+	vertex_array_add_buffer_layout(0, &LightVertexArray, &Cube.VertexBufferLayout);
 
 	//
 	// NOTE(Justin): Texture initialization
 	//
 
+	texture_t TextureContainerMarble = texture_simple_init("textures/marble.png", TEXTURE_TYPE_DIFFUSE);
+	texture_t TexturePlaneMetal = texture_simple_init("textures/metal.png", TEXTURE_TYPE_SPECULAR);
 	texture_t TextureContainerDiffuse = texture_simple_init("textures/container2.png", TEXTURE_TYPE_DIFFUSE);
 	texture_t TextureContainerSpecular = texture_simple_init("textures/container2_specular.png", TEXTURE_TYPE_SPECULAR);
 
 
-	//
-	// NOTE(Justin): Shader initialization
-	//
+	const char *sky_box_texture_files[] =  
+	{
+		"textures/skybox/right.jpg",
+		"textures/skybox/left.jpg",
+		"textures/skybox/top.jpg",
+		"textures/skybox/bottom.jpg",
+		"textures/skybox/front.jpg",
+		"textures/skybox/back.jpg"
+	};
 
+	const char* skybox_vertex_shader_filename = "shaders/skybox.vs";
+	const char* skybox_fragment_shader_filename = "shaders/skybox.fs";
+
+#if 0
+	skybox_t SkyBox = skybox_init(sky_box_texture_files, &skybox_vertices[0], ArrayCount(skybox_vertices),
+			skybox_vertex_shader_filename, skybox_fragment_shader_filename);
+#endif
+
+
+#if 1
+	vertex_array_t SkyboxCubeVertexArray = vertex_array_create();
+	vertex_buffer_t SkyboxCubeVertexBuffer = vertex_buffer_create(&skybox_vertices, ArrayCount(skybox_vertices) * sizeof(f32));
+	vertex_buffer_layout_t SkyboxVertexBufferLayout;
+
+	vertex_buffer_bind(&SkyboxCubeVertexBuffer);
+
+	SkyboxVertexBufferLayout.element_count_per_attribute = 3;
+	SkyboxVertexBufferLayout.attribute_type = GL_FLOAT;
+	SkyboxVertexBufferLayout.normalized = GL_FALSE;
+	SkyboxVertexBufferLayout.size_for_each_vertex = 3 * sizeof(f32);
+	SkyboxVertexBufferLayout.attribute_stride = (void *)0;
+
+	vertex_array_add_buffer_layout(0, &SkyboxCubeVertexArray, &SkyboxVertexBufferLayout);
+	
+	shader_program_t SkyBoxShader;
+#endif
 	shader_program_t LightShader;
 	shader_program_t CubeShader;
 
+
 	const char* cube_vertex_shader_filename = "shaders/cube_light_casters.vs";
 	const char* cube_fragment_shader_filename = "shaders/cube_light_casters.fs";
+
 	const char* light_vertex_shader_filename = "shaders/light_001.vs";
 	const char* light_fragment_shader_filename = "shaders/light_001.fs";
 
 	// TODO(Justin) is_valid member?
+
+	SkyBoxShader = shader_program_create_from_files(skybox_vertex_shader_filename, skybox_fragment_shader_filename);
 	LightShader = shader_program_create_from_files(light_vertex_shader_filename, light_fragment_shader_filename);
 	CubeShader = shader_program_create_from_files(cube_vertex_shader_filename, cube_fragment_shader_filename);
 
+	gl_log_shader_info(SkyBoxShader.id);
 	gl_log_shader_info(LightShader.id);
 	gl_log_shader_info(CubeShader.id);
 
@@ -1285,23 +1378,15 @@ int main(void)
 
 	f32 field_of_view = glm::radians(45.0f);
 	f32 aspect_ratio = (f32)Window.width / (f32)Window.height;
-	f32 near = 0.1f;
-	f32 far = 100.0f;
+	f32 n = 0.1f;
+	f32 f = 100.0f;
 
-	glm::mat4 MapToPersp = glm::perspective(field_of_view, aspect_ratio, near, far);
+	glm::mat4 MapToPersp = glm::perspective(field_of_view, aspect_ratio, n, f);
 
 	glm::vec3 LightPositions[4];
-	glm::vec3 offset = glm::vec3(1.0f, 1.0f, 1.0f);
+    glm::vec3 offset = glm::vec3(1.0f, 1.0f, 1.0f);
 
-	for(int i = 0; i < ARRAY_COUNT(LightPositions); i++)
-	{
-		LightPositions[i].x = cube_positions[i][0];
-		LightPositions[i].y = cube_positions[i][1];
-		LightPositions[i].z = cube_positions[i][2];
-
-		LightPositions[i] += offset;
-	}
-
+	LightPositions[0] = cube_positions[0];
 
 	// /TODO(Justin): Why do we need to do this 
 	//glUseProgram(AppState.CubeShader.id);
@@ -1312,11 +1397,17 @@ int main(void)
 
 #if 1
 	// Will need to loop through each mesh and do this. Wait.. why does the model render even thought we only set some of the materials here?
-
-	glUseProgram(AppState.Models[0].Meshes->MeshShader.id);
-	uniform_set_s32(AppState.Models[0].Meshes->MeshShader.id, "u_Material.Diffuse1", 0);
-	uniform_set_s32(AppState.Models[0].Meshes->MeshShader.id, "u_Material.Specular1", 1);
+	for(u32 MeshIndex = 0; MeshIndex < AppState.Models[0].mesh_count; MeshIndex++)
+	{
+		mesh_t *Mesh = AppState.Models[0].Meshes + MeshIndex;
+		glUseProgram(Mesh->MeshShader.id);
+		uniform_set_s32(Mesh->MeshShader.id, "u_Material.Diffuse1", 0);
+		uniform_set_s32(Mesh->MeshShader.id, "u_Material.Specular1", 1);
+	}
 #endif
+	glUseProgram(SkyBox.Shader.id);
+	uniform_set_s32(SkyBox.Shader.id, "SkyBox", 0);
+	
 
 	f32 time_delta = 0.0f;
 	f32 time_previous = glfwGetTime();
@@ -1329,19 +1420,32 @@ int main(void)
 		//
 
 		glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
-		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
+		glDepthMask(GL_FALSE);
 
+		glUseProgram(SkyBox.Shader.id);
 
+		MapToCamera = glm::mat4(glm::mat3(MapToCamera));
+		uniform_set_mat4f(SkyBox.Shader.id, "MapToCamera", MapToCamera);
+		uniform_set_mat4f(SkyBox.Shader.id,"MapToPersp", MapToPersp);
 
+		glBindVertexArray(SkyBox.VertexArray.id);
+		//glActiveTexture(GL_TEXTURE0);
+		glBindTexture(GL_TEXTURE_CUBE_MAP, SkyBox.TextureCubeMap.id);
+
+		glDrawArrays(GL_TRIANGLES, 0, 36);
+		glDepthMask(GL_TRUE);
+
+		glm::mat4 ModelTransform = glm::mat4(1.0f);
 		MapToCamera = glm::lookAt(AppState.Camera.Pos, AppState.Camera.Pos + AppState.Camera.Direction, AppState.Camera.Up);
-
+		
 		for (u32 i = 0; i < AppState.model_count; i++)
 		{
 			model_t Model = AppState.Models[i];
 			for(u32 j = 0; j < Model.mesh_count; j++)
 			{
 				mesh_t ModelMesh = Model.Meshes[j];
-				mesh_draw(&AppState, &ModelMesh, MapToCamera, MapToPersp, LightPositions[0]);
+				mesh_draw(&AppState, &ModelMesh, ModelTransform, MapToCamera, MapToPersp, LightPositions[0]);
 			}
 		}
 
@@ -1353,16 +1457,17 @@ int main(void)
 
 		// NOTE that we are updating and setting the global unifrom light position above which is why the cube is transformed accordingly
 		// it is because we have alrady calculated the lamps new position above and are just using it here
-		glm::mat4 ModelTransform = glm::mat4(1.0f);
+		ModelTransform = glm::mat4(1.0f);
+
+		LightPositions[0].x = 5.0f * cos(glfwGetTime());
+		LightPositions[0].y = 0.0f;
+		LightPositions[0].z = -5.0f * sin(glfwGetTime());
 
 		ModelTransform = glm::translate(ModelTransform, LightPositions[0]);
 		glm::vec3 RotateXZ = glm::vec3(5.0f * cos(glfwGetTime()), 0.0f, -5.0f * sin(glfwGetTime()));
 		ModelTransform = glm::translate(ModelTransform, RotateXZ);
 
 		ModelTransform = glm::scale(ModelTransform, glm::vec3(0.2f));
-
-		//glm::vec3 RotateXZ = glm::vec3(10.0f * cos(glfwGetTime()), 0.0f, -10.0f * sin(glfwGetTime()));
-		//ModelTransform = glm::translate(ModelTransform, RotateXZ);
 
 		uniform_set_mat4f(AppState.LightShader.id, "ModelTransform", ModelTransform);
 		uniform_set_mat4f(AppState.LightShader.id, "MapToCamera", MapToCamera);

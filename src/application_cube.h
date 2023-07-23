@@ -193,5 +193,65 @@ glm::vec3 cube_positions[] =
 	glm::vec3(1.5f,  0.2f, -1.5f),
 	glm::vec3(-1.3f,  1.0f, -1.5f)
 };
+
+f32 skybox_vertices[] =
+{
+	// positions          
+
+	// Back
+	-1.0f,  1.0f, -1.0f,
+	-1.0f, -1.0f, -1.0f,
+	1.0f, -1.0f, -1.0f,
+	1.0f, -1.0f, -1.0f,
+	1.0f,  1.0f, -1.0f,
+	-1.0f,  1.0f, -1.0f,
+
+	-1.0f, -1.0f,  1.0f,
+	-1.0f, -1.0f, -1.0f,
+	-1.0f,  1.0f, -1.0f,
+	-1.0f,  1.0f, -1.0f,
+	-1.0f,  1.0f,  1.0f,
+	-1.0f, -1.0f,  1.0f,
+
+	1.0f, -1.0f, -1.0f,
+	1.0f, -1.0f,  1.0f,
+	1.0f,  1.0f,  1.0f,
+	1.0f,  1.0f,  1.0f,
+	1.0f,  1.0f, -1.0f,
+	1.0f, -1.0f, -1.0f,
+
+	-1.0f, -1.0f,  1.0f,
+	-1.0f,  1.0f,  1.0f,
+	1.0f,  1.0f,  1.0f,
+	1.0f,  1.0f,  1.0f,
+	1.0f, -1.0f,  1.0f,
+	-1.0f, -1.0f,  1.0f,
+
+	-1.0f,  1.0f, -1.0f,
+	1.0f,  1.0f, -1.0f,
+	1.0f,  1.0f,  1.0f,
+	1.0f,  1.0f,  1.0f,
+	-1.0f,  1.0f,  1.0f,
+	-1.0f,  1.0f, -1.0f,
+
+	-1.0f, -1.0f, -1.0f,
+	-1.0f, -1.0f,  1.0f,
+	1.0f, -1.0f, -1.0f,
+	1.0f, -1.0f, -1.0f,
+	-1.0f, -1.0f,  1.0f,
+	1.0f, -1.0f,  1.0f
+};
+
+f32 plane_vertices[] = 
+{
+	// positions          // texture Coords (note we set these higher than 1 (together with GL_REPEAT as texture wrapping mode). this will cause the floor texture to repeat)
+	5.0f, -0.5f,  5.0f,  2.0f, 0.0f,
+	-5.0f, -0.5f,  5.0f,  0.0f, 0.0f,
+	-5.0f, -0.5f, -5.0f,  0.0f, 2.0f,
+
+	5.0f, -0.5f,  5.0f,  2.0f, 0.0f,
+	-5.0f, -0.5f, -5.0f,  0.0f, 2.0f,
+	5.0f, -0.5f, -5.0f,  2.0f, 2.0f								
+};
 #define APPLICATION_CUBE_H
 #endif
