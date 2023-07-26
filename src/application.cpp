@@ -28,12 +28,13 @@ TODO:
 #include <gtc/matrix_transform.hpp>
 #include <gtc/type_ptr.hpp>
 
-#include <assimp/Importer.hpp>
 #include <assimp/scene.h>
 #include <assimp/postprocess.h>
+#include <assimp/Importer.hpp>
+
 
 #include "application.h"
-#include "application_log.cpp"
+#include "application_util.cpp"
 #include "application_cube.h"
 
 #define STB_IMAGE_IMPLEMENTATION
@@ -113,172 +114,22 @@ vertex_buffer_destroy(vertex_buffer_t *VertexBuffer)
 	}
 }
 
-
 internal void
-gl_clear_errors()
+gl_log_shader_info(shader_program_t *Shader)
 {
-	while (glGetError() != GL_NO_ERROR);
-}
-
-internal b32 
-gl_log_restart()
-{
-	FILE *FileHandle = fopen(GL_LOG_FILE, "w");
-	if(!FileHandle)
-	{
-		fprintf(stderr, "ERROR: Could not open GL_LOG_FILE %s for writing\n", GL_LOG_FILE);
-		return(false);
-	}
-	time_t now = time(NULL);
-	char *date = ctime(&now);
-	fprintf(FileHandle, "GL_LOG_FILE log. local time %s\n", date);
-	fclose(FileHandle);
-	return(true);
-}
-
-internal b32 
-gl_log_message(const char *message, ...)
-{
-	va_list arg_ptr;
-	FILE* FileHandle = fopen(GL_LOG_FILE, "a");
-	if(!FileHandle)
-	{
-		fprintf(stderr, "ERROR: Could not open GL_LOG_FILE %s for appending\n", GL_LOG_FILE);
-		return(false);
-	}
-	va_start(arg_ptr, message);
-	vfprintf(FileHandle, message, arg_ptr);
-	va_end(arg_ptr);
-	fclose(FileHandle);
-	return(true);
-}
-
-internal b32
-gl_log_error(const char* message, ...)
-{
-	va_list arg_ptr;
-	FILE* FileHandle = fopen(GL_LOG_FILE, "a");
-	if(!FileHandle)
-	{
-		fprintf(stderr, "ERROR: Could not open GL_LOG_FILE %s for appending\n", GL_LOG_FILE);
-		return(false);
-	}
-	va_start(arg_ptr, message);
-	vfprintf(FileHandle, message, arg_ptr);
-	va_end(arg_ptr);
-	va_start(arg_ptr, message);
-	vfprintf(stderr, message, arg_ptr);
-	va_end(arg_ptr);
-	fclose(FileHandle);
-	return(true);
-}
-
-internal void
-gl_log_params()
-{
-	GLenum params[] =
-	{
-		GL_MAX_COMBINED_TEXTURE_IMAGE_UNITS,
-		GL_MAX_CUBE_MAP_TEXTURE_SIZE,
-		GL_MAX_DRAW_BUFFERS,
-		GL_MAX_FRAGMENT_UNIFORM_COMPONENTS, 
-		GL_MAX_TEXTURE_IMAGE_UNITS,
-		GL_MAX_TEXTURE_SIZE,
-		GL_MAX_VARYING_FLOATS,
-		GL_MAX_VERTEX_ATTRIBS,
-		GL_MAX_VERTEX_TEXTURE_IMAGE_UNITS,
-		GL_MAX_VERTEX_UNIFORM_COMPONENTS,
-		GL_MAX_VIEWPORT_DIMS,
-		GL_STEREO
-	};
-	const char* names[] =
-	{
-	  "GL_MAX_COMBINED_TEXTURE_IMAGE_UNITS",
-	  "GL_MAX_CUBE_MAP_TEXTURE_SIZE",
-	  "GL_MAX_DRAW_BUFFERS",
-	  "GL_MAX_FRAGMENT_UNIFORM_COMPONENTS",
-	  "GL_MAX_TEXTURE_IMAGE_UNITS",
-	  "GL_MAX_TEXTURE_SIZE",
-	  "GL_MAX_VARYING_FLOATS",
-	  "GL_MAX_VERTEX_ATTRIBS",
-	  "GL_MAX_VERTEX_TEXTURE_IMAGE_UNITS",
-	  "GL_MAX_VERTEX_UNIFORM_COMPONENTS",
-	  "GL_MAX_VIEWPORT_DIMS",
-	  "GL_STEREO"
-	};
-	gl_log_message("GL Context Params\n");
-	char msg[256];
-	for(int i = 0; i < 10; i++)
-	{
-		s32 integer_value = 0;
-		glGetIntegerv(params[i], &integer_value);
-		gl_log_message("%s %i\n", names[i], integer_value);
-	}
-
-	s32 integer_values[2];
-	integer_values[0] = integer_values[1] = 0;
-	glGetIntegerv(params[10], integer_values);
-	gl_log_message("%s %i %i\n", names[10], integer_values[0], integer_values[1]);
-
-	u8 bool_value = 0;
-	glGetBooleanv(params[11], &bool_value);
-	gl_log_message("%s %u\n", names[11], (u32)bool_value);
-	gl_log_message("--------------------------\n");
-}
-
-internal const char*
-gl_enum_type_to_string(GLenum type)
-{
-	switch (type)
-	{
-		case GL_BOOL: return "bool";
-		case GL_INT: return "int";
-		case GL_FLOAT: return "float";
-		case GL_FLOAT_VEC2: return "vec2";
-		case GL_FLOAT_VEC3: return "vec3";
-		case GL_FLOAT_VEC4: return "vec4";
-		case GL_FLOAT_MAT2: return "mat2";
-		case GL_FLOAT_MAT3: return "mat3";
-		case GL_FLOAT_MAT4: return "mat4";
-		case GL_SAMPLER_2D: return "sampler_2d";
-		case GL_SAMPLER_3D: return "sampler_3d";
-		case GL_SAMPLER_CUBE: return "sampler_cube";
-		case GL_SAMPLER_2D_SHADOW: return "sampler_2d_shadow";
-		default: break;
-	}
-	return "other";
-}
-
-internal b32
-GLLogCall(const char *gl_function, const char* file, s32 line_number)
-{
-	b32 Result = false;
-	while(GLenum gl_error = glGetError())
-	{
-		const char* error = gl_enum_type_to_string(gl_error);
-		printf("[OpenGL Error] (%s) %s %s %d", error, gl_function, file, line_number);
-		return(Result);
-	}
-	Result = true;
-	return(Result);
-}
-
-internal void
-gl_log_shader_info(GLuint shader_program)
-{
-	printf("----------------------\n Shader program %d info:\n", shader_program);
+	printf("----------------------\n Shader program %d info:\n", Shader->id);
 	s32 params = -1;
 
-	glGetProgramiv(shader_program, GL_LINK_STATUS, &params);
+	glGetProgramiv(Shader->id, GL_LINK_STATUS, &params);
 	printf("GL_LINK_STATUS = %d\n", params);
 
-	glGetProgramiv(shader_program, GL_ATTACHED_SHADERS, &params);
+	glGetProgramiv(Shader->id, GL_ATTACHED_SHADERS, &params);
 	printf("GL_ATTACHED_SHADERS = %d\n", params);
 
-	glGetProgramiv(shader_program, GL_ACTIVE_ATTRIBUTES, &params);
+	glGetProgramiv(Shader->id, GL_ACTIVE_ATTRIBUTES, &params);
 	printf("GL_ACTIVE_ATTRIBUTES = %d\n", params);
 
-	// Active Attributes
+	// TODO(Justin): Store active attributes info?
 	for(s32 attr_index = 0; attr_index < params; attr_index++)
 	{
 		char name[64];
@@ -286,77 +137,70 @@ gl_log_shader_info(GLuint shader_program)
 		s32 length_actual = 0;
 		s32 size = 0;
 		GLenum param_type;
-		glGetActiveAttrib(
-			shader_program,
-			attr_index,
-			length_max,
-			&length_actual,
-			&size,
-			&param_type,
-			name
-		);
+		glGetActiveAttrib(Shader->id, attr_index, length_max, &length_actual, &size, &param_type, name);
 		if(size > 1)
 		{
 			for(s32 j = 0; j < size; j++)
 			{
 				char name_long[64];
 				sprintf(name_long, "%s[%d]", name, j);
-				s32 location = glGetAttribLocation(shader_program, name_long);
+				s32 location = glGetAttribLocation(Shader->id, name_long);
 				printf(" %d) TYPE:%s NAME: %s LOCATION:%d\n\n", attr_index, gl_enum_type_to_string	(param_type), name_long, location);
 			}
 		}
 		else 
 		{
-			s32 location = glGetAttribLocation(shader_program, name);
+			s32 location = glGetAttribLocation(Shader->id, name);
 			printf(" %d) TYPE:%s NAME: %s LOCATION:%d\n\n", attr_index, gl_enum_type_to_string(param_type), name, location);
 		}
 	}
 
 	// Active Uniforms
-	glGetProgramiv(shader_program, GL_ACTIVE_UNIFORMS, &params);
+	glGetProgramiv(Shader->id, GL_ACTIVE_UNIFORMS, &params);
 	printf("GL_ACTIVE_UNIFORMS = %d\n", params);
+
+	Shader->uniforms_count = params;
+	Shader->Uniforms = (uniform_t *)calloc((size_t)Shader->uniforms_count, sizeof(uniform_t));
+
 	for(s32 uniform_index = 0; uniform_index < params; uniform_index++)
 	{
+		uniform_t *Uniform = Shader->Uniforms + uniform_index;
+
 		char name[64];
 		s32 length_max = 64;
 		s32 length_actual = 0;
 		s32 size = 0;
 		GLenum param_type;
-		glGetActiveUniform(
-			shader_program,
-			uniform_index,
-			length_max,
-			&length_actual,
-			&size,
-			&param_type,
-			name
-		);
+
+		glGetActiveUniform(Shader->id, uniform_index, length_max, &length_actual, &size, &param_type, name);
+
+		Uniform->name = &name[0];
+		Uniform->type = gl_enum_type_to_string(param_type);
+		Uniform->size = (s32)size;
+	
 		if(size > 1)
 		{
 			for(s32 j = 0; j < size; j++)
 			{
 				char name_long[64];
 				sprintf(name_long, "%s[%d]", name, j);
-				s32 location = glGetUniformLocation(shader_program, name_long);
+				s32 location = glGetUniformLocation(Shader->id, name_long);
 
-				const char* gl_type = gl_enum_type_to_string(param_type);
+				Uniform->location = location;
+
+				char *gl_type = gl_enum_type_to_string(param_type);
+
 				printf(" %d) TYPE:%s NAME:%s LOCATION:%d\n\n", uniform_index, gl_type, name_long, location);
 			}
 		}
 		else
 		{
-			s32 location = glGetUniformLocation(shader_program, name);
+			s32 location = glGetUniformLocation(Shader->id, name);
+
+			Uniform->location = location;
 			printf(" %d) TYPE:%s NAME: %s LOCATION:%d\n\n", uniform_index, gl_enum_type_to_string(param_type), name, location);
 		}
 	}
-}
-
-
-
-internal void
-glfw_error_callback(s32 error, const char* desc)
-{
-	gl_log_error("GLFW ERROR: Code: %d MSG: %s\n", error, desc);
 }
 
 internal void
@@ -411,67 +255,11 @@ glfw_framebuffer_resize_callback(GLFWwindow *Window, int width, int height)
 	glViewport(0, 0, width, height);
 }
 
-internal GLenum
-gl_error_check(const char *filename, s32 line_number)
-{
-	GLenum error_code;
-	// NOTE(Justin): Why would you use a while loop to do the error?
 
-	if ((error_code = glGetError()) != GL_NO_ERROR)
-	{
-		switch (error_code)
-		{
-		case GL_INVALID_ENUM:
-		{
-			const char* error = "INVALID_ENUM";
-			printf("%s %s %d", error, filename, line_number);
-		}
-		break;
-		case GL_INVALID_VALUE:
-		{
-			const char* error = "INVALID_VALUE";
-			printf("%s %s %d", error, filename, line_number);
-		}
-		break;
-		case GL_INVALID_OPERATION:
-		{
-			const char* error = "INVALID_OPERATION";
-			printf("%s %s %d", error, filename, line_number);
-		}
-		break;
-		case GL_STACK_OVERFLOW:
-		{
-			const char* error = "STACK_OVERFLOW";
-			printf("%s %s %d", error, filename, line_number);
-		}
-		break;
-		case GL_STACK_UNDERFLOW:
-		{
-			const char* error = "STACK_UNDERFLOW";
-			printf("%s %s %d", error, filename, line_number);
-		}
-		break;
-		case GL_OUT_OF_MEMORY:
-		{
-			const char* error = "OUT_OF_MEMORY";
-			printf("%s %s %d", error, filename, line_number);
-		}
-		break;
-		case GL_INVALID_FRAMEBUFFER_OPERATION:
-		{
-			const char* error = "INVALID_FRAMEBUFFER_OPERATION";
-			printf("%s %s %d", error, filename, line_number);
-		}
-		break;
-		}
-	}
-	return(error_code);
-}
-#define GL_CHECK_ERROR() gl_error_check(__FILE__, __LINE__)
 
 
 internal GLuint
-shader_program_create_from_strings(const char* vertex_shader_str, const char* fragment_shader_str)
+shader_program_create_from_strings(char *vertex_shader_str, char *fragment_shader_str)
 {
 	ASSERT(vertex_shader_str && fragment_shader_str);
 
@@ -560,9 +348,10 @@ shader_program_create_from_strings(const char* vertex_shader_str, const char* fr
 }
 
 internal shader_program_t
-shader_program_create_from_files(const char* vertex_shader_filename, const char* fragment_shader_filename)
+shader_program_create_from_files(char *vertex_shader_filename, char *fragment_shader_filename)
 {
 	// Check to make sure extensions are correct?
+	// Global shader to default too, instead of assert then crash?
 
 	ASSERT(vertex_shader_filename && fragment_shader_filename);
 
@@ -605,6 +394,7 @@ shader_program_create_from_files(const char* vertex_shader_filename, const char*
 	return(Result);
 }
 
+#if 0
 internal void
 shader_program_reload(shader_program_t *ShaderProgram)
 {
@@ -622,7 +412,7 @@ shader_program_reload(shader_program_t *ShaderProgram)
 
 		ShaderProgram->id = TestShaderProgram.id;
 		printf("Shader reloaded\n");
-		gl_log_shader_info(ShaderProgram->id);
+		gl_log_shader_info(&ShaderProgram);
 		ShaderProgram->reloaded = true;
 
 		glDeleteProgram(TestShaderProgram.id);
@@ -633,6 +423,7 @@ shader_program_reload(shader_program_t *ShaderProgram)
 		printf("Error shader not reloaded");
 	}
 }
+#endif
 
 internal void
 texture_set_active_and_bind(u32 index, texture_t *Texture)
@@ -645,7 +436,7 @@ texture_set_active_and_bind(u32 index, texture_t *Texture)
 }
 
 internal texture_t
-texture_simple_init(const char* filename, texture_type_t texture_type)
+texture_simple_init(char *filename, texture_type_t texture_type)
 {
 	//TODO(Justin): Loop through app state struct and check if texture already
 	//loaded.
@@ -704,39 +495,39 @@ texture_simple_init(const char* filename, texture_type_t texture_type)
 }
 
 internal void
-uniform_set_b32(GLuint program_id, const char* uniform_name, b32 value)
+uniform_set_b32(GLuint program_id, char *uniform_name, b32 value)
 {
 	// TODO(Justin): If these function calls!!!
 	glUniform1i(glGetUniformLocation(program_id, uniform_name), (int)value);
 }
 
 internal void
-uniform_set_s32(GLuint program_id, const char* uniform_name, s32 value)
+uniform_set_s32(GLuint program_id, char *uniform_name, s32 value)
 {
 	glUniform1i(glGetUniformLocation(program_id, uniform_name), value);
 }
 
 internal void
-uniform_set_f32(GLuint program_id, const char* uniform_name, f32 value)
+uniform_set_f32(GLuint program_id, char *uniform_name, f32 value)
 {
 	glUniform1f(glGetUniformLocation(program_id, uniform_name), value);
 }
 
 internal void
-uniform_set_mat4f(GLuint shader_program_id, const char* uniform_name, glm::mat4 Transform)
+uniform_set_mat4f(GLuint shader_program_id, char *uniform_name, glm::mat4 Transform)
 {
 	u32 transform_location = glGetUniformLocation(shader_program_id, uniform_name);
 	glUniformMatrix4fv(transform_location, 1, GL_FALSE, glm::value_ptr(Transform));
 }
 
 internal void
-uniform_set_v3f(GLuint shader_program_id, const char* uniform_name, f32 x, f32 y, f32 z)
+uniform_set_v3f(GLuint shader_program_id, char *uniform_name, f32 x, f32 y, f32 z)
 {
 	glUniform3f(glGetUniformLocation(shader_program_id, uniform_name), x, y, z);
 }
 
 internal void
-uniform_set_vec3f(GLuint shader_program_id, const char* uniform_name, glm::vec3 V)
+uniform_set_vec3f(GLuint shader_program_id, char *uniform_name, glm::vec3 V)
 {
 	uniform_set_v3f(shader_program_id, uniform_name, V.x, V.y, V.z);
 }
@@ -806,7 +597,7 @@ assimp_texture_type_convert(aiTextureType texture_type)
 	{
 		Result = TEXTURE_TYPE_DIFFUSE;
 	}
-	else if(texture_type == aiTextureType_SPECULAR)
+	else
 	{
 		Result = TEXTURE_TYPE_SPECULAR;
 	}
@@ -899,7 +690,7 @@ mesh_process_texture_map(app_state_t *AppState, aiMaterial *MeshMaterial,
 		b32 texture_is_loaded = false;
 		for(u32 j = 0; j < AppState->loaded_texture_count; j++)
 		{
-			const char * loaded_texture_path = AppState->LoadedTextures[j].path;
+			char *loaded_texture_path = AppState->LoadedTextures[j].path;
 			if(loaded_texture_path)
 			{
 				if(strcmp(loaded_texture_path, path_to_texture.C_Str()) == 0)
@@ -918,7 +709,7 @@ mesh_process_texture_map(app_state_t *AppState, aiMaterial *MeshMaterial,
 			// Texture does not exist, load the texture into the mesh array and also into the loaded 
 			// textures of the app state.
 			texture_type_t TextureType = assimp_texture_type_convert(texture_type);
-			*Texture = texture_simple_init(path_to_texture.C_Str(), TextureType);
+			*Texture = texture_simple_init((char *)path_to_texture.C_Str(), TextureType);
 			MeshTextures->texture_count++;
 			AppState->LoadedTextures[AppState->loaded_texture_count] = *Texture;
 			AppState->loaded_texture_count++;
@@ -954,7 +745,8 @@ mesh_process_material(app_state_t *AppState, aiMaterial *MeshMaterial)
 
 // TODO(Justin): Need to remove hardcoded inputs.
 internal void
-node_process(app_state_t *AppState, const aiScene *Scene, aiNode *Node, model_t *Model)
+node_process(app_state_t *AppState, const aiScene *Scene, aiNode *Node, model_t *Model,
+		char *vertex_shader_filename, char *fragment_shader_filename)
 {
 	mesh_t* ModelMesh = &Model->Meshes[Model->mesh_count];
 	for (u32 i = 0; i < Node->mNumMeshes; i++)
@@ -1008,10 +800,11 @@ node_process(app_state_t *AppState, const aiScene *Scene, aiNode *Node, model_t 
 		ModelMesh->MeshTextures = MeshTextures;
 
 		shader_program_t MeshShader;
-		const char* backpack_vertex_shader_filename = "shaders/backpack.vs";
-		const char* backpack_fragment_shader_filename = "shaders/backpack.fs";
-		MeshShader = shader_program_create_from_files(backpack_vertex_shader_filename, backpack_fragment_shader_filename);
-		gl_log_shader_info(MeshShader.id);
+		MeshShader.vertex_shader_filename = vertex_shader_filename;
+		MeshShader.fragment_shader_filename = fragment_shader_filename;
+		MeshShader = shader_program_create_from_files(MeshShader.vertex_shader_filename,
+													  MeshShader.fragment_shader_filename);
+		gl_log_shader_info(&MeshShader);
 
 		ModelMesh->MeshShader = MeshShader;
 		
@@ -1021,16 +814,19 @@ node_process(app_state_t *AppState, const aiScene *Scene, aiNode *Node, model_t 
 	}
 	for(u32 i = 0; i < Node->mNumChildren; i++)
 	{
-		node_process(AppState, Scene, Node->mChildren[i], Model);
+		node_process(AppState, Scene, Node->mChildren[i], Model, vertex_shader_filename, fragment_shader_filename);
 	}
 }
 
 // NOTE(Justin): Should this return a model?
+// NOTE(Justin): The meshes of a model may require different shaders?
 internal void
-model_process(app_state_t *AppState, const char *model_filename)
+model_process(app_state_t *AppState, char *full_path_to_model, char *vertex_shader_filename,
+																 char *fragment_shader_filename)
 {
+
 	Assimp::Importer Importer;
-	const aiScene* Scene = Importer.ReadFile(model_filename, ASSIMP_LOAD_FLAGS);
+	const aiScene* Scene = Importer.ReadFile(full_path_to_model, ASSIMP_LOAD_FLAGS);
 
 	model_t Result;
 
@@ -1041,9 +837,7 @@ model_process(app_state_t *AppState, const char *model_filename)
 	
 	aiNode *Node = Scene->mRootNode;
 
-	node_process(AppState, Scene, Node, &Result);
-	//ASSERT(mesh_count == BackpackModel.mesh_count);
-
+	node_process(AppState, Scene, Node, &Result, vertex_shader_filename, fragment_shader_filename);
 	if(mesh_count == Result.mesh_count)
 	{
 		AppState->Models[AppState->model_count] = Result;
@@ -1060,6 +854,10 @@ mesh_draw(app_state_t *AppState, mesh_t *Mesh, glm::mat4 ModelTransform, glm::ma
 	shader_program_t Shader = Mesh->MeshShader;
 	glUseProgram(Shader.id);
 
+	// TODO(Justin): Can we get the program information for the mesh shader and
+	// then set the uniforms we need to set? Otherwise will need a different
+	// draw call for each mesh that uses a different shader with differen inputs
+	// and outputs... :(
 	uniform_set_mat4f(Shader.id, "ModelTransform", ModelTransform);
 	uniform_set_mat4f(Shader.id, "MapToCamera", MapToCamera);
 	uniform_set_mat4f(Shader.id,"MapToPersp", MapToPersp);
@@ -1083,10 +881,16 @@ mesh_draw(app_state_t *AppState, mesh_t *Mesh, glm::mat4 ModelTransform, glm::ma
 	// TODO(Justin): Loop through all the textures for each mesh and set them.
 	if (Mesh->MeshTextures.texture_count)
 	{
-		texture_t* MeshTexture = Mesh->MeshTextures.Textures;
-		texture_set_active_and_bind(0, MeshTexture);
-		MeshTexture++;
-		texture_set_active_and_bind(1, MeshTexture);
+		for(u32 texture_index = 0; texture_index < Mesh->MeshTextures.texture_count; texture_index++)
+		{
+			texture_t* MeshTexture = Mesh->MeshTextures.Textures + texture_index;
+			// TODO(Justin): What type of texture are we setting? Is it implicit
+			// in MeshTexture. It is being set as GL_TEXTURE_2D for each one.
+			// The type of texture should probably be store in MeshTexturee.
+			texture_set_active_and_bind(texture_index, MeshTexture);
+			//MeshTexture++;
+			//texture_set_active_and_bind(1, MeshTexture);
+		}
 	}
 	glBindVertexArray(Mesh->MeshVAO);
 	glDrawElements(GL_TRIANGLES, Mesh->MeshIndices.indices_count, GL_UNSIGNED_INT, 0);
@@ -1134,8 +938,8 @@ cube_init(f32 *vertices, u32 vertices_count)
 }
 
 internal skybox_t
-skybox_init(const char **texture_files, f32 *skybox_vertices, u32 vertices_count,
-		const char* vertex_shader_filename, const char *fragment_shader_filename)
+skybox_init(char **texture_files, f32 *skybox_vertices, u32 vertices_count,
+		char *vertex_shader_filename, char *fragment_shader_filename)
 {
 	skybox_t Result = {};
 
@@ -1146,9 +950,10 @@ skybox_init(const char **texture_files, f32 *skybox_vertices, u32 vertices_count
 	glBindTexture(GL_TEXTURE_CUBE_MAP, Result.TextureCubeMap.id);
 
 	// A cubemap is assumed to always have 6 textures, one for each face.
+	stbi_set_flip_vertically_on_load(false);
 	for (u32 texture_index = 0; texture_index < 6; texture_index++)
 	{
-		stbi_set_flip_vertically_on_load(true);
+
 		Result.TextureCubeMap.memory = stbi_load(*(texture_files + texture_index),
 												 &Result.TextureCubeMap.width,
 												 &Result.TextureCubeMap.height,
@@ -1169,6 +974,8 @@ skybox_init(const char **texture_files, f32 *skybox_vertices, u32 vertices_count
 		{
 		}
 	}
+	stbi_set_flip_vertically_on_load(true);
+
 	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
@@ -1198,7 +1005,7 @@ skybox_init(const char **texture_files, f32 *skybox_vertices, u32 vertices_count
 	Result.Shader.fragment_shader_filename = fragment_shader_filename;
 	Result.Shader = shader_program_create_from_files(Result.Shader.vertex_shader_filename, 
 													 Result.Shader.fragment_shader_filename);
-	gl_log_shader_info(Result.Shader.id);
+	gl_log_shader_info(&Result.Shader);
 
 	return(Result);
 }
@@ -1267,7 +1074,8 @@ int main(void)
 
 	// TODO(Justin): Still need to remove hardcoded values in the model loading
 	// sub routines.
-	model_process(&AppState, "models/backpack/backpack.obj");
+	model_process(&AppState, "models/backpack/backpack.obj", "shaders/backpack.vs", "shaders/backpack.fs");
+	//model_process(&AppState, "models/suzanne.obj", "shaders/suzanne.vs", "suzanne.fs");
 
 	
 	cube_t Cube = cube_init(&cube_vertices_normals_and_tex_coods[0], ArrayCount(cube_vertices_normals_and_tex_coods));
@@ -1293,18 +1101,19 @@ int main(void)
 	texture_t TextureContainerSpecular = texture_simple_init("textures/container2_specular.png", TEXTURE_TYPE_SPECULAR);
 
 
-	const char *skybox_texture_files[] =  
+	char *skybox_texture_files[] =  
 	{
 		"textures/skybox/right.jpg",
 		"textures/skybox/left.jpg",
-		"textures/skybox/bottom.jpg",
 		"textures/skybox/top.jpg",
+		"textures/skybox/bottom.jpg",
 		"textures/skybox/front.jpg",
-		"textures/skybox/back.jpg"
+		"textures/skybox/back.jpg",
+
 	};
 
-	const char* skybox_vertex_shader_filename = "shaders/skybox.vs";
-	const char* skybox_fragment_shader_filename = "shaders/skybox.fs";
+	char *skybox_vertex_shader_filename = "shaders/skybox.vs";
+	char *skybox_fragment_shader_filename = "shaders/skybox.fs";
 
 	skybox_t SkyBox = skybox_init(skybox_texture_files, &skybox_vertices[0], ArrayCount(skybox_vertices),
 			skybox_vertex_shader_filename, skybox_fragment_shader_filename);
@@ -1312,17 +1121,17 @@ int main(void)
 	shader_program_t LightShader;
 	shader_program_t CubeShader;
 
-	const char* cube_vertex_shader_filename = "shaders/cube_light_casters.vs";
-	const char* cube_fragment_shader_filename = "shaders/cube_light_casters.fs";
+	char *cube_vertex_shader_filename = "shaders/cube_light_casters.vs";
+	char *cube_fragment_shader_filename = "shaders/cube_light_casters.fs";
 
-	const char* light_vertex_shader_filename = "shaders/light_001.vs";
-	const char* light_fragment_shader_filename = "shaders/light_001.fs";
+	char *light_vertex_shader_filename = "shaders/light_001.vs";
+	char *light_fragment_shader_filename = "shaders/light_001.fs";
 
 	LightShader = shader_program_create_from_files(light_vertex_shader_filename, light_fragment_shader_filename);
 	CubeShader = shader_program_create_from_files(cube_vertex_shader_filename, cube_fragment_shader_filename);
 
-	gl_log_shader_info(LightShader.id);
-	gl_log_shader_info(CubeShader.id);
+	gl_log_shader_info(&LightShader);
+	gl_log_shader_info(&CubeShader);
 
 	AppInput.Mouse.Pos.x = Window.width / 2;
 	AppInput.Mouse.Pos.y = Window.height / 2;
@@ -1378,7 +1187,7 @@ int main(void)
 	
 
 	f32 time_delta = 0.0f;
-	f32 time_previous = glfwGetTime();
+	f32 time_previous = (f32)glfwGetTime();
 	while (!glfwWindowShouldClose(Window.handle))
 	{
 		glfw_process_input(Window.handle, &AppState, time_delta);
@@ -1409,15 +1218,16 @@ int main(void)
 		glDepthMask(GL_TRUE);
 
 
-		glm::mat4 ModelTransform = glm::mat4(1.0f);
 		MapToCamera = glm::lookAt(AppState.Camera.Pos, AppState.Camera.Pos + AppState.Camera.Direction, AppState.Camera.Up);
 		
-		for (u32 i = 0; i < AppState.model_count; i++)
+		for (u32 model_index = 0; model_index < AppState.model_count; model_index++)
 		{
-			model_t Model = AppState.Models[i];
-			for(u32 j = 0; j < Model.mesh_count; j++)
+			glm::mat4 ModelTransform = glm::mat4(1.0f);
+			ModelTransform = glm::translate(ModelTransform, glm::vec3(cube_positions[model_index]));
+			model_t Model = AppState.Models[model_index];
+			for(u32 mesh_index = 0; mesh_index < Model.mesh_count; mesh_index++)
 			{
-				mesh_t ModelMesh = Model.Meshes[j];
+				mesh_t ModelMesh = Model.Meshes[mesh_index];
 				mesh_draw(&AppState, &ModelMesh, ModelTransform, MapToCamera, MapToPersp, LightPositions[0]);
 			}
 		}
@@ -1430,7 +1240,7 @@ int main(void)
 
 		// NOTE that we are updating and setting the global unifrom light position above which is why the cube is transformed accordingly
 		// it is because we have alrady calculated the lamps new position above and are just using it here
-		ModelTransform = glm::mat4(1.0f);
+		glm::mat4 ModelTransform = glm::mat4(1.0f);
 
 		LightPositions[0].x = 5.0f * cos(glfwGetTime());
 		LightPositions[0].y = 0.0f;
@@ -1452,7 +1262,7 @@ int main(void)
         glfwPollEvents();
         glfwSwapBuffers(Window.handle);
 
-		f32 time_current = glfwGetTime();
+		f32 time_current = (f32)glfwGetTime();
 		time_delta = time_current - time_previous;
 		time_previous = time_current;
 	}

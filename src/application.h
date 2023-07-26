@@ -22,9 +22,9 @@ typedef s32 b32;
 typedef float f32;
 typedef double f64;
 
-#define internal static;
-#define global_variable static;
-#define local_persist static;
+#define internal static
+#define global_variable static
+#define local_persist static
 
 #define GL_LOG_FILE "gl.log"
 #define E1 glm::vec3(1.0f, 0.0f, 0.0f)
@@ -148,6 +148,7 @@ typedef struct
 typedef struct
 {
 	GLuint id;
+	// TODO(Justin): Remove binded
 	b32 binded;
 	void *memory;
 	u32 size;
@@ -170,19 +171,33 @@ typedef struct
 
 } vertex_array_t;
 
-// TODO(Justin): index buffer/ element array buffer...j
 typedef struct
 {
 	u32* indices;
 	u32 count;
 } index_buffer_t;
 
+
+// TODO(Justin): Not sure on the naming or grouping for the uniform struct and
+// the array of uniform structs in the shader struct.
+typedef struct
+{
+	s32 size;
+	s32 location;
+	char *name;
+	char *type;
+} uniform_t;
+
 typedef struct
 {
 	GLuint id;
-	const char *vertex_shader_filename;
-	const char *fragment_shader_filename;
-	b32 reloaded;
+	char *vertex_shader_filename;
+	char *fragment_shader_filename;
+
+	uniform_t *Uniforms;
+	u32 uniforms_count;
+
+	// TODO(Justin): Input attribuites?
 } shader_program_t;
 
 typedef struct
@@ -195,6 +210,7 @@ enum texture_type_t
 {
 	TEXTURE_TYPE_DIFFUSE,
 	TEXTURE_TYPE_SPECULAR,
+	TEXTURE_TYPE_SKYBOX,
 
 	TEXTURE_TYPE_COUNT
 };
@@ -217,7 +233,7 @@ typedef struct
 typedef struct
 {
 	u32 indices_count;
-	u32* indices;
+	u32 *indices;
 } mesh_indices_t;
 
 
@@ -227,8 +243,8 @@ typedef struct
 	s32 width, height;
 	s32 channel_count;
 	u32 mipmap_level;
-	u8* memory;
-	const char* path;
+	u8 *memory;
+	char *path;
 	texture_type_t type;
 } texture_t;
 
@@ -244,7 +260,7 @@ typedef struct
 typedef struct
 {
 	u32 texture_count;
-	texture_t* Textures;
+	texture_t *Textures;
 } mesh_textures_t;
 
 
@@ -268,6 +284,15 @@ typedef struct
 
 typedef struct
 {
+	u32 count;
+	u8 *data;
+} string_t;
+
+
+typedef struct
+{
+	char *path_to_dir;
+
 	glm::vec3 Pos;
 	u32 mesh_count;
 	mesh_t *Meshes;
@@ -276,7 +301,7 @@ typedef struct
 typedef struct
 {
 	texture_t TextureCubeMap;
-	const char** texture_files;
+	char **texture_files;
 
 	vertex_array_t VertexArray;
 	vertex_buffer_t VertexBuffer; 
@@ -289,8 +314,12 @@ typedef struct
 
 typedef struct
 {
+	u32 loaded_skybox_count;
+	skybox_t Skyboxes[10];
+
 	u32 loaded_texture_count;
 	texture_t LoadedTextures[16];
+
 
 	u32 model_count;
 	model_t Models[10];
