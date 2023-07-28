@@ -96,7 +96,6 @@ typedef enum
 
 } material_flags_t;
 
-
 typedef struct
 {
 	glm::vec3 Pos;
@@ -180,17 +179,24 @@ typedef struct
 
 // TODO(Justin): Not sure on the naming or grouping for the uniform struct and
 // the array of uniform structs in the shader struct.
+
+// TODO(Justin): Will need to either have two structs, uniform_t and
+// uniform_array_t or have one struct that can do both.
+
 typedef struct
 {
 	s32 size;
 	s32 location;
-	char *name;
-	char *type;
+	char name[64];
+	//char *type;
+	GLenum type;
 } uniform_t;
 
 typedef struct
 {
 	GLuint id;
+	s32 link_status;
+	s32 attached_shaders_count;
 	char *vertex_shader_filename;
 	char *fragment_shader_filename;
 
@@ -253,6 +259,10 @@ typedef struct
 	vertex_array_t VertexArray;
 	vertex_buffer_t VertexBuffer;
 	vertex_buffer_layout_t VertexBufferLayout;
+
+	texture_t Textures[2];
+
+	shader_program_t Shader;
 
 	glm::vec3 Pos;
 } cube_t;
