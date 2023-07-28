@@ -92,7 +92,6 @@ gl_log_params()
 	  "GL_STEREO"
 	};
 	gl_log_message("GL Context Params\n");
-	char msg[256];
 	for(int i = 0; i < 10; i++)
 	{
 		s32 integer_value = 0;
