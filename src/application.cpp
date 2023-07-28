@@ -166,39 +166,30 @@ gl_log_shader_info(shader_program_t *Shader)
 	{
 		uniform_t *Uniform = Shader->Uniforms + uniform_index;
 
-		char name[64];
 		s32 length_max = 64;
 		s32 length_actual = 0;
 		s32 size = 0;
-		GLenum param_type;
 
-		glGetActiveUniform(Shader->id, uniform_index, length_max, &length_actual, &size, &param_type, name);
-
-		Uniform->name = &name[0];
-		Uniform->type = gl_enum_type_to_string(param_type);
-		Uniform->size = (s32)size;
+		glGetActiveUniform(Shader->id, uniform_index, length_max, &length_actual, &Uniform->size, &Uniform->type, Uniform->name);
 	
-		if(size > 1)
+		b32 is_array_uniform = (Uniform->size > 1);
+		if(is_array_uniform)
 		{
-			for(s32 j = 0; j < size; j++)
+			// TODO(Justin): Need to store multiple data here
+			for(s32 uniform_array_index = 0; uniform_array_index < size; uniform_array_index++)
 			{
 				char name_long[64];
-				sprintf(name_long, "%s[%d]", name, j);
-				s32 location = glGetUniformLocation(Shader->id, name_long);
+				sprintf(name_long, "%s[%d]", Uniform->name, uniform_array_index);
+				Uniform->location = glGetUniformLocation(Shader->id, name_long);
 
-				Uniform->location = location;
-
-				char *gl_type = gl_enum_type_to_string(param_type);
-
-				printf(" %d) TYPE:%s NAME:%s LOCATION:%d\n\n", uniform_index, gl_type, name_long, location);
+				char *gl_type = gl_enum_type_to_string(Uniform->type);
+				printf(" %d) TYPE:%s NAME:%s LOCATION:%d\n\n", uniform_index, gl_type, name_long, Uniform->location);
 			}
 		}
 		else
 		{
-			s32 location = glGetUniformLocation(Shader->id, name);
-
-			Uniform->location = location;
-			printf(" %d) TYPE:%s NAME: %s LOCATION:%d\n\n", uniform_index, gl_enum_type_to_string(param_type), name, location);
+			Uniform->location = glGetUniformLocation(Shader->id, Uniform->name);
+			printf(" %d) TYPE:%s NAME: %s LOCATION:%d\n\n", uniform_index, gl_enum_type_to_string(Uniform->type), Uniform->name, Uniform->location);
 		}
 	}
 }
@@ -430,8 +421,8 @@ texture_set_active_and_bind(u32 index, texture_t *Texture)
 {
 	glActiveTexture(GL_TEXTURE0 + index);
 
-	// TODO(Justin): Either pass in the first argument, or rename this function
-	// to include the fact that this is for 2D textures.
+	// TODO(Justin): Make the struct actually store the GL type
+	
 	glBindTexture(GL_TEXTURE_2D, Texture->id);
 }
 
@@ -463,12 +454,7 @@ texture_simple_init(char *filename, texture_type_t texture_type)
 
 	if(Texture.memory)
 	{
-		GLenum PIXEL_FORMAT;
-		if(Texture.channel_count == 1)
-		{
-			PIXEL_FORMAT = GL_RED;
-		} 
-
+		GLenum PIXEL_FORMAT = GL_RED;
 	    if(Texture.channel_count == 3)
 		{
 			PIXEL_FORMAT = GL_RGB;
@@ -487,10 +473,6 @@ texture_simple_init(char *filename, texture_type_t texture_type)
 
 		glGenerateMipmap(GL_TEXTURE_2D);
 	}
-	// TODO(Justin): Do we really need to free the memory? Only need to free
-	// when we nolonger need the texture otherwise if we need it would have to
-	// load the texture again which we do not want to do if we do not have to.
-	//stbi_image_free(Texture.memory);
 	return(Texture);
 }
 
@@ -617,7 +599,7 @@ mesh_process_indices(aiMesh *Mesh)
 	// NOTE(Justin): This assignmenet of indices count only works for meshes
 	// composed of triangles only.
 	u32 indices_count = Mesh->mNumFaces * 3;
-	u32 index_buffer_memory_size = index_size * indices_count;
+	//u32 index_buffer_memory_size = index_size * indices_count;
 
 	MeshIndices.indices = (u32 *)calloc((size_t)indices_count, index_size);
 	MeshIndices.indices_count = indices_count;
@@ -642,7 +624,7 @@ mesh_process_vertices(aiMesh *Mesh)
 
 	u32 vertices_count = Mesh->mNumVertices;
 	size_t vertex_size = sizeof(mesh_vertex_t);
-	u32 vertex_buffer_memory_size = vertex_size * vertices_count;
+	//u32 vertex_buffer_memory_size = vertex_size * vertices_count;
 
 	// Allocate an array of mesh_vertex_t vertices (postion, normal, and texture coordinates)
 	MeshVertices.Vertices = (mesh_vertex_t*)calloc((size_t)vertices_count, vertex_size);
@@ -728,7 +710,7 @@ mesh_process_material(app_state_t *AppState, aiMaterial *MeshMaterial)
 
 	size_t texture_size = sizeof(texture_t);
 	u32 texture_count = texture_diffuse_count + texture_specular_count;
-	u32 texture_memory_size = texture_count * texture_size;
+	//u32 texture_memory_size = texture_count * texture_size;
 
 	MeshTextures.Textures = (texture_t*)calloc((size_t)texture_count, texture_size);
 
@@ -822,9 +804,8 @@ node_process(app_state_t *AppState, const aiScene *Scene, aiNode *Node, model_t 
 // NOTE(Justin): The meshes of a model may require different shaders?
 internal void
 model_process(app_state_t *AppState, char *full_path_to_model, char *vertex_shader_filename,
-																 char *fragment_shader_filename)
+															   char *fragment_shader_filename)
 {
-
 	Assimp::Importer Importer;
 	const aiScene* Scene = Importer.ReadFile(full_path_to_model, ASSIMP_LOAD_FLAGS);
 
@@ -832,12 +813,14 @@ model_process(app_state_t *AppState, char *full_path_to_model, char *vertex_shad
 
 	u32 mesh_count = Scene->mNumMeshes;
 	size_t mesh_size = sizeof(mesh_t);
+
 	Result.Meshes = (mesh_t *)calloc((size_t)mesh_count, mesh_size);
 	Result.mesh_count = 0;
 	
 	aiNode *Node = Scene->mRootNode;
 
 	node_process(AppState, Scene, Node, &Result, vertex_shader_filename, fragment_shader_filename);
+
 	if(mesh_count == Result.mesh_count)
 	{
 		AppState->Models[AppState->model_count] = Result;
@@ -879,7 +862,7 @@ mesh_draw(app_state_t *AppState, mesh_t *Mesh, glm::mat4 ModelTransform, glm::ma
 	uniform_set_f32(Shader.id, "u_LightPoint.atten_quadratic", 0.032f);
 
 	// TODO(Justin): Loop through all the textures for each mesh and set them.
-	if (Mesh->MeshTextures.texture_count)
+	if(Mesh->MeshTextures.texture_count)
 	{
 		for(u32 texture_index = 0; texture_index < Mesh->MeshTextures.texture_count; texture_index++)
 		{
@@ -887,9 +870,8 @@ mesh_draw(app_state_t *AppState, mesh_t *Mesh, glm::mat4 ModelTransform, glm::ma
 			// TODO(Justin): What type of texture are we setting? Is it implicit
 			// in MeshTexture. It is being set as GL_TEXTURE_2D for each one.
 			// The type of texture should probably be store in MeshTexturee.
+
 			texture_set_active_and_bind(texture_index, MeshTexture);
-			//MeshTexture++;
-			//texture_set_active_and_bind(1, MeshTexture);
 		}
 	}
 	glBindVertexArray(Mesh->MeshVAO);
@@ -898,10 +880,58 @@ mesh_draw(app_state_t *AppState, mesh_t *Mesh, glm::mat4 ModelTransform, glm::ma
 }
 
 
+internal void
+cubes_draw(app_state_t *AppState, cube_t *Cube, glm::mat4 MapToCamera, glm::mat4 MapToPersp,
+												glm::vec3 LightPos, u32 cube_count, glm::vec3 *cube_positions)
+{
+	glUseProgram(Cube->Shader.id);
+
+	uniform_set_mat4f(Cube->Shader.id, "MapToCamera", MapToCamera);
+	uniform_set_mat4f(Cube->Shader.id,"MapToPersp", MapToPersp);
+
+	uniform_set_vec3f(Cube->Shader.id, "u_camera_pos", AppState->Camera.Pos);
+	uniform_set_vec3f(Cube->Shader.id, "u_light_point.pos", LightPos);
+	uniform_set_vec3f(Cube->Shader.id, "u_light_point.ambient", glm::vec3(0.2, 0.2, 0.2));
+	uniform_set_vec3f(Cube->Shader.id, "u_light_point.diffuse", glm::vec3(0.2, 0.2, 0.2));
+	uniform_set_vec3f(Cube->Shader.id, "u_light_point.specular", glm::vec3(1.0, 1.0, 1.0));
+
+	uniform_set_f32(Cube->Shader.id, "u_light_point.atten_constant", 0.2f);
+	uniform_set_f32(Cube->Shader.id, "u_light_point.atten_linear", 0.01f);
+	uniform_set_f32(Cube->Shader.id, "u_light_point.atten_quadratic", 0.002f);
+
+	uniform_set_f32(Cube->Shader.id, "u_material.shininess", 32.0f);
+
+
+	glm::vec3 *Pos = cube_positions;
+	for(u32 position_index = 0; position_index < cube_count; position_index++)
+	{
+		glm::mat4 ModelTransform = glm::mat4(1.0f);
+
+		ModelTransform = glm::translate(ModelTransform, *Pos);
+		uniform_set_mat4f(Cube->Shader.id, "ModelTransform", ModelTransform);
+
+		texture_set_active_and_bind(0, &Cube->Textures[0]);
+		texture_set_active_and_bind(1, &Cube->Textures[1]);
+		glBindVertexArray(Cube->VertexArray.id);
+		glDrawArrays(GL_TRIANGLES, 0, 36);
+		glBindVertexArray(0);
+
+		Pos++;
+	}
+}
+
 internal cube_t
-cube_init(f32 *vertices, u32 vertices_count)
+cube_init(f32 *vertices, u32 vertices_count,
+		char *vertex_shader_filename, char *fragment_shader_filename,
+		char *texture_diffuse_filename, char *texture_specular_filename)
 {
 	cube_t Result = {};
+
+	texture_t TextureDiffuse = texture_simple_init(texture_diffuse_filename, TEXTURE_TYPE_DIFFUSE);
+	texture_t TextureSpecular = texture_simple_init(texture_specular_filename, TEXTURE_TYPE_SPECULAR);
+
+	Result.Textures[0] = TextureDiffuse;
+	Result.Textures[1] = TextureSpecular;
 
 	vertex_array_t VertexArray = vertex_array_create();
 	vertex_buffer_t VertexBuffer = vertex_buffer_create(vertices, vertices_count * sizeof(f32));
@@ -933,6 +963,9 @@ cube_init(f32 *vertices, u32 vertices_count)
 	Result.VertexArray = VertexArray;
 	Result.VertexBuffer = VertexBuffer;
 	Result.VertexBufferLayout = VertexBufferLayout;
+
+	Result.Shader = shader_program_create_from_files(vertex_shader_filename, fragment_shader_filename);
+	gl_log_shader_info(&Result.Shader);
 
 	return(Result);
 }
@@ -1074,11 +1107,13 @@ int main(void)
 
 	// TODO(Justin): Still need to remove hardcoded values in the model loading
 	// sub routines.
-	model_process(&AppState, "models/backpack/backpack.obj", "shaders/backpack.vs", "shaders/backpack.fs");
+	//model_process(&AppState, "models/backpack/backpack.obj", "shaders/backpack.vs", "shaders/backpack.fs");
 	//model_process(&AppState, "models/suzanne.obj", "shaders/suzanne.vs", "suzanne.fs");
 
-	
-	cube_t Cube = cube_init(&cube_vertices_normals_and_tex_coods[0], ArrayCount(cube_vertices_normals_and_tex_coods));
+	cube_t Cube = cube_init(&cube_vertices_normals_and_tex_coods[0],
+							ArrayCount(cube_vertices_normals_and_tex_coods),
+							"shaders/cube_light_casters.vs", "shaders/cube_light_casters.fs",
+							"textures/container2.png", "textures/container2_specular.png");
 
 	// Lamp
 	vertex_array_t LightVertexArray = vertex_array_create();
@@ -1112,26 +1147,17 @@ int main(void)
 
 	};
 
-	char *skybox_vertex_shader_filename = "shaders/skybox.vs";
-	char *skybox_fragment_shader_filename = "shaders/skybox.fs";
-
 	skybox_t SkyBox = skybox_init(skybox_texture_files, &skybox_vertices[0], ArrayCount(skybox_vertices),
-			skybox_vertex_shader_filename, skybox_fragment_shader_filename);
+		"shaders/skybox.vs", "shaders/skybox.fs");
 
 	shader_program_t LightShader;
-	shader_program_t CubeShader;
-
-	char *cube_vertex_shader_filename = "shaders/cube_light_casters.vs";
-	char *cube_fragment_shader_filename = "shaders/cube_light_casters.fs";
 
 	char *light_vertex_shader_filename = "shaders/light_001.vs";
 	char *light_fragment_shader_filename = "shaders/light_001.fs";
 
 	LightShader = shader_program_create_from_files(light_vertex_shader_filename, light_fragment_shader_filename);
-	CubeShader = shader_program_create_from_files(cube_vertex_shader_filename, cube_fragment_shader_filename);
 
 	gl_log_shader_info(&LightShader);
-	gl_log_shader_info(&CubeShader);
 
 	AppInput.Mouse.Pos.x = Window.width / 2;
 	AppInput.Mouse.Pos.y = Window.height / 2;
@@ -1140,7 +1166,6 @@ int main(void)
 	AppInput.pitch = 0.0f;
 
 	camera_t Camera = {};
-
 	Camera.Pos = glm::vec3(0.0f, 0.0f, 3.0f);
 	Camera.Direction.x = cos(glm::radians(AppInput.yaw)) * cos(glm::radians(AppInput.pitch));
 	Camera.Direction.y = sin(glm::radians(AppInput.pitch));
@@ -1149,10 +1174,12 @@ int main(void)
 	Camera.Up = E2;
 	Camera.speed = 5.0f;
 
-	AppState.LightShader = LightShader;
-	AppState.CubeShader = CubeShader;
 	AppState.Camera = Camera;
-
+	AppState.LightShader = LightShader;
+	
+	//
+	// NOTE(Justin): Transforms and Positions.
+	//
 
 	glm::mat4 MapToCamera = glm::lookAt(AppState.Camera.Pos, AppState.Camera.Pos + AppState.Camera.Direction, AppState.Camera.Up);
 	MapToCamera = glm::translate(MapToCamera, glm::vec3(0.0f, 0.0f, -3.0f));
@@ -1169,9 +1196,9 @@ int main(void)
 
 	LightPositions[0] = cube_positions[0];
 
-	glUseProgram(AppState.CubeShader.id);
-	uniform_set_s32(AppState.CubeShader.id, "u_material.diffuse", 0);
-	uniform_set_s32(AppState.CubeShader.id, "u_material.specular", 1);
+	glUseProgram(Cube.Shader.id);
+	uniform_set_s32(Cube.Shader.id, "u_material.diffuse", 0);
+	uniform_set_s32(Cube.Shader.id, "u_material.specular", 1);
 
 
 	for(u32 MeshIndex = 0; MeshIndex < AppState.Models[0].mesh_count; MeshIndex++)
@@ -1232,9 +1259,17 @@ int main(void)
 			}
 		}
 
+		LightPositions[0].x = 5.0f * cos(glfwGetTime());
+		LightPositions[0].y = 0.0f;
+		LightPositions[0].z = -5.0f * sin(glfwGetTime());
+		
+		cubes_draw(&AppState, &Cube, MapToCamera, MapToPersp, LightPositions[0], 
+				ArrayCount(cube_positions), cube_positions);
+
 		//
 		// NOTE(Justin): Lamp
 		//
+
 
 		glUseProgram(AppState.LightShader.id);
 
