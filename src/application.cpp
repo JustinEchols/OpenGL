@@ -48,11 +48,10 @@ vertex_array_create()
 	vertex_array_t Result = {};
 
 	glGenVertexArrays(1, &Result.id);
-	// TODO(Justin): Not sure if this is a good idea
-	//glBindVertexArray(Result.id);
 
 	return(Result);
 }
+
 
 
 internal void
@@ -66,6 +65,12 @@ vertex_array_add_buffer_layout(u32 index, vertex_array_t *VertexArray, vertex_bu
 	// TODO(Justin): Should we pass in an index as opposed to storing it in the vertex_array_t struct?
 	//glEnableVertexAttribArray(VertexArray->attribute_index);
 	//VertexArray->attribute_index++;
+}
+
+internal void
+vertex_array_bind(vertex_array_t VertexArray)
+{
+	glBindVertexArray(VertexArray.id);
 }
 
 
@@ -927,11 +932,16 @@ cube_init(f32 *vertices, u32 vertices_count,
 {
 	cube_t Result = {};
 
-	texture_t TextureDiffuse = texture_simple_init(texture_diffuse_filename, TEXTURE_TYPE_DIFFUSE);
-	texture_t TextureSpecular = texture_simple_init(texture_specular_filename, TEXTURE_TYPE_SPECULAR);
-
-	Result.Textures[0] = TextureDiffuse;
-	Result.Textures[1] = TextureSpecular;
+	if(texture_diffuse_filename)
+	{
+		texture_t TextureDiffuse = texture_simple_init(texture_diffuse_filename, TEXTURE_TYPE_DIFFUSE);
+		Result.Textures[0] = TextureDiffuse;
+	}
+	if(texture_specular_filename)
+	{
+		texture_t TextureSpecular = texture_simple_init(texture_specular_filename, TEXTURE_TYPE_SPECULAR);
+		Result.Textures[1] = TextureSpecular;
+	}
 
 	vertex_array_t VertexArray = vertex_array_create();
 	vertex_buffer_t VertexBuffer = vertex_buffer_create(vertices, vertices_count * sizeof(f32));
@@ -1043,6 +1053,58 @@ skybox_init(char **texture_files, f32 *skybox_vertices, u32 vertices_count,
 	return(Result);
 }
 
+
+internal line_t
+line_create_from_two_points(glm::vec3 P1, glm::vec3 P2)
+{
+	line_t Result = {};
+
+	Result.P1 = P1;
+	Result.P2 = P2;
+
+	glGenVertexArrays(1, &Result.VAO);
+	glGenBuffers(1, &Result.VBO);
+
+	glBindVertexArray(Result.VAO);
+	glBindBuffer(GL_ARRAY_BUFFER, Result.VBO);
+
+	// NOTE(Justin): The buffering of the data works as follows. The first two
+	// members of the line_t struct are the glm::vec3 P1 and P2 vertex
+	// positions. The opengl buffer just needs to be big enough to store these
+	// two vertices. Since these are the first two members we can give the
+	// address of the first vertex and an offset to the next to correctly
+	// describe the data that is needing to be copied to the buffer.
+
+	glBufferData(GL_ARRAY_BUFFER, 2 * sizeof(Result.P1), &Result.P1, GL_STATIC_DRAW);
+	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(f32), (void *)0);
+
+	glEnableVertexAttribArray(0);
+	glBindBuffer(GL_ARRAY_BUFFER, 0);
+	glBindVertexArray(0);
+
+	Result.Shader = shader_program_create_from_files("shaders/line.vs", "shaders/line.fs");
+	gl_log_shader_info(&Result.Shader);
+
+	return(Result);
+
+}
+
+internal void
+line_draw(line_t *Line, glm::mat4 ModelTransform, glm::mat4 MapToCamera, glm::mat4 MapToPersp, glm::vec3 Color)
+{
+	glUseProgram(Line->Shader.id);
+
+	ModelTransform = glm::mat4(1.0f);
+	uniform_set_mat4f(Line->Shader.id, "ModelTransform", ModelTransform);
+	uniform_set_mat4f(Line->Shader.id, "MapToCamera", MapToCamera);
+	uniform_set_mat4f(Line->Shader.id,"MapToPersp", MapToPersp);
+	uniform_set_vec3f(Line->Shader.id, "LineColor", Color);
+
+	glBindVertexArray(Line->VAO);
+	glDrawArrays(GL_LINES, 0, 2);
+	glBindVertexArray(0);
+}
+
 int main(void)
 {
 	gl_log_restart();
@@ -1109,11 +1171,23 @@ int main(void)
 	// sub routines.
 	//model_process(&AppState, "models/backpack/backpack.obj", "shaders/backpack.vs", "shaders/backpack.fs");
 	//model_process(&AppState, "models/suzanne.obj", "shaders/suzanne.vs", "suzanne.fs");
+	
+
+	line_t Line = line_create_from_two_points(E1, E2);
+	line_t Line1 = line_create_from_two_points(E1, -E2);
+
+
 
 	cube_t Cube = cube_init(&cube_vertices_normals_and_tex_coods[0],
 							ArrayCount(cube_vertices_normals_and_tex_coods),
 							"shaders/cube_light_casters.vs", "shaders/cube_light_casters.fs",
+							"textures/marble.jpg", "");
+#if 0
+	cube_t Cube = cube_init(&cube_vertices_normals_and_tex_coods[0],
+							ArrayCount(cube_vertices_normals_and_tex_coods),
+							"shaders/cube_light_casters.vs", "shaders/cube_light_casters.fs",
 							"textures/container2.png", "textures/container2_specular.png");
+#endif
 
 	// Lamp
 	vertex_array_t LightVertexArray = vertex_array_create();
@@ -1134,7 +1208,7 @@ int main(void)
 	texture_t TexturePlaneMetal = texture_simple_init("textures/metal.png", TEXTURE_TYPE_SPECULAR);
 	texture_t TextureContainerDiffuse = texture_simple_init("textures/container2.png", TEXTURE_TYPE_DIFFUSE);
 	texture_t TextureContainerSpecular = texture_simple_init("textures/container2_specular.png", TEXTURE_TYPE_SPECULAR);
-
+	texture_t TextureGrass = texture_simple_init("textures/grass.png", TEXTURE_TYPE_DIFFUSE);
 
 	char *skybox_texture_files[] =  
 	{
@@ -1263,8 +1337,8 @@ int main(void)
 		LightPositions[0].y = 0.0f;
 		LightPositions[0].z = -5.0f * sin(glfwGetTime());
 		
-		cubes_draw(&AppState, &Cube, MapToCamera, MapToPersp, LightPositions[0], 
-				ArrayCount(cube_positions), cube_positions);
+		cubes_draw(&AppState, &Cube, MapToCamera, MapToPersp, LightPositions[0], ArrayCount(cube_positions),
+																								cube_positions);
 
 		//
 		// NOTE(Justin): Lamp
@@ -1293,6 +1367,13 @@ int main(void)
 
 		glBindVertexArray(LightVertexArray.id);
 		glDrawArrays(GL_TRIANGLES, 0, 36);
+
+		//
+		// NOTE(Jusint): Line
+		//
+
+		line_draw(&Line, ModelTransform, MapToCamera, MapToPersp, E2);
+		line_draw(&Line1, ModelTransform, MapToCamera, MapToPersp, E2);
 
         glfwPollEvents();
         glfwSwapBuffers(Window.handle);
