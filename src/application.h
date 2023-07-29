@@ -47,6 +47,10 @@ typedef double f64;
 #define Member(Type, member) (((Type*)0)->member)
 #define OffsetOfMember(Type,member) IntFromPtr(&Member(Type,member))
 
+
+
+
+
 typedef enum
 {
 	Standard,
@@ -144,6 +148,10 @@ typedef struct
 	mouse_t Mouse;
 } input_t;
 
+//
+// NOTE(Justin): OpenGL like primitive data structures
+//
+
 typedef struct
 {
 	GLuint id;
@@ -167,7 +175,6 @@ typedef struct
 {
 	GLuint id;
 	vertex_buffer_layout_t VertexBufferLayout;
-
 } vertex_array_t;
 
 typedef struct
@@ -175,13 +182,6 @@ typedef struct
 	u32* indices;
 	u32 count;
 } index_buffer_t;
-
-
-// TODO(Justin): Not sure on the naming or grouping for the uniform struct and
-// the array of uniform structs in the shader struct.
-
-// TODO(Justin): Will need to either have two structs, uniform_t and
-// uniform_array_t or have one struct that can do both.
 
 typedef struct
 {
@@ -205,6 +205,36 @@ typedef struct
 
 	// TODO(Justin): Input attribuites?
 } shader_program_t;
+
+
+//
+// NOTE(Justin): Geometric Primitives
+//
+
+typedef struct
+{
+	glm::vec3 Min;
+	glm::vec3 Max;
+} rectangle_t;
+
+typedef struct
+{
+	glm::vec3 P1;
+	glm::vec3 P2;
+
+	GLuint VAO, VBO;
+
+	shader_program_t Shader;
+
+} line_t;
+
+// TODO(Justin): Not sure on the naming or grouping for the uniform struct and
+// the array of uniform structs in the shader struct.
+
+// TODO(Justin): Will need to either have two structs, uniform_t and
+// uniform_array_t or have one struct that can do both.
+
+
 
 typedef struct
 {
@@ -260,7 +290,7 @@ typedef struct
 	vertex_buffer_t VertexBuffer;
 	vertex_buffer_layout_t VertexBufferLayout;
 
-	texture_t Textures[2];
+	texture_t Textures[4];
 
 	shader_program_t Shader;
 
