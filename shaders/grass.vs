@@ -1,11 +1,9 @@
 #version 430 core
 
-in (layout location 0) vec3 v_Position;
-in (layout location 1) vec3 v_Normal;
-in (layout location 2) vec2 v_TexCoordinate;
+layout (location = 0) in vec3 v_Position;;
+layout (location = 1) in vec2 v_TexCoordinate;
 
-out
-out
+out vec2 v_TexCoord;
 
 uniform mat4 ModelTransform;
 uniform mat4 MapToCamera;
@@ -13,7 +11,8 @@ uniform mat4 MapToPersp;
 
 void main()
 {
-
+	gl_Position = MapToPersp * MapToCamera * ModelTransform * vec4(v_Position, 1.0);
+	v_TexCoord = v_TexCoordinate;
 }
 
 
