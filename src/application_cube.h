@@ -47,6 +47,7 @@ f32 cube_vertices[] =
 
 f32 cube_vertices_and_normals[] =
 {
+	// Back
     -0.5f, -0.5f, -0.5f,  0.0f,  0.0f, -1.0f,
      0.5f, -0.5f, -0.5f,  0.0f,  0.0f, -1.0f, 
      0.5f,  0.5f, -0.5f,  0.0f,  0.0f, -1.0f, 
@@ -54,6 +55,7 @@ f32 cube_vertices_and_normals[] =
     -0.5f,  0.5f, -0.5f,  0.0f,  0.0f, -1.0f, 
     -0.5f, -0.5f, -0.5f,  0.0f,  0.0f, -1.0f, 
 
+	// Front
     -0.5f, -0.5f,  0.5f,  0.0f,  0.0f, 1.0f,
      0.5f, -0.5f,  0.5f,  0.0f,  0.0f, 1.0f,
      0.5f,  0.5f,  0.5f,  0.0f,  0.0f, 1.0f,
@@ -61,6 +63,7 @@ f32 cube_vertices_and_normals[] =
     -0.5f,  0.5f,  0.5f,  0.0f,  0.0f, 1.0f,
     -0.5f, -0.5f,  0.5f,  0.0f,  0.0f, 1.0f,
 
+	// Left
     -0.5f,  0.5f,  0.5f, -1.0f,  0.0f,  0.0f,
     -0.5f,  0.5f, -0.5f, -1.0f,  0.0f,  0.0f,
     -0.5f, -0.5f, -0.5f, -1.0f,  0.0f,  0.0f,
@@ -68,6 +71,7 @@ f32 cube_vertices_and_normals[] =
     -0.5f, -0.5f,  0.5f, -1.0f,  0.0f,  0.0f,
     -0.5f,  0.5f,  0.5f, -1.0f,  0.0f,  0.0f,
 
+	// Right
      0.5f,  0.5f,  0.5f,  1.0f,  0.0f,  0.0f,
      0.5f,  0.5f, -0.5f,  1.0f,  0.0f,  0.0f,
      0.5f, -0.5f, -0.5f,  1.0f,  0.0f,  0.0f,
@@ -75,19 +79,21 @@ f32 cube_vertices_and_normals[] =
      0.5f, -0.5f,  0.5f,  1.0f,  0.0f,  0.0f,
      0.5f,  0.5f,  0.5f,  1.0f,  0.0f,  0.0f,
 
-    -0.5f, -0.5f, -0.5f,  0.0f, -1.0f,  0.0f,
-     0.5f, -0.5f, -0.5f,  0.0f, -1.0f,  0.0f,
-     0.5f, -0.5f,  0.5f,  0.0f, -1.0f,  0.0f,
-     0.5f, -0.5f,  0.5f,  0.0f, -1.0f,  0.0f,
-    -0.5f, -0.5f,  0.5f,  0.0f, -1.0f,  0.0f,
-    -0.5f, -0.5f, -0.5f,  0.0f, -1.0f,  0.0f,
+	 // Bottom
+    -0.5f, -0.5f, -0.5f,  0.0f, 1.0f,  0.0f,
+     0.5f, -0.5f, -0.5f,  0.0f, 1.0f,  0.0f,
+     0.5f, -0.5f,  0.5f,  0.0f, 1.0f,  0.0f,
+     0.5f, -0.5f,  0.5f,  0.0f, 1.0f,  0.0f,
+    -0.5f, -0.5f,  0.5f,  0.0f, 1.0f,  0.0f,
+    -0.5f, -0.5f, -0.5f,  0.0f, 1.0f,  0.0f,
 
-    -0.5f,  0.5f, -0.5f,  0.0f,  1.0f,  0.0f,
-     0.5f,  0.5f, -0.5f,  0.0f,  1.0f,  0.0f,
-     0.5f,  0.5f,  0.5f,  0.0f,  1.0f,  0.0f,
-     0.5f,  0.5f,  0.5f,  0.0f,  1.0f,  0.0f,
-    -0.5f,  0.5f,  0.5f,  0.0f,  1.0f,  0.0f,
-    -0.5f,  0.5f, -0.5f,  0.0f,  1.0f,  0.0f
+	// Top
+    -0.5f,  0.5f, -0.5f,  0.0f,  -1.0f,  0.0f,
+     0.5f,  0.5f, -0.5f,  0.0f,  -1.0f,  0.0f,
+     0.5f,  0.5f,  0.5f,  0.0f,  -1.0f,  0.0f,
+     0.5f,  0.5f,  0.5f,  0.0f,  -1.0f,  0.0f,
+    -0.5f,  0.5f,  0.5f,  0.0f,  -1.0f,  0.0f,
+    -0.5f,  0.5f, -0.5f,  0.0f,  -1.0f,  0.0f
 };
 
 f32 cube_vertices_and_tex_coods[] =
@@ -196,9 +202,6 @@ glm::vec3 cube_positions[] =
 
 f32 skybox_vertices[] =
 {
-	// positions          
-
-	// Back
 	-1.0f,  1.0f, -1.0f,
 	-1.0f, -1.0f, -1.0f,
 	1.0f, -1.0f, -1.0f,
@@ -253,5 +256,81 @@ f32 plane_vertices[] =
 	-5.0f, -0.5f, -5.0f,  0.0f, 2.0f,
 	5.0f, -0.5f, -5.0f,  2.0f, 2.0f								
 };
+
+f32 cube_vertices_ccw_order[] = {
+    // Back face
+    -0.5f, -0.5f, -0.5f,  0.0f, 0.0f, // Bottom-left
+     0.5f,  0.5f, -0.5f,  1.0f, 1.0f, // top-right
+     0.5f, -0.5f, -0.5f,  1.0f, 0.0f, // bottom-right         
+     0.5f,  0.5f, -0.5f,  1.0f, 1.0f, // top-right
+    -0.5f, -0.5f, -0.5f,  0.0f, 0.0f, // bottom-left
+    -0.5f,  0.5f, -0.5f,  0.0f, 1.0f, // top-left
+    // Front face
+    -0.5f, -0.5f,  0.5f,  0.0f, 0.0f, // bottom-left
+     0.5f, -0.5f,  0.5f,  1.0f, 0.0f, // bottom-right
+     0.5f,  0.5f,  0.5f,  1.0f, 1.0f, // top-right
+     0.5f,  0.5f,  0.5f,  1.0f, 1.0f, // top-right
+    -0.5f,  0.5f,  0.5f,  0.0f, 1.0f, // top-left
+    -0.5f, -0.5f,  0.5f,  0.0f, 0.0f, // bottom-left
+    // Left face
+    -0.5f,  0.5f,  0.5f,  1.0f, 0.0f, // top-right
+    -0.5f,  0.5f, -0.5f,  1.0f, 1.0f, // top-left
+    -0.5f, -0.5f, -0.5f,  0.0f, 1.0f, // bottom-left
+    -0.5f, -0.5f, -0.5f,  0.0f, 1.0f, // bottom-left
+    -0.5f, -0.5f,  0.5f,  0.0f, 0.0f, // bottom-right
+    -0.5f,  0.5f,  0.5f,  1.0f, 0.0f, // top-right
+    // Right face
+     0.5f,  0.5f,  0.5f,  1.0f, 0.0f, // top-left
+     0.5f, -0.5f, -0.5f,  0.0f, 1.0f, // bottom-right
+     0.5f,  0.5f, -0.5f,  1.0f, 1.0f, // top-right         
+     0.5f, -0.5f, -0.5f,  0.0f, 1.0f, // bottom-right
+     0.5f,  0.5f,  0.5f,  1.0f, 0.0f, // top-left
+     0.5f, -0.5f,  0.5f,  0.0f, 0.0f, // bottom-left     
+    // Bottom face
+    -0.5f, -0.5f, -0.5f,  0.0f, 1.0f, // top-right
+     0.5f, -0.5f, -0.5f,  1.0f, 1.0f, // top-left
+     0.5f, -0.5f,  0.5f,  1.0f, 0.0f, // bottom-left
+     0.5f, -0.5f,  0.5f,  1.0f, 0.0f, // bottom-left
+    -0.5f, -0.5f,  0.5f,  0.0f, 0.0f, // bottom-right
+    -0.5f, -0.5f, -0.5f,  0.0f, 1.0f, // top-right
+    // Top face
+    -0.5f,  0.5f, -0.5f,  0.0f, 1.0f, // top-left
+     0.5f,  0.5f,  0.5f,  1.0f, 0.0f, // bottom-right
+     0.5f,  0.5f, -0.5f,  1.0f, 1.0f, // top-right     
+     0.5f,  0.5f,  0.5f,  1.0f, 0.0f, // bottom-right
+    -0.5f,  0.5f, -0.5f,  0.0f, 1.0f, // top-left
+    -0.5f,  0.5f,  0.5f,  0.0f, 0.0f  // bottom-left        
+};
+
+// vertex attributes for a quad that fills the entire screen in Normalized Device Coordinates.
+f32 quad_ndc_vertices[] = 
+{
+	-1.0f,  1.0f,  0.0f, 1.0f,
+	-1.0f, -1.0f,  0.0f, 0.0f,
+	1.0f, -1.0f,  1.0f, 0.0f,
+
+	-1.0f,  1.0f,  0.0f, 1.0f,
+	1.0f, -1.0f,  1.0f, 0.0f,
+	1.0f,  1.0f,  1.0f, 1.0f
+};
+
+f32 points[] = 
+{
+	// bottom left
+	-0.5f, -0.5f, 0.0f, 0.0f, 0.0f,
+	// bottom right
+	0.5f, -0.5f, 0.0f, 1.0f, 0.0f,
+	// top right
+	0.5f, 0.5f, 0.0f, 1.0f, 1.0f,
+	// top left
+	-0.5f, 0.5f, 0.0f, 0.0f, 1.0f,
+};
+u32 indices[] =
+{
+	0, 1, 3,
+	1, 2, 3
+};
+
+
 #define APPLICATION_CUBE_H
 #endif

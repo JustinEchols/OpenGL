@@ -47,9 +47,8 @@ typedef double f64;
 #define Member(Type, member) (((Type*)0)->member)
 #define OffsetOfMember(Type,member) IntFromPtr(&Member(Type,member))
 
-
-
-
+#define Stringify_(x) #x
+#define Stringify(x) Stringify_(x)
 
 typedef enum
 {
@@ -61,6 +60,7 @@ typedef enum
 	Distant,
 	Refract,
 	Translucent,
+	Transparent,
 	ShadowOnly,
 	Tinted,
 	Vegetation,
@@ -82,6 +82,7 @@ typedef struct
 	glm::vec3 Min;
 	glm::vec3 Max;
 } bounding_box_t;
+
 
 typedef enum
 {
@@ -174,7 +175,7 @@ typedef struct
 typedef struct
 {
 	GLuint id;
-	vertex_buffer_layout_t VertexBufferLayout;
+	//vertex_buffer_layout_t VertexBufferLayout;
 } vertex_array_t;
 
 typedef struct
@@ -206,10 +207,37 @@ typedef struct
 	// TODO(Justin): Input attribuites?
 } shader_program_t;
 
+enum texture_type_t
+{
+	TEXTURE_TYPE_DIFFUSE,
+	TEXTURE_TYPE_SPECULAR,
+	TEXTURE_TYPE_SKYBOX,
+
+	TEXTURE_TYPE_COUNT
+};
+
+typedef struct
+{
+	GLuint id;
+	s32 width, height;
+	s32 channel_count;
+	u32 mipmap_level;
+	u8 *memory;
+	char *path;
+	texture_type_t type;
+} texture_t;
 
 //
 // NOTE(Justin): Geometric Primitives
 //
+
+// TODO(Justin): Add normals, tex coords.
+typedef struct
+{
+	GLuint VBO, EBO, VAO;
+	texture_t Texture;
+	shader_program_t Shader;
+} quad_t;
 
 typedef struct
 {
@@ -242,14 +270,7 @@ typedef struct
 	s32 width, height;
 } window_t;
 
-enum texture_type_t
-{
-	TEXTURE_TYPE_DIFFUSE,
-	TEXTURE_TYPE_SPECULAR,
-	TEXTURE_TYPE_SKYBOX,
 
-	TEXTURE_TYPE_COUNT
-};
 
 // TODO(Justin): Not sure where the attribute_count should be. In a the vertex
 // buffer layout or in the mesh vertex definition. 
@@ -273,19 +294,12 @@ typedef struct
 } mesh_indices_t;
 
 
-typedef struct
-{
-	GLuint id;
-	s32 width, height;
-	s32 channel_count;
-	u32 mipmap_level;
-	u8 *memory;
-	char *path;
-	texture_type_t type;
-} texture_t;
+
 
 typedef struct
 {
+
+	//GLuint VBO, VAO;
 	vertex_array_t VertexArray;
 	vertex_buffer_t VertexBuffer;
 	vertex_buffer_layout_t VertexBufferLayout;

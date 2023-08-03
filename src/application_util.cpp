@@ -163,48 +163,48 @@ gl_error_check(char *filename, s32 line_number)
 	{
 		switch (error_code)
 		{
-		case GL_INVALID_ENUM:
-		{
-			char *error = "INVALID_ENUM";
-			printf("%s %s %d", error, filename, line_number);
-		}
-		break;
-		case GL_INVALID_VALUE:
-		{
-			char *error = "INVALID_VALUE";
-			printf("%s %s %d", error, filename, line_number);
-		}
-		break;
-		case GL_INVALID_OPERATION:
-		{
-			char *error = "INVALID_OPERATION";
-			printf("%s %s %d", error, filename, line_number);
-		}
-		break;
-		case GL_STACK_OVERFLOW:
-		{
-			char *error = "STACK_OVERFLOW";
-			printf("%s %s %d", error, filename, line_number);
-		}
-		break;
-		case GL_STACK_UNDERFLOW:
-		{
-			char *error = "STACK_UNDERFLOW";
-			printf("%s %s %d", error, filename, line_number);
-		}
-		break;
-		case GL_OUT_OF_MEMORY:
-		{
-			char *error = "OUT_OF_MEMORY";
-			printf("%s %s %d", error, filename, line_number);
-		}
-		break;
-		case GL_INVALID_FRAMEBUFFER_OPERATION:
-		{
-			char *error = "INVALID_FRAMEBUFFER_OPERATION";
-			printf("%s %s %d", error, filename, line_number);
-		}
-		break;
+			case GL_INVALID_ENUM:
+			{
+				char *error = "INVALID_ENUM";
+				printf("%s %s %d", error, filename, line_number);
+			}
+			break;
+			case GL_INVALID_VALUE:
+			{
+				char *error = "INVALID_VALUE";
+				printf("%s %s %d", error, filename, line_number);
+			}
+			break;
+			case GL_INVALID_OPERATION:
+			{
+				char *error = "INVALID_OPERATION";
+				printf("%s %s %d", error, filename, line_number);
+			}
+			break;
+			case GL_STACK_OVERFLOW:
+			{
+				char *error = "STACK_OVERFLOW";
+				printf("%s %s %d", error, filename, line_number);
+			}
+			break;
+			case GL_STACK_UNDERFLOW:
+			{
+				char *error = "STACK_UNDERFLOW";
+				printf("%s %s %d", error, filename, line_number);
+			}
+			break;
+			case GL_OUT_OF_MEMORY:
+			{
+				char *error = "OUT_OF_MEMORY";
+				printf("%s %s %d", error, filename, line_number);
+			}
+			break;
+			case GL_INVALID_FRAMEBUFFER_OPERATION:
+			{
+				char *error = "INVALID_FRAMEBUFFER_OPERATION";
+				printf("%s %s %d", error, filename, line_number);
+			}
+			break;
 		}
 	}
 	return(error_code);
