@@ -36,31 +36,13 @@ TODO:
 #include "application.h"
 #include "application_util.cpp"
 #include "application_cube.h"
+#include "application_math.h"
 
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
 
 global_variable input_t AppInput;
 
-
-inline glm::vec3
-operator *(f32 c, glm::vec3 V)
-{
-	glm::vec3 Result;
-
-	Result.x  = c * V.x;
-	Result.y  = c * V.y;
-	Result.z  = c * V.z;
-
-	return(Result);
-}
-
-inline glm::vec3
-operator *(glm::vec3 V, f32 c)
-{
-	glm::vec3 Result = c * V;
-	return(Result);
-}
 
 internal vertex_array_t
 vertex_array_create()
@@ -1404,6 +1386,12 @@ int main(void)
 							"shaders/environment_map.vs", "shaders/environment_map.fs");
 	
 
+
+	cube_t CubeTranslucent = cube_no_textures_init(&cube_vertices_and_normals[0],
+							ArrayCount(cube_vertices_and_normals),
+							"shaders/env_map_refract.vs", "shaders/env_map_refract.fs");
+
+
 	quad_t WindowTransparent = quad_create(points, indices, "textures/blending_transparent_window.png", 
 			TEXTURE_TYPE_DIFFUSE, "shaders/transparent_window.vs", "shaders/transparent_window.fs", 1);
 
@@ -1430,8 +1418,6 @@ int main(void)
 	texture_t TextureContainerDiffuse = texture_simple_init("textures/container2.png", TEXTURE_TYPE_DIFFUSE, 0);
 	texture_t TextureContainerSpecular = texture_simple_init("textures/container2_specular.png", 
 																					TEXTURE_TYPE_SPECULAR, 0);
-#if 1
-
 	char *skybox_texture_files[] =  
 	{
 		"textures/skybox/right.jpg",
@@ -1442,19 +1428,7 @@ int main(void)
 		"textures/skybox/back.jpg",
 
 	};
-#endif
 
-#if 0 
-	char *skybox_texture_files[] =  
-	{
-		"textures/Yokohama3/posx.jpg",
-		"textures/Yokohama3/negx.jpg",
-		"textures/Yokohama3/posy.jpg",
-		"textures/Yokohama3/negy.jpg",
-		"textures/Yokohama3/negz.jpg",
-		"textures/Yokohama3/posz.jpg",
-	};
-#endif
 
 	skybox_t SkyBox = skybox_init(skybox_texture_files, &skybox_vertices[0], ArrayCount(skybox_vertices),
 		"shaders/skybox.vs", "shaders/skybox.fs");
@@ -1592,6 +1566,24 @@ int main(void)
 				mesh_draw(&AppState, &ModelMesh, ModelTransform, MapToCamera, MapToPersp, LightPositions[0]);
 			}
 		}
+
+		glUseProgram(CubeTranslucent.Shader.id);
+	
+		ModelTransform = glm::translate(ModelTransform, 5 * E2);
+
+		uniform_set_mat4f(CubeTranslucent.Shader.id, "u_ModelTransform", ModelTransform);
+		uniform_set_mat4f(CubeTranslucent.Shader.id, "u_MapToCamera", MapToCamera);
+		uniform_set_mat4f(CubeTranslucent.Shader.id,"u_MapToPersp", MapToPersp);
+
+		uniform_set_vec3f(CubeTranslucent.Shader.id,"u_CameraPos", AppState.Camera.Pos);
+		uniform_set_f32(CubeTranslucent.Shader.id,"u_refractive_index", (1.0f / 1.333333f));
+
+		glActiveTexture(GL_TEXTURE0);
+		glBindTexture(GL_TEXTURE_CUBE_MAP, SkyBox.TextureCubeMap.id);
+		glBindVertexArray(CubeTranslucent.VertexArray.id);
+		glDrawArrays(GL_TRIANGLES, 0, 36);
+		glBindVertexArray(0);
+
 
 #if 0
 		LightPositions[0].x = 5.0f * cos(glfwGetTime());

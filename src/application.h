@@ -293,9 +293,6 @@ typedef struct
 	u32 *indices;
 } mesh_indices_t;
 
-
-
-
 typedef struct
 {
 
@@ -319,6 +316,10 @@ typedef struct
 
 
 // TODO(Justin): Eventually we may want to individually classify each
+
+
+
+
 // individual mesh for a model to do animations and so on. Therefore 
 // Do we need to generate like an enum for each model we load that refers
 // to a particular mesh of the model Backpack[TORCH].MeshVertices
