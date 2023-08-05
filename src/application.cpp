@@ -601,6 +601,9 @@ glfw_process_input(GLFWwindow *Window, app_state_t *AppState, f32 time_delta)
 	else if(glfwGetKey(Window, GLFW_KEY_RIGHT) == GLFW_PRESS)
 	{
 	}
+	else if(glfwGetKey(Window, GLFW_KEY_SPACE) == GLFW_PRESS)
+	{
+	}
 }
 
 internal texture_type_t
@@ -1371,15 +1374,14 @@ int main(void)
 	// sub routines.
 	//model_process(&AppState, "models/backpack/backpack.obj", "shaders/backpack.vs", "shaders/backpack.fs");
 	//model_process(&AppState, "models/suzanne.obj", "shaders/suzanne.vs", "suzanne.fs");
-	model_process(&AppState, "models/backpack/backpack.obj", "shaders/environment_map.vs", "shaders/environment_map.fs");
+	//model_process(&AppState, "models/backpack/backpack.obj", "shaders/environment_map.vs", "shaders/environment_map.fs");
 	model_process(&AppState, "models/suzanne.obj", "shaders/environment_map.vs", "shaders/environment_map.fs");
 	
 
-
 	cube_t Cube = cube_init(&cube_vertices_normals_and_tex_coods[0],
-							ArrayCount(cube_vertices_normals_and_tex_coods),
-							"shaders/cube_light_casters.vs", "shaders/cube_light_casters.fs",
-							"textures/marble.jpg", "");
+			ArrayCount(cube_vertices_normals_and_tex_coods),
+			"shaders/cube_light_casters.vs", "shaders/cube_light_casters.fs",
+			"textures/metal.png", "");
 
 	cube_t CubeSkybox = cube_no_textures_init(&cube_vertices_and_normals[0],
 							ArrayCount(cube_vertices_and_normals),
@@ -1392,12 +1394,19 @@ int main(void)
 							"shaders/env_map_refract.vs", "shaders/env_map_refract.fs");
 
 
+	cube_t CubeMetal = cube_init(&cube_vertices_normals_and_tex_coods[0], ArrayCount(cube_vertices_normals_and_tex_coods),
+				"shaders/interface_block.vs", "shaders/interface_block.fs", "textures/metal.png", "");
+
+
+
+
 	quad_t WindowTransparent = quad_create(points, indices, "textures/blending_transparent_window.png", 
 			TEXTURE_TYPE_DIFFUSE, "shaders/transparent_window.vs", "shaders/transparent_window.fs", 1);
 
 	quad_t GrassQuad = quad_create(points, indices, "textures/grass.png", TEXTURE_TYPE_DIFFUSE,
 													"shaders/grass.vs", "shaders/grass.fs", 1);
 
+	
 	// Lamp
 	vertex_array_t LightVertexArray = vertex_array_create();
 
@@ -1409,6 +1418,38 @@ int main(void)
 	Cube.VertexBufferLayout.attribute_stride = (void*)0;
 	vertex_array_add_buffer_layout(0, &LightVertexArray, &Cube.VertexBufferLayout);
 
+	//
+	// NOTE(Justin): Uniform buffer example.
+	//
+	shader_program_t RedShader = shader_program_create_from_files("shaders/uniform_buffer.vs",
+																  "shaders/uniform_buffer_red.fs");
+	shader_program_t GreenShader = shader_program_create_from_files("shaders/uniform_buffer.vs",
+																  "shaders/uniform_buffer_green.fs");
+	shader_program_t BlueShader = shader_program_create_from_files("shaders/uniform_buffer.vs",
+																  "shaders/uniform_buffer_blue.fs");
+	shader_program_t YellowShader = shader_program_create_from_files("shaders/uniform_buffer.vs",
+																  "shaders/uniform_buffer_yellow.fs");
+	u32 UniformBlockIndexRed = glGetUniformBlockIndex(RedShader.id, "Transforms");
+	u32 UniformBlockIndexGreen = glGetUniformBlockIndex(GreenShader.id, "Transforms");
+	u32 UniformBlockIndexBlue = glGetUniformBlockIndex(BlueShader.id, "Transforms");
+	u32 UniformBlockIndexYellow = glGetUniformBlockIndex(YellowShader.id, "Transforms");
+
+	glUniformBlockBinding(RedShader.id, UniformBlockIndexRed, 0);
+	glUniformBlockBinding(GreenShader.id, UniformBlockIndexGreen, 0);
+	glUniformBlockBinding(BlueShader.id, UniformBlockIndexBlue, 0);
+	glUniformBlockBinding(YellowShader.id, UniformBlockIndexYellow, 0);
+	
+	u32 MatricesUBO;
+	glGenBuffers(1, &MatricesUBO);
+
+	glBindBuffer(GL_UNIFORM_BUFFER, MatricesUBO);
+	glBufferData(GL_UNIFORM_BUFFER, 2 * sizeof(glm::mat4), NULL, GL_STATIC_DRAW);
+	glBindBuffer(GL_UNIFORM_BUFFER, 0);
+
+	glBindBufferRange(GL_UNIFORM_BUFFER, 0, MatricesUBO, 0, 2 * sizeof(glm::mat4));
+
+
+	//
 	//
 	// NOTE(Justin): Texture initialization
 	//
@@ -1430,6 +1471,7 @@ int main(void)
 	};
 
 
+
 	skybox_t SkyBox = skybox_init(skybox_texture_files, &skybox_vertices[0], ArrayCount(skybox_vertices),
 		"shaders/skybox.vs", "shaders/skybox.fs");
 
@@ -1441,6 +1483,8 @@ int main(void)
 	LightShader = shader_program_create_from_files(light_vertex_shader_filename, light_fragment_shader_filename);
 
 	gl_log_shader_info(&LightShader);
+
+
 
 	AppInput.Mouse.Pos.x = Window.width / 2;
 	AppInput.Mouse.Pos.y = Window.height / 2;
@@ -1474,6 +1518,16 @@ int main(void)
 
 	glm::mat4 MapToPersp = glm::perspective(field_of_view, aspect_ratio, n, f);
 
+	//
+	// NOTE(Justin): After defining the persp and view matrices, copy matrices
+	// to uniform buffer 
+	//
+
+	glBindBuffer(GL_UNIFORM_BUFFER, MatricesUBO);
+	glBufferSubData(GL_UNIFORM_BUFFER, 0, sizeof(glm::mat4), glm::value_ptr(MapToPersp));
+	glBindBuffer(GL_UNIFORM_BUFFER, 0);
+
+
 	glm::vec3 LightPositions[4];
 	LightPositions[0] = cube_positions[0];
 
@@ -1483,6 +1537,9 @@ int main(void)
 
 	glUseProgram(CubeSkybox.Shader.id);
 	uniform_set_s32(Cube.Shader.id, "u_SkyboxTexel", 0);
+
+	glUseProgram(CubeMetal.Shader.id);
+	uniform_set_s32(CubeMetal.Shader.id, "u_Texel", 0);
 
 
 
@@ -1553,8 +1610,6 @@ int main(void)
 		glDrawArrays(GL_TRIANGLES, 0, 36);
 		glBindVertexArray(0);
 
-
-		MapToCamera = glm::lookAt(AppState.Camera.Pos, AppState.Camera.Pos + AppState.Camera.Direction, AppState.Camera.Up);
 		for(u32 model_index = 0; model_index < AppState.model_count; model_index++)
 		{
 			glm::mat4 ModelTransform = glm::mat4(1.0f);
@@ -1569,20 +1624,72 @@ int main(void)
 
 		glUseProgram(CubeTranslucent.Shader.id);
 	
-		ModelTransform = glm::translate(ModelTransform, 5 * E2);
+		ModelTransform = glm::translate(ModelTransform, 5 * E1);
 
 		uniform_set_mat4f(CubeTranslucent.Shader.id, "u_ModelTransform", ModelTransform);
 		uniform_set_mat4f(CubeTranslucent.Shader.id, "u_MapToCamera", MapToCamera);
 		uniform_set_mat4f(CubeTranslucent.Shader.id,"u_MapToPersp", MapToPersp);
 
 		uniform_set_vec3f(CubeTranslucent.Shader.id,"u_CameraPos", AppState.Camera.Pos);
-		uniform_set_f32(CubeTranslucent.Shader.id,"u_refractive_index", (1.0f / 1.333333f));
+		uniform_set_f32(CubeTranslucent.Shader.id,"u_refractive_index", (1.0f / 1.33f));
 
 		glActiveTexture(GL_TEXTURE0);
 		glBindTexture(GL_TEXTURE_CUBE_MAP, SkyBox.TextureCubeMap.id);
 		glBindVertexArray(CubeTranslucent.VertexArray.id);
 		glDrawArrays(GL_TRIANGLES, 0, 36);
 		glBindVertexArray(0);
+
+
+		glUseProgram(CubeMetal.Shader.id);
+
+		ModelTransform = glm::translate(ModelTransform, 5 * E1);
+		uniform_set_mat4f(CubeMetal.Shader.id, "u_ModelTransform", ModelTransform);
+		uniform_set_mat4f(CubeMetal.Shader.id, "u_MapToCamera", MapToCamera);
+		uniform_set_mat4f(CubeMetal.Shader.id,"u_MapToPersp", MapToPersp);
+
+		glActiveTexture(GL_TEXTURE0);
+		glBindTexture(GL_TEXTURE_2D, CubeMetal.Textures[0].id);
+		glBindVertexArray(CubeMetal.VertexArray.id);
+		glDrawArrays(GL_TRIANGLES, 0, 36);
+		glBindVertexArray(0);
+
+		//
+		// NOTE(Justin): UBO example
+		//
+
+		// NOTE(Justin): We need to buffer the camera matrix every frame because
+		// the camera pos and dir changes frequently.
+
+		glBindBuffer(GL_UNIFORM_BUFFER, MatricesUBO);
+		glBufferSubData(GL_UNIFORM_BUFFER, sizeof(glm::mat4), sizeof(glm::mat4), glm::value_ptr(MapToCamera));
+		glBindBuffer(GL_UNIFORM_BUFFER, 0);
+
+		glBindVertexArray(Cube.VertexArray.id);
+
+		glUseProgram(RedShader.id);
+		ModelTransform = glm::translate(ModelTransform, 5 * E1);
+		uniform_set_mat4f(RedShader.id, "u_ModelTransform", ModelTransform);
+		glDrawArrays(GL_TRIANGLES, 0, 36);
+
+		glUseProgram(GreenShader.id);
+		ModelTransform = glm::translate(ModelTransform, E1);
+		uniform_set_mat4f(GreenShader.id, "u_ModelTransform", ModelTransform);
+		glDrawArrays(GL_TRIANGLES, 0, 36);
+
+		glUseProgram(BlueShader.id);
+		ModelTransform = glm::translate(ModelTransform, E2);
+		uniform_set_mat4f(BlueShader.id, "u_ModelTransform", ModelTransform);
+		glDrawArrays(GL_TRIANGLES, 0, 36);
+
+		glUseProgram(YellowShader.id);
+		ModelTransform = glm::translate(ModelTransform, -E1);
+		uniform_set_mat4f(YellowShader.id, "u_ModelTransform", ModelTransform);
+		glDrawArrays(GL_TRIANGLES, 0, 36);
+
+		glBindVertexArray(0);
+
+
+
 
 
 #if 0
