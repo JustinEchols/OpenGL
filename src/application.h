@@ -199,7 +199,10 @@ typedef struct
 	s32 link_status;
 	s32 attached_shaders_count;
 	char *vertex_shader_filename;
+	char *geometry_shader_filename;
 	char *fragment_shader_filename;
+
+	char *name;
 
 	uniform_t *Uniforms;
 	u32 uniforms_count;
@@ -223,7 +226,8 @@ typedef struct
 	s32 channel_count;
 	u32 mipmap_level;
 	u8 *memory;
-	char *path;
+	//char *path;
+	char path[1024];
 	texture_type_t type;
 } texture_t;
 
@@ -231,6 +235,21 @@ typedef struct
 // NOTE(Justin): Geometric Primitives
 //
 
+typedef struct
+{
+	GLuint VBO, VAO;
+
+	//glm::vec2 *Positions;
+	f32 *positions;
+	u32 positions_count;
+
+	//glm::vec3 *Colors;
+	f32 *colors;
+	u32 colors_count;
+
+	shader_program_t Shader;
+
+} points_ndc_t;
 // TODO(Justin): Add normals, tex coords.
 typedef struct
 {
@@ -339,16 +358,22 @@ typedef struct
 
 typedef struct
 {
+	size_t length;
+	char data[MAXLEN];
+} string2_t;
+typedef struct
+{
+	// TODO(Justin) Data is not a good name to use;
 	u32 count;
-	u8 *data;
+	char *data;
 } string_t;
 
 
 typedef struct
 {
 	char *path_to_dir;
-
 	glm::vec3 Pos;
+
 	u32 mesh_count;
 	mesh_t *Meshes;
 } model_t;
@@ -373,7 +398,7 @@ typedef struct
 	skybox_t Skyboxes[10];
 
 	u32 loaded_texture_count;
-	texture_t LoadedTextures[16];
+	texture_t LoadedTextures[32];
 
 
 	u32 model_count;

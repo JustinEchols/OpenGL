@@ -3,19 +3,18 @@ TODO:
  - Vertex Buffers
 	Lock Modify Unlock
 	Set data
-	streaming
-	.
-	.
-	. 
+	Streaming
 
  - Picking Cache for
-	Selecting object
-		Mouse point to object
-		Click object
-		Send ray to see if it interseects
+	-Selecting object
+		-Mouse point to object
+		-Click object
+		-Send ray to see if it interseects
 	
  - Testing framework
  - Memory arena
+ - Audio
+ - Global shader to default too, instead of assert then crash?
 
 */
 
@@ -34,15 +33,205 @@ TODO:
 
 
 #include "application.h"
-#include "application_util.cpp"
 #include "application_cube.h"
 #include "application_math.h"
 
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
 
+#include "application_util.cpp"
+#include "application_mesh.cpp"
+
 global_variable input_t AppInput;
 
+internal u32
+get_string_length(char *string)
+{
+	u32 Result = 0;
+	for(char *c = string; *c != '\0'; c++)
+	{
+		Result++;
+	}
+	return(Result);
+}
+
+// TODO(Justin): This is completley unsafe and not to be desired at all. Only
+// works for when len a < len b. Meant to be used for copying paths to a buffer
+// Will always work if strin_a is a buffer big enough to copy string_b to.
+
+internal void
+copy_strings(char *string_a, char *string_b)
+{
+	char *src = string_b;
+	char *dest = string_a;
+	while(*src != '\0')
+	{
+		*dest++ = *src++;
+	}
+	*dest++ = '\0';
+}
+
+
+#if 1
+internal void
+concat_strings(char *buff, char *string_a, char *string_b)
+{
+	// TODO(Justin): Make sure the buffer
+
+	copy_strings(buff, string_a);
+
+	u32 length = get_string_length(string_a);
+	char *c = buff + length;
+
+	copy_strings(c, string_b);
+}
+#endif
+
+#if 0
+internal char *
+concat_strings(char *string_a, char *string_b)
+{
+	// TODO(Justin): Make sure the buffer
+	char Result[256];
+
+	copy_strings(Result, string_a);
+	u32 length = get_string_length(Result);
+	char *c = Result + length;
+	copy_strings(c, string_b);
+
+	return(Result);
+}
+#endif
+
+#if 1
+internal char *
+single_digit_to_string(u32 digit)
+{
+	ASSERT((0 <= digit) && (digit <= 9));
+
+	char *Result;
+
+	if(digit == 0)
+	{
+		Result = "0";
+	}
+	else if(digit == 1)
+	{
+		Result = "1";
+	}
+	else if(digit == 2)
+	{
+		Result = "2";
+	}
+	else if(digit == 3)
+	{
+		Result = "3";
+	}
+	else if(digit == 4)
+	{
+		Result = "4";
+	}
+	else if(digit == 5)
+	{
+		Result = "5";
+	}
+	else if(digit == 6)
+	{
+		Result = "6";
+	}
+	else if(digit == 7)
+	{
+		Result = "7";
+	}
+	else if(digit == 8)
+	{
+		Result = "8";
+	}
+	else
+	{
+		Result = "9";
+	}
+	return(Result);
+}
+#endif
+
+// Only works for numbers 0-99
+internal void
+digit_to_string(char *buff, u32 value)
+{
+	ASSERT((0 <= value) && (value <= 99));
+
+	u32 remainder = value % 10;
+	u32 ones_digit = remainder;
+	u32 tens_digit = (value - remainder) / 10;
+
+	char *c;
+	if(tens_digit == 0)
+	{
+		c = single_digit_to_string(ones_digit);
+		copy_strings(buff, c);
+	}
+	else
+	{
+		char *b = single_digit_to_string(ones_digit);
+		char *a = single_digit_to_string(tens_digit);
+
+		concat_strings(buff, a, b);
+	}
+}
+
+internal string_t
+copy_string_to_buff(char *string)
+{
+	string_t Result = {};
+
+	char buff[256];
+	char *c = string;
+	u32 length = get_string_length(string);
+
+	for(u32 char_index = 0; char_index < length; char_index++)
+	{
+		buff[char_index] = *c++;
+	}
+	buff[length] = '\0';
+
+	Result.data = buff;
+	Result.count = length;
+	
+	return(Result);
+}
+
+internal string_t 
+get_path_to_dir(char *full_path_to_file)
+{
+	string_t Result = {};
+
+	char *one_past_last_slash;
+	for(char *c = full_path_to_file; *c != '\0'; c++)
+	{
+		if(*c == '/')
+		{
+			one_past_last_slash = c;
+		}
+	}
+	one_past_last_slash++;
+
+	u32 char_count = one_past_last_slash - full_path_to_file;
+
+	char buff[256];
+	char *c = full_path_to_file;
+	u32 char_index;
+	for(char_index = 0; char_index < char_count; char_index++)
+	{
+		buff[char_index] = *c++;
+	}
+	buff[char_index] = '\0';
+
+	Result.data = buff;
+	Result.count = char_count;
+
+	return(Result);
+}
 
 internal vertex_array_t
 vertex_array_create()
@@ -53,8 +242,6 @@ vertex_array_create()
 
 	return(Result);
 }
-
-
 
 internal void
 vertex_array_add_buffer_layout(u32 index, vertex_array_t *VertexArray, vertex_buffer_layout_t *VertexBufferLayout)
@@ -118,85 +305,7 @@ vertex_buffer_destroy(vertex_buffer_t *VertexBuffer)
 	}
 }
 
-internal void
-gl_log_shader_info(shader_program_t *Shader)
-{
-	printf("----------------------\n Shader program %d info:\n", Shader->id);
-	s32 params = -1;
 
-	glGetProgramiv(Shader->id, GL_LINK_STATUS, &params);
-	printf("GL_LINK_STATUS = %d\n", params);
-
-	glGetProgramiv(Shader->id, GL_ATTACHED_SHADERS, &params);
-	printf("GL_ATTACHED_SHADERS = %d\n", params);
-
-	glGetProgramiv(Shader->id, GL_ACTIVE_ATTRIBUTES, &params);
-	printf("GL_ACTIVE_ATTRIBUTES = %d\n", params);
-
-	// TODO(Justin): Store active attributes info?
-	for(s32 attr_index = 0; attr_index < params; attr_index++)
-	{
-		char name[64];
-		s32 length_max = 64;
-		s32 length_actual = 0;
-		s32 size = 0;
-		GLenum param_type;
-		glGetActiveAttrib(Shader->id, attr_index, length_max, &length_actual, &size, &param_type, name);
-		if(size > 1)
-		{
-			for(s32 j = 0; j < size; j++)
-			{
-				char name_long[64];
-				sprintf(name_long, "%s[%d]", name, j);
-				s32 location = glGetAttribLocation(Shader->id, name_long);
-				printf(" %d) TYPE:%s NAME: %s LOCATION:%d\n\n", attr_index, gl_enum_type_to_string	(param_type), name_long, location);
-			}
-		}
-		else 
-		{
-			s32 location = glGetAttribLocation(Shader->id, name);
-			printf(" %d) TYPE:%s NAME: %s LOCATION:%d\n\n", attr_index, gl_enum_type_to_string(param_type), name, location);
-		}
-	}
-
-	// Active Uniforms
-	glGetProgramiv(Shader->id, GL_ACTIVE_UNIFORMS, &params);
-	printf("GL_ACTIVE_UNIFORMS = %d\n", params);
-
-	Shader->uniforms_count = params;
-	Shader->Uniforms = (uniform_t *)calloc((size_t)Shader->uniforms_count, sizeof(uniform_t));
-
-	for(s32 uniform_index = 0; uniform_index < params; uniform_index++)
-	{
-		uniform_t *Uniform = Shader->Uniforms + uniform_index;
-
-		s32 length_max = 64;
-		s32 length_actual = 0;
-		s32 size = 0;
-
-		glGetActiveUniform(Shader->id, uniform_index, length_max, &length_actual, &Uniform->size, &Uniform->type, Uniform->name);
-	
-		b32 is_array_uniform = (Uniform->size > 1);
-		if(is_array_uniform)
-		{
-			// TODO(Justin): Need to store multiple data here
-			for(s32 uniform_array_index = 0; uniform_array_index < size; uniform_array_index++)
-			{
-				char name_long[64];
-				sprintf(name_long, "%s[%d]", Uniform->name, uniform_array_index);
-				Uniform->location = glGetUniformLocation(Shader->id, name_long);
-
-				char *gl_type = gl_enum_type_to_string(Uniform->type);
-				printf(" %d) TYPE:%s NAME:%s LOCATION:%d\n\n", uniform_index, gl_type, name_long, Uniform->location);
-			}
-		}
-		else
-		{
-			Uniform->location = glGetUniformLocation(Shader->id, Uniform->name);
-			printf(" %d) TYPE:%s NAME: %s LOCATION:%d\n\n", uniform_index, gl_enum_type_to_string(Uniform->type), Uniform->name, Uniform->location);
-		}
-	}
-}
 
 internal void
 camera_direction_set(camera_t *Camera, f32 yaw, f32 pitch)
@@ -359,12 +468,85 @@ shader_program_create_from_strings(char *vertex_shader_str, char *fragment_shade
 	return(shader_program);
 }
 
+internal void
+shader_load_source_from_file(char *buff, size_t buff_size, char *filename)
+{
+	FILE *FileHandle = fopen(filename, "r");
+	if(FileHandle)
+	{
+		size_t num_chars_read = fread(buff, 1, buff_size, FileHandle);
+		buff[num_chars_read] = '\0';
+		fclose(FileHandle);
+	}
+	else
+	{
+		fprintf(stderr, "[OpenGL] Error: Could not open shader file %s\n", filename);
+	}
+}
+
+internal void
+shader_program_add_shader(shader_program_t *Shader, GLenum SHADER_TYPE, char *shader_filename)
+{
+	GLuint shader_handle = glCreateShader(SHADER_TYPE);
+
+	char *shader_source_buff = (char *)malloc(MAX_SHADER_SIZE);
+	shader_load_source_from_file(shader_source_buff, MAX_SHADER_SIZE, shader_filename);
+
+	glShaderSource(shader_handle, 1, &shader_source_buff, NULL);
+	glCompileShader(shader_handle);
+
+	int lparams = -1;
+	glGetShaderiv(shader_handle, GL_COMPILE_STATUS, &lparams);
+	if(lparams != GL_TRUE)
+	{
+		// TODO(Justin): The filename is probably going to be more useful here
+		// instead of just a number...
+		const int length_max = 2048;
+		int length_actual = 0;
+		char error_string[2048];
+
+		glGetShaderInfoLog(shader_handle, length_max, &length_actual, error_string);
+
+		fprintf(stderr, "[OpenGL] ERROR: Shader did not compile.\n");
+		fprintf(stderr, "[OpenGL] INDEX: %u\n", shader_handle);
+		fprintf(stderr, "[OpenGL] %s%s", error_string, shader_source_buff);
+
+		glDeleteShader(shader_handle);
+		// TODO(Justin): Not sure that returning in the middle of a routine is a
+		// good idea.
+		return;
+	}
+
+	glAttachShader(Shader->id, shader_handle);
+	glLinkProgram(Shader->id);
+	glDeleteShader(shader_handle);
+
+	lparams = -1;
+	glGetProgramiv(Shader->id, GL_LINK_STATUS, &lparams);
+	if(lparams != GL_TRUE)
+	{
+		const int length_max = 2048;
+		int length_actual = 0;
+		char error_string[2048];
+
+		glGetProgramInfoLog(Shader->id, length_max, &length_actual, error_string);
+
+		fprintf(stderr, "[OpenGL] ERROR: Could not link shader program\n");
+		fprintf(stderr, "[OpenGL] INDEX: %u\n", Shader->id);
+		fprintf(stderr, "[OpenGL] %s", error_string);
+
+		// TODO(Justin): What happens to the program when linking fails to link
+		// a new shader to a another program? Is the nprogram stilluse able just
+		// without the new shader that we failed to link. Or is the program now
+		// unusable because linking failed? Do we need to delete the program?
+		glDeleteProgram(Shader->id);
+	}
+	gl_log_shader_info(Shader);
+}
+
 internal shader_program_t
 shader_program_create_from_files(char *vertex_shader_filename, char *fragment_shader_filename)
 {
-	// Check to make sure extensions are correct?
-	// Global shader to default too, instead of assert then crash?
-
 	ASSERT(vertex_shader_filename && fragment_shader_filename);
 
 	shader_program_t Result = {};
@@ -373,36 +555,94 @@ shader_program_create_from_files(char *vertex_shader_filename, char *fragment_sh
 	Result.fragment_shader_filename = fragment_shader_filename;
 
 	char vertex_shader_src[1024];
+	shader_load_source_from_file(vertex_shader_src, sizeof(vertex_shader_src), vertex_shader_filename);
+
 	char fragment_shader_src[MAX_SHADER_SIZE];
-
-	vertex_shader_src[0] = fragment_shader_src[0] = '\0';
-
-	FILE* VertexShaderFileHandle = fopen(vertex_shader_filename, "r");
-	if(VertexShaderFileHandle)
-	{
-		size_t count = fread(vertex_shader_src, 1, sizeof(vertex_shader_src), VertexShaderFileHandle);
-		vertex_shader_src[count] = '\0';
-		fclose(VertexShaderFileHandle);
-	}
-	else
-	{
-		fprintf(stderr, "Error: Could not open vertex shader file %s\n", vertex_shader_filename);
-	}
-
-	FILE* FragmentShaderFileHandle = fopen(fragment_shader_filename, "r");
-	if(FragmentShaderFileHandle)
-	{
-		size_t count = fread(fragment_shader_src, 1, sizeof(fragment_shader_src), FragmentShaderFileHandle);
-		fragment_shader_src[count] = '\0';
-		fclose(FragmentShaderFileHandle);
-	}
-	else
-	{
-		fprintf(stderr, "Error: Could not open fragment shader file %s\n", fragment_shader_filename);
-	}
-
+	shader_load_source_from_file(fragment_shader_src, sizeof(fragment_shader_src), fragment_shader_filename);
 
 	Result.id = shader_program_create_from_strings(vertex_shader_src, fragment_shader_src);
+	return(Result);
+}
+
+internal GLuint
+shader_program_create_from_src(char *source, GLenum SHADER_TYPE)
+{
+	ASSERT(source);
+
+	GLuint shader_program = glCreateProgram();
+	GLuint shader_handle = glCreateShader(SHADER_TYPE);
+
+	glShaderSource(shader_handle, 1, &source, NULL);
+	glCompileShader(shader_handle);
+
+	int lparams = -1;
+	glGetShaderiv(shader_handle, GL_COMPILE_STATUS, &lparams);
+	if(lparams != GL_TRUE)
+	{
+		// TODO(Justin): The filename is probably going to be more useful here
+		// instead of just a number...
+		const int length_max = 2048;
+		int length_actual = 0;
+		char error_string[2048];
+
+		glGetShaderInfoLog(shader_handle, length_max, &length_actual, error_string);
+
+		char *shader_type = gl_enum_type_to_string(SHADER_TYPE);
+		fprintf(stderr, "[OpenGL] ERROR: %s shader did not compile.\n", shader_type);
+		fprintf(stderr, "[OpenGL] INDEX: %u\n", shader_handle);
+		fprintf(stderr, "[OpenGL] %s%s", error_string, source);
+
+		glDeleteShader(shader_handle);
+		glDeleteProgram(shader_program);
+		return 0;
+	}
+
+	glAttachShader(shader_program, shader_handle);
+	glLinkProgram(shader_program);
+	GL_CHECK_ERROR();
+	glDeleteShader(shader_handle);
+
+	lparams = -1;
+	glGetProgramiv(shader_program, GL_LINK_STATUS, &lparams);
+	if(lparams != GL_TRUE)
+	{
+		const int length_max = 2048;
+		int length_actual = 0;
+		char error_string[2048];
+		glGetProgramInfoLog(shader_program, length_max, &length_actual, error_string);
+
+		fprintf(stderr, "[OpenGL] ERROR: could not link shader program\n");
+		fprintf(stderr, "[OpenGL] INDEX: %u\n", shader_program);
+		fprintf(stderr, "[OpenGL] %s", error_string);
+
+		glDeleteProgram(shader_program);
+		return(0);
+	}
+	return(shader_program);
+}
+
+internal shader_program_t
+shader_program_create_from_file(GLenum SHADER_TYPE, char *filename)
+{
+	ASSERT(filename);
+	shader_program_t Result = {};
+
+	if(SHADER_TYPE == GL_VERTEX_SHADER) 
+	{
+		Result.vertex_shader_filename = filename;
+	}
+	else if(SHADER_TYPE == GL_FRAGMENT_SHADER)
+	{
+		Result.fragment_shader_filename = filename;
+	}
+	else if(SHADER_TYPE == GL_GEOMETRY_SHADER)
+	{
+		Result.geometry_shader_filename = filename;
+	}
+	char shader_src[MAX_SHADER_SIZE];
+	shader_load_source_from_file(shader_src, sizeof(shader_src), filename);
+
+	Result.id = shader_program_create_from_src(shader_src, SHADER_TYPE);
 	return(Result);
 }
 
@@ -454,7 +694,9 @@ texture_simple_init(char *filename, texture_type_t texture_type, b32 is_using_tr
 	//loaded.
 	texture_t Texture = {};
 
-	Texture.path = filename;
+
+	copy_strings(Texture.path, filename);
+	//Texture.path = filename;
 	Texture.type = texture_type;
 
 	glGenTextures(1, &Texture.id);
@@ -504,48 +746,6 @@ texture_simple_init(char *filename, texture_type_t texture_type, b32 is_using_tr
 		glGenerateMipmap(GL_TEXTURE_2D);
 	}
 	return(Texture);
-}
-
-internal void
-uniform_set_b32(GLuint shader_program_id, char *uniform_name, b32 value)
-{
-	// TODO(Justin): If these function calls!!!
-
-	u32 uniform_location = glGetUniformLocation(shader_program_id, uniform_name);
-	glUniform1i(uniform_location, (int)value);
-}
-
-internal void
-uniform_set_s32(GLuint shader_program_id, char *uniform_name, s32 value)
-{
-	u32 uniform_location = glGetUniformLocation(shader_program_id, uniform_name);
-	glUniform1i(uniform_location, value);
-}
-
-internal void
-uniform_set_f32(GLuint shader_program_id, char *uniform_name, f32 value)
-{
-	u32 uniform_location = glGetUniformLocation(shader_program_id, uniform_name);
-	glUniform1f(uniform_location, value);
-}
-
-internal void
-uniform_set_mat4f(GLuint shader_program_id, char *uniform_name, glm::mat4 Transform)
-{
-	u32 uniform_location = glGetUniformLocation(shader_program_id, uniform_name);
-	glUniformMatrix4fv(uniform_location, 1, GL_FALSE, glm::value_ptr(Transform));
-}
-
-internal void
-uniform_set_v3f(GLuint shader_program_id, char *uniform_name, f32 x, f32 y, f32 z)
-{
-	glUniform3f(glGetUniformLocation(shader_program_id, uniform_name), x, y, z);
-}
-
-internal void
-uniform_set_vec3f(GLuint shader_program_id, char *uniform_name, glm::vec3 V)
-{
-	uniform_set_v3f(shader_program_id, uniform_name, V.x, V.y, V.z);
 }
 
 internal void
@@ -606,6 +806,7 @@ glfw_process_input(GLFWwindow *Window, app_state_t *AppState, f32 time_delta)
 	}
 }
 
+
 internal texture_type_t
 assimp_texture_type_convert(aiTextureType texture_type)
 {
@@ -629,7 +830,9 @@ internal mesh_indices_t
 mesh_process_indices(aiMesh *Mesh)
 {
 	mesh_indices_t MeshIndices = {};
+
 	size_t index_size = sizeof(u32);
+
 
 	// NOTE(Justin): This assignmenet of indices count only works for meshes
 	// composed of triangles only.
@@ -639,11 +842,11 @@ mesh_process_indices(aiMesh *Mesh)
 	MeshIndices.indices_count = indices_count;
 
 	u32* DestMeshIndex = MeshIndices.indices;
-	for(u32 i = 0; i < Mesh->mNumFaces; i++)
+	for (u32 i = 0; i < Mesh->mNumFaces; i++)
 	{
 		aiFace *MeshFace = &Mesh->mFaces[i];
-		u32 *SrcMeshIndex = MeshFace->mIndices;
-		for(u32 j = 0; j < MeshFace->mNumIndices; j++)
+		u32* SrcMeshIndex = MeshFace->mIndices;
+		for (u32 j = 0; j < MeshFace->mNumIndices; j++)
 		{
 			*DestMeshIndex++ = *SrcMeshIndex++;
 		}
@@ -664,7 +867,7 @@ mesh_process_vertices(aiMesh *Mesh)
 	MeshVertices.vertices_count = vertices_count;
 
 	mesh_vertex_t *MeshVertex = MeshVertices.Vertices;
-	for(u32 i = 0; i < vertices_count; i++)
+	for (u32 i = 0; i < vertices_count; i++)
 	{
 		MeshVertex->Position.x = Mesh->mVertices[i].x;
 		MeshVertex->Position.y = Mesh->mVertices[i].y;
@@ -674,7 +877,7 @@ mesh_process_vertices(aiMesh *Mesh)
 		MeshVertex->Normal.y = Mesh->mNormals[i].y;
 		MeshVertex->Normal.z = Mesh->mNormals[i].z;
 
-		if(Mesh->mTextureCoords[0])
+		if (Mesh->mTextureCoords[0])
 		{
 			// TODO(Justin): This check every loop is completley redundant?
 			MeshVertex->TexCoord.x = Mesh->mTextureCoords[0][i].x;
@@ -692,20 +895,25 @@ mesh_process_vertices(aiMesh *Mesh)
 
 internal void
 mesh_process_texture_map(app_state_t *AppState, aiMaterial *MeshMaterial,
-		mesh_textures_t *MeshTextures, u32 texture_count, aiTextureType texture_type,
-		aiString path_to_texture)
+		mesh_textures_t *MeshTextures, u32 texture_count, aiTextureType texture_type, char *path_to_dir)
+		//aiString path_to_texture)
 {
-	texture_t* Texture = &MeshTextures->Textures[MeshTextures->texture_count];
+	// NOTE(Justin): This I believe was not the problem with the model loading
+	// code. The path to teh texture keeps getting overwritten.
+	//texture_t* Texture = &MeshTextures->Textures[MeshTextures->texture_count];
 	for(u32 i = 0; i < texture_count; i++)
 	{
+		texture_t Texture = {};
+
 		aiString texture_filename;
 		MeshMaterial->GetTexture(texture_type, i, &texture_filename);
+		aiString path_to_texture = aiString(path_to_dir);
 		path_to_texture.Append(texture_filename.C_Str());
 
 		b32 texture_is_loaded = false;
 		for(u32 j = 0; j < AppState->loaded_texture_count; j++)
 		{
-			char *loaded_texture_path = AppState->LoadedTextures[j].path;
+			const char * loaded_texture_path = AppState->LoadedTextures[j].path;
 			if(loaded_texture_path)
 			{
 				if(strcmp(loaded_texture_path, path_to_texture.C_Str()) == 0)
@@ -713,7 +921,8 @@ mesh_process_texture_map(app_state_t *AppState, aiMaterial *MeshMaterial,
 					// Texture already previously loaded do not load memory again, only copy data from
 					// previously loaded state.
 					texture_is_loaded = true;
-					*Texture = AppState->LoadedTextures[j];
+					Texture = AppState->LoadedTextures[j];
+					MeshTextures->Textures[MeshTextures->texture_count] = Texture;
 					MeshTextures->texture_count++;
 					break;
 				}
@@ -724,47 +933,49 @@ mesh_process_texture_map(app_state_t *AppState, aiMaterial *MeshMaterial,
 			// Texture does not exist, load the texture into the mesh array and also into the loaded 
 			// textures of the app state.
 			texture_type_t TextureType = assimp_texture_type_convert(texture_type);
-			*Texture = texture_simple_init((char *)path_to_texture.C_Str(), TextureType, 0);
+			Texture = texture_simple_init((char *)path_to_texture.C_Str(), TextureType, 0);
+			MeshTextures->Textures[MeshTextures->texture_count] = Texture;
 			MeshTextures->texture_count++;
-			AppState->LoadedTextures[AppState->loaded_texture_count] = *Texture;
+			AppState->LoadedTextures[AppState->loaded_texture_count] = Texture;
 			AppState->loaded_texture_count++;
 		}
-		Texture++;
+		//Texture++;
 	}
 }
 
 internal mesh_textures_t
-mesh_process_material(app_state_t *AppState, aiMaterial *MeshMaterial)
+mesh_process_material(app_state_t *AppState, aiMaterial *MeshMaterial, char *path_to_dir)
 {
 	mesh_textures_t MeshTextures = {};
 
 	u32 texture_diffuse_count = MeshMaterial->GetTextureCount(aiTextureType_DIFFUSE);
 	u32 texture_specular_count = MeshMaterial->GetTextureCount(aiTextureType_SPECULAR);
 
+
 	size_t texture_size = sizeof(texture_t);
 	u32 texture_count = texture_diffuse_count + texture_specular_count;
 
-	MeshTextures.Textures = (texture_t*)calloc((size_t)texture_count, texture_size);
-
-	// TODO(Justin): Remove the hardcoded value
-	aiString path_to_texture = aiString("models/backpack/");
+	MeshTextures.Textures = (texture_t *)calloc((size_t)texture_count, texture_size);
+	//MeshTextures.texture_count = texture_count;
+	//aiString path_to_texture1 = aiString("models/backpack/");
+	//aiString path_to_texture = aiString();
+	//path_to_texture = path_to_dir;
 
 	mesh_process_texture_map(AppState, MeshMaterial, &MeshTextures, texture_diffuse_count, aiTextureType_DIFFUSE, 
-			path_to_texture);
+			path_to_dir);
 
 	mesh_process_texture_map(AppState, MeshMaterial, &MeshTextures, texture_specular_count, aiTextureType_SPECULAR,
-			path_to_texture);
+			path_to_dir);
 
 	return(MeshTextures);
 }
 
-// TODO(Justin): Need to remove hardcoded inputs.
 internal void
 node_process(app_state_t *AppState, const aiScene *Scene, aiNode *Node, model_t *Model,
-		char *vertex_shader_filename, char *fragment_shader_filename)
+		char *path_to_dir, char *vertex_shader_filename, char *geometry_shader_filename, char *fragment_shader_filename)
 {
 	mesh_t* ModelMesh = &Model->Meshes[Model->mesh_count];
-	for(u32 i = 0; i < Node->mNumMeshes; i++)
+	for (u32 i = 0; i < Node->mNumMeshes; i++)
 	{
 		aiMesh* Mesh = Scene->mMeshes[Node->mMeshes[i]];
 
@@ -800,10 +1011,10 @@ node_process(app_state_t *AppState, const aiScene *Scene, aiNode *Node, model_t 
 		//
 
 		mesh_textures_t MeshTextures = {};
-		if(Mesh->mMaterialIndex >= 0)
+		if (Mesh->mMaterialIndex >= 0)
 		{
 			aiMaterial* MeshMaterial = Scene->mMaterials[Mesh->mMaterialIndex];
-			MeshTextures = mesh_process_material(AppState, MeshMaterial);
+			MeshTextures = mesh_process_material(AppState, MeshMaterial, path_to_dir);
 		}
 
 		ModelMesh->MeshVBO = MeshVBO;
@@ -814,46 +1025,61 @@ node_process(app_state_t *AppState, const aiScene *Scene, aiNode *Node, model_t 
 		ModelMesh->MeshIndices = MeshIndices;
 		ModelMesh->MeshTextures = MeshTextures;
 
+
+		// TODO(Justin): System for handling shaders.
+
 		shader_program_t MeshShader;
-		MeshShader.vertex_shader_filename = vertex_shader_filename;
-		MeshShader.fragment_shader_filename = fragment_shader_filename;
-		MeshShader = shader_program_create_from_files(MeshShader.vertex_shader_filename,
-													  MeshShader.fragment_shader_filename);
+		MeshShader = shader_program_create_from_file(GL_VERTEX_SHADER, vertex_shader_filename);
+		if(geometry_shader_filename)
+		{
+			MeshShader.geometry_shader_filename = geometry_shader_filename;
+			shader_program_add_shader(&MeshShader, GL_GEOMETRY_SHADER, geometry_shader_filename);
+		}
+		shader_program_add_shader(&MeshShader, GL_FRAGMENT_SHADER, fragment_shader_filename);
+
 		gl_log_shader_info(&MeshShader);
-
 		ModelMesh->MeshShader = MeshShader;
-		
 		Model->mesh_count++;
-
-		// free memory allocated?
 	}
 	for(u32 i = 0; i < Node->mNumChildren; i++)
 	{
-		node_process(AppState, Scene, Node->mChildren[i], Model, vertex_shader_filename, fragment_shader_filename);
+		node_process(AppState, Scene, Node->mChildren[i], Model, path_to_dir,
+				vertex_shader_filename, geometry_shader_filename, fragment_shader_filename);
 	}
 }
 
-// NOTE(Justin): Should this return a model?
-// NOTE(Justin): The meshes of a model may require different shaders?
+// NOTE(Justin): The meshes of a model may require different shaders since
+// models are usually composed of many different materials. For example the
+// exterior of a car will be reflective and have specular highlights, the
+// interior will be diffuse/albedo.
+
+
+
+// TODO(Justin): Maybe it is a good idea to allocate all the memory upfront and
+// then pass the model to multiple sub routines to fill out the memory? The
+// allocation at this top level allocates only enough memory for the members of
+// the struct. We still have to allocate memory for the other resources such as
+// mesh veritces, mesh indices, mesh tectures, and so on.
+
 internal void
-model_process(app_state_t *AppState, char *full_path_to_model, char *vertex_shader_filename,
-															   char *fragment_shader_filename)
+model_process(app_state_t *AppState, const char *model_filename,
+		char *vertex_shader_filename, char *geometry_shader_filename, char *fragment_shader_filename)
 {
 	Assimp::Importer Importer;
-	const aiScene* Scene = Importer.ReadFile(full_path_to_model, ASSIMP_LOAD_FLAGS);
+	const aiScene* Scene = Importer.ReadFile(model_filename, ASSIMP_LOAD_FLAGS);
 
 	model_t Result;
 
 	u32 mesh_count = Scene->mNumMeshes;
 	size_t mesh_size = sizeof(mesh_t);
-
 	Result.Meshes = (mesh_t *)calloc((size_t)mesh_count, mesh_size);
 	Result.mesh_count = 0;
 	
 	aiNode *Node = Scene->mRootNode;
 
-	node_process(AppState, Scene, Node, &Result, vertex_shader_filename, fragment_shader_filename);
+	string_t PathToDir = get_path_to_dir((char *)model_filename);
 
+	node_process(AppState, Scene, Node, &Result, PathToDir.data, vertex_shader_filename, geometry_shader_filename, fragment_shader_filename);
 	if(mesh_count == Result.mesh_count)
 	{
 		AppState->Models[AppState->model_count] = Result;
@@ -895,7 +1121,7 @@ mesh_draw(app_state_t *AppState, mesh_t *Mesh, glm::mat4 ModelTransform, glm::ma
 	uniform_set_f32(Shader.id, "u_LightPoint.atten_quadratic", 0.032f);
 
 	// TODO(Justin): Loop through all the textures for each mesh and set them.
-	if(Mesh->MeshTextures.texture_count)
+	if (Mesh->MeshTextures.texture_count)
 	{
 		for(u32 texture_index = 0; texture_index < Mesh->MeshTextures.texture_count; texture_index++)
 		{
@@ -903,14 +1129,17 @@ mesh_draw(app_state_t *AppState, mesh_t *Mesh, glm::mat4 ModelTransform, glm::ma
 			// TODO(Justin): What type of texture are we setting? Is it implicit
 			// in MeshTexture. It is being set as GL_TEXTURE_2D for each one.
 			// The type of texture should probably be store in MeshTexturee.
-
 			texture_set_active_and_bind(texture_index, MeshTexture);
+			//MeshTexture++;
+			//texture_set_active_and_bind(1, MeshTexture);
 		}
 	}
 	glBindVertexArray(Mesh->MeshVAO);
 	glDrawElements(GL_TRIANGLES, Mesh->MeshIndices.indices_count, GL_UNSIGNED_INT, 0);
 	glBindVertexArray(0);
+	glActiveTexture(GL_TEXTURE0);
 }
+
 
 
 internal void
@@ -962,6 +1191,64 @@ cubes_draw(app_state_t *AppState, cube_t *Cube, glm::mat4 MapToCamera, glm::mat4
 
 		//Pos++;
 	}
+}
+
+internal cube_t
+cube_create(f32 *vertices, u32 vertices_count,
+		char *vertex_shader_filename, char *geometry_shader_filename, char *fragment_shader_filename,
+		char *texture_diffuse_filename, char *texture_specular_filename)
+{
+	cube_t Result = {};
+
+	// TODO(Justin): Get rid of these small helper functions?
+	vertex_array_t VertexArray = vertex_array_create();
+	vertex_buffer_t VertexBuffer = vertex_buffer_create(vertices, vertices_count * 8 * sizeof(f32));
+
+
+	glBindVertexArray(VertexArray.id);
+	vertex_buffer_bind(&VertexBuffer);
+	vertex_buffer_layout_t VertexBufferLayout;
+
+	// Positions
+	VertexBufferLayout.element_count_per_attribute = 3;
+	VertexBufferLayout.attribute_type = GL_FLOAT;
+	VertexBufferLayout.normalized = GL_FALSE;
+	VertexBufferLayout.size_for_each_vertex = 8 * sizeof(float);
+	VertexBufferLayout.attribute_stride = (void*)0;
+	vertex_array_add_buffer_layout(0, &VertexArray, &VertexBufferLayout);
+
+	// Normals
+	VertexBufferLayout.attribute_stride = (void*)(3 * sizeof(float));
+	vertex_array_add_buffer_layout(1, &VertexArray, &VertexBufferLayout);
+
+	// Texture coordinates
+	VertexBufferLayout.element_count_per_attribute = 2;
+	VertexBufferLayout.attribute_stride = (void*)(6 * sizeof(float));
+	vertex_array_add_buffer_layout(2, &VertexArray, &VertexBufferLayout);
+
+	texture_t TextureDiffuse = texture_simple_init(texture_diffuse_filename, TEXTURE_TYPE_DIFFUSE, 0);
+	texture_t TextureSpecular = texture_simple_init(texture_specular_filename, TEXTURE_TYPE_SPECULAR, 0);
+
+	Result.Textures[0] = TextureDiffuse;
+	Result.Textures[1] = TextureSpecular;
+	Result.VertexArray = VertexArray;
+	Result.VertexBuffer = VertexBuffer;
+	Result.VertexBufferLayout = VertexBufferLayout;
+
+	//
+	// NOTE(Justin): Shader creation.
+	//
+
+	Result.Shader = shader_program_create_from_file(GL_VERTEX_SHADER, vertex_shader_filename);
+	if(geometry_shader_filename)
+	{
+		shader_program_add_shader(&Result.Shader, GL_GEOMETRY_SHADER, geometry_shader_filename);
+	}
+	shader_program_add_shader(&Result.Shader, GL_FRAGMENT_SHADER, fragment_shader_filename);
+
+	gl_log_shader_info(&Result.Shader);
+
+	return(Result);
 }
 
 
@@ -1192,7 +1479,6 @@ quad_create(f32 *vertices, u32 *indices, char *texture_filename, texture_type_t 
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, Result.EBO);
 	glBufferData(GL_ELEMENT_ARRAY_BUFFER, 6 * sizeof(u32), indices, GL_STATIC_DRAW);
 
-
 	glEnableVertexAttribArray(0);
 	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(f32), (void *)0);
 
@@ -1200,7 +1486,9 @@ quad_create(f32 *vertices, u32 *indices, char *texture_filename, texture_type_t 
 	glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(f32), (void *)(3 * sizeof(f32)));
 
 	Result.Texture = texture_simple_init(texture_filename, TEXTURE_TYPE, is_using_transparency);
-	Result.Shader = shader_program_create_from_files(vertex_shader_filename, fragment_shader_filename);
+	//Result.Shader = shader_program_create_from_files(vertex_shader_filename, fragment_shader_filename);
+	Result.Shader = shader_program_create_from_file(GL_VERTEX_SHADER, vertex_shader_filename);
+	shader_program_add_shader(&Result.Shader, GL_FRAGMENT_SHADER, fragment_shader_filename);
 
 	gl_log_shader_info(&Result.Shader);
 
@@ -1217,6 +1505,7 @@ opengl_debug_callback(GLenum source, GLenum type, GLuint id, GLenum severity, GL
 
 	printf("[OpenGL Debug Callback] %s\n", message);
 }
+
 
 int main(void)
 {
@@ -1276,8 +1565,8 @@ int main(void)
 	glEnable(GL_DEPTH_TEST);
 	glDepthFunc(GL_LESS);
 
-	//glEnable(GL_BLEND);
-	//glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+	glEnable(GL_BLEND);
+	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
 	//glEnable(GL_CULL_FACE);
 
@@ -1372,32 +1661,62 @@ int main(void)
 
 	// TODO(Justin): Still need to remove hardcoded values in the model loading
 	// sub routines.
-	//model_process(&AppState, "models/backpack/backpack.obj", "shaders/backpack.vs", "shaders/backpack.fs");
-	//model_process(&AppState, "models/suzanne.obj", "shaders/suzanne.vs", "suzanne.fs");
-	//model_process(&AppState, "models/backpack/backpack.obj", "shaders/environment_map.vs", "shaders/environment_map.fs");
-	model_process(&AppState, "models/suzanne.obj", "shaders/environment_map.vs", "shaders/environment_map.fs");
-	
 
-	cube_t Cube = cube_init(&cube_vertices_normals_and_tex_coods[0],
-			ArrayCount(cube_vertices_normals_and_tex_coods),
-			"shaders/cube_light_casters.vs", "shaders/cube_light_casters.fs",
-			"textures/metal.png", "");
+	// TODO(Justin): When loading a model we probably need to use all the
+	// resources asssociated with the model. So we could just pass the path to
+	// the directory of teh model and try and do all the processing that way.
+	// Seems reasonable.
 
 	cube_t CubeSkybox = cube_no_textures_init(&cube_vertices_and_normals[0],
-							ArrayCount(cube_vertices_and_normals),
-							"shaders/environment_map.vs", "shaders/environment_map.fs");
-	
+											ArrayCount(cube_vertices_and_normals),
+											"shaders/environment_map.vs", "shaders/environment_map.fs");
 
+	//
+	// NOTE(Justin): Instancing example.
+	//
+
+	glm::vec2 PositionNDCOffsets[100];
+	u32 index = 0;
+	f32 offset = 0.1f;
+	for(int y = -10; y < 10; y += 2)
+	{
+		for(int x = -10; x < 10; x += 2)
+		{
+			glm::vec3 Offset;
+			Offset.x = (f32)x / 10.0f + offset;
+			Offset.y = (f32)y / 10.0f + offset;
+			PositionNDCOffsets[index++] = Offset;
+		}
+	}
+
+	quad_t QuadInstance;
+	glGenVertexArrays(1, &QuadInstance.VAO);
+	glGenBuffers(1, &QuadInstance.VBO);
+
+	glBindVertexArray(QuadInstance.VAO);
+
+	glBindBuffer(GL_ARRAY_BUFFER, QuadInstance.VBO);
+	glBufferData(GL_ARRAY_BUFFER, 6 * 5 * sizeof(f32), &ndc_quad_vertices[0], GL_STATIC_DRAW);
+
+	glEnableVertexAttribArray(0);
+	glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(f32), (void *)0);
+
+	glEnableVertexAttribArray(1);
+	glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(f32), (void *)(2 * sizeof(f32)));
+
+	QuadInstance.Shader = shader_program_create_from_files("shaders/instance_quad.vs", "shaders/instance_quad.fs");
+	gl_log_shader_info(&QuadInstance.Shader);
+
+//	quad_t QuadInstance = quad_create(&ndc_quad_vertices[0], &indices[0], "", TEXTURE_TYPE_DIFFUSE,
+//												"shaders/instance_quad.vs", "shaders/instance_quad.fs", 0);
+#if 0
 
 	cube_t CubeTranslucent = cube_no_textures_init(&cube_vertices_and_normals[0],
 							ArrayCount(cube_vertices_and_normals),
 							"shaders/env_map_refract.vs", "shaders/env_map_refract.fs");
 
-
 	cube_t CubeMetal = cube_init(&cube_vertices_normals_and_tex_coods[0], ArrayCount(cube_vertices_normals_and_tex_coods),
 				"shaders/interface_block.vs", "shaders/interface_block.fs", "textures/metal.png", "");
-
-
 
 
 	quad_t WindowTransparent = quad_create(points, indices, "textures/blending_transparent_window.png", 
@@ -1407,7 +1726,12 @@ int main(void)
 													"shaders/grass.vs", "shaders/grass.fs", 1);
 
 	
+#endif
 	// Lamp
+	cube_t Cube = cube_init(&cube_vertices_normals_and_tex_coods[0],
+			ArrayCount(cube_vertices_normals_and_tex_coods),
+			"shaders/cube_001.vs", "shaders/cube_001.fs","textures/metal.png", "");
+
 	vertex_array_t LightVertexArray = vertex_array_create();
 
 	glBindVertexArray(LightVertexArray.id);
@@ -1421,6 +1745,8 @@ int main(void)
 	//
 	// NOTE(Justin): Uniform buffer example.
 	//
+
+#if 0
 	shader_program_t RedShader = shader_program_create_from_files("shaders/uniform_buffer.vs",
 																  "shaders/uniform_buffer_red.fs");
 	shader_program_t GreenShader = shader_program_create_from_files("shaders/uniform_buffer.vs",
@@ -1450,15 +1776,86 @@ int main(void)
 
 
 	//
-	//
-	// NOTE(Justin): Texture initialization
+	// NOTE(Justin): Geometry shader examples
 	//
 
-	texture_t TextureContainerMarble = texture_simple_init("textures/marble.png", TEXTURE_TYPE_DIFFUSE, 0);
-	texture_t TexturePlaneMetal = texture_simple_init("textures/metal.png", TEXTURE_TYPE_SPECULAR, 0);
-	texture_t TextureContainerDiffuse = texture_simple_init("textures/container2.png", TEXTURE_TYPE_DIFFUSE, 0);
-	texture_t TextureContainerSpecular = texture_simple_init("textures/container2_specular.png", 
-																					TEXTURE_TYPE_SPECULAR, 0);
+	shader_program_t DrawNormals = shader_program_create_from_file(GL_VERTEX_SHADER, "shaders/draw_normals.vs");
+	shader_program_add_shader(&DrawNormals, GL_GEOMETRY_SHADER, "shaders/draw_normals.gs");
+	shader_program_add_shader(&DrawNormals, GL_FRAGMENT_SHADER, "shaders/draw_normals.fs");
+
+	cube_t CubeExplode = cube_create(&cube_vertices_normals_and_tex_coods[0], 
+			ArrayCount(cube_vertices_normals_and_tex_coods),
+			"shaders/explode_along_normals.vs", "shaders/explode_along_normals.gs", "shaders/explode_along_normals.fs",
+			"textures/metal.png", "");
+
+
+
+	//
+	// TODO(Justin): Maybe we should have routines that only compile and only
+	// link and keep these actions logically separated... Seems like a good
+	// idea.
+	//
+
+	shader_program_t Test = shader_program_create_from_file(GL_VERTEX_SHADER, "shaders/build_house_at_point.vs");
+	shader_program_add_shader(&Test, GL_GEOMETRY_SHADER, "shaders/build_house_at_point.gs");
+	shader_program_add_shader(&Test, GL_FRAGMENT_SHADER, "shaders/build_house_at_point.fs");
+
+
+	//
+	// NOTE(Justin): glBufferSubData example.
+	//
+
+	points_ndc_t PointsNDC;
+
+	// Carefule with the semantics of these variables they are not technically
+	// position counts and color counts they are counts of how many f32s are in
+	// the array. An actual position count would be number of f32s divided by 2
+	// since an ndc pos consists of 2 floats.
+
+	PointsNDC.positions = &ndc_space_positions[0];
+	PointsNDC.positions_count = ArrayCount(ndc_space_positions);
+	PointsNDC.colors = &ndc_space_colors[0];
+	PointsNDC.colors_count = ArrayCount(ndc_space_colors);
+
+	glGenVertexArrays(1, &PointsNDC.VAO);
+	glGenBuffers(1, &PointsNDC.VBO);
+	glBindVertexArray(PointsNDC.VAO);
+	glBindBuffer(GL_ARRAY_BUFFER, PointsNDC.VBO);
+
+	// To write to part of a buffer, we first need a buffer to store the data.
+	// Call glBufferData, give it the correct size, and pass NULL as the pointer
+	// to the data. This allocates  GPU memory for the currently bound buffer.
+	// We can write ot it now or bind later and write to it.
+
+	glBufferData(GL_ARRAY_BUFFER, (PointsNDC.positions_count + PointsNDC.colors_count) * sizeof(f32), 
+			NULL, GL_STATIC_DRAW);
+
+	glBufferSubData(GL_ARRAY_BUFFER, 0, PointsNDC.positions_count * sizeof(f32), PointsNDC.positions);
+	glBufferSubData(GL_ARRAY_BUFFER, PointsNDC.positions_count * sizeof(f32),
+									 PointsNDC.colors_count * sizeof(f32), PointsNDC.colors);
+
+	// AS long as we correctly specify the format of the data in the buffer (how
+	// the data looks) and give it a ! index then we can draw properly. The
+	// stride is now the size of the attribute since attribuites of the same
+	// type are tightly packed. they are laid out in memory consecutively. When
+	// we need to specify a pointer to the next attribute the stride is the size
+	// of the next attribute but the starting offset is now an offset that is
+	// all the data associated with the first attribute
+	//
+	// interleaved attributes before: xyrgb1 xyrgb2 xyrgb3 ... xyrgbn
+	//
+	// consecutive attributes after:  xy1 xy2 xy3 ... xyn rgb1 rgb2 rgb3 ... rgbn
+
+	glEnableVertexAttribArray(0);
+	glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(f32), (void *)0);
+	glEnableVertexAttribArray(1);
+	glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(f32), (void *)(PointsNDC.positions_count * sizeof(f32)));
+#endif
+
+	//
+	// NOTE(Justin): Skybox.
+	//
+
 	char *skybox_texture_files[] =  
 	{
 		"textures/skybox/right.jpg",
@@ -1469,7 +1866,6 @@ int main(void)
 		"textures/skybox/back.jpg",
 
 	};
-
 
 
 	skybox_t SkyBox = skybox_init(skybox_texture_files, &skybox_vertices[0], ArrayCount(skybox_vertices),
@@ -1483,8 +1879,6 @@ int main(void)
 	LightShader = shader_program_create_from_files(light_vertex_shader_filename, light_fragment_shader_filename);
 
 	gl_log_shader_info(&LightShader);
-
-
 
 	AppInput.Mouse.Pos.x = Window.width / 2;
 	AppInput.Mouse.Pos.y = Window.height / 2;
@@ -1523,10 +1917,11 @@ int main(void)
 	// to uniform buffer 
 	//
 
+#if 0
 	glBindBuffer(GL_UNIFORM_BUFFER, MatricesUBO);
 	glBufferSubData(GL_UNIFORM_BUFFER, 0, sizeof(glm::mat4), glm::value_ptr(MapToPersp));
 	glBindBuffer(GL_UNIFORM_BUFFER, 0);
-
+#endif
 
 	glm::vec3 LightPositions[4];
 	LightPositions[0] = cube_positions[0];
@@ -1538,18 +1933,21 @@ int main(void)
 	glUseProgram(CubeSkybox.Shader.id);
 	uniform_set_s32(Cube.Shader.id, "u_SkyboxTexel", 0);
 
-	glUseProgram(CubeMetal.Shader.id);
-	uniform_set_s32(CubeMetal.Shader.id, "u_Texel", 0);
 
 
-
-	for(u32 MeshIndex = 0; MeshIndex < AppState.Models[0].mesh_count; MeshIndex++)
+	// TODO(Justin): Hardcoded values are not scalable :(.
+	for(u32 model_index = 0; model_index < AppState.model_count; model_index++)
 	{
-		mesh_t *Mesh = AppState.Models[0].Meshes + MeshIndex;
-		glUseProgram(Mesh->MeshShader.id);
-		uniform_set_s32(Mesh->MeshShader.id, "u_Material.Diffuse1", 0);
-		uniform_set_s32(Mesh->MeshShader.id, "u_Material.Specular1", 1);
+		model_t Model = AppState.Models[model_index];
+		for(u32 MeshIndex = 0; MeshIndex < AppState.Models[0].mesh_count; MeshIndex++)
+		{
+			mesh_t *Mesh = Model.Meshes + MeshIndex;
+			glUseProgram(Mesh->MeshShader.id);
+			uniform_set_s32(Mesh->MeshShader.id, "u_Material.Diffuse1", 0);
+			uniform_set_s32(Mesh->MeshShader.id, "u_Material.Specular1", 1);
+		}
 	}
+
 
 	glUseProgram(SkyBox.Shader.id);
 	uniform_set_s32(SkyBox.Shader.id, "SkyBox", 0);
@@ -1592,7 +1990,7 @@ int main(void)
 		glDepthMask(GL_TRUE);
 		glClear(GL_DEPTH_BUFFER_BIT);
 
-
+#if 0
 		glUseProgram(CubeSkybox.Shader.id);
 		MapToCamera = glm::lookAt(AppState.Camera.Pos, AppState.Camera.Pos + AppState.Camera.Direction, AppState.Camera.Up);
 
@@ -1609,7 +2007,9 @@ int main(void)
 		glBindTexture(GL_TEXTURE_CUBE_MAP, SkyBox.TextureCubeMap.id);
 		glDrawArrays(GL_TRIANGLES, 0, 36);
 		glBindVertexArray(0);
+#endif
 
+		MapToCamera = glm::lookAt(AppState.Camera.Pos, AppState.Camera.Pos + AppState.Camera.Direction, AppState.Camera.Up);
 		for(u32 model_index = 0; model_index < AppState.model_count; model_index++)
 		{
 			glm::mat4 ModelTransform = glm::mat4(1.0f);
@@ -1622,6 +2022,28 @@ int main(void)
 			}
 		}
 
+		//
+		// NOTE(Justin): Quad instancing example
+		//
+
+		glUseProgram(QuadInstance.Shader.id);
+		char digit_buff[8];
+		char *str1 = "PositionNDCOffsets[";
+		char *str2 = "]";
+		for(u32 instance_index = 0; instance_index < 100; instance_index++)
+		{
+			char uniform_name[64];
+			copy_strings(uniform_name, str1);
+			digit_to_string(digit_buff, instance_index);
+			concat_strings(uniform_name, str1, digit_buff);
+			concat_strings(uniform_name, uniform_name, str2);
+
+			uniform_set_vec2f(QuadInstance.Shader.id, uniform_name, PositionNDCOffsets[instance_index]);
+		}
+		glBindVertexArray(QuadInstance.VAO);
+		glDrawArraysInstanced(GL_TRIANGLES, 0, 6, 100);
+
+#if 0
 		glUseProgram(CubeTranslucent.Shader.id);
 	
 		ModelTransform = glm::translate(ModelTransform, 5 * E1);
@@ -1641,7 +2063,6 @@ int main(void)
 
 
 		glUseProgram(CubeMetal.Shader.id);
-
 		ModelTransform = glm::translate(ModelTransform, 5 * E1);
 		uniform_set_mat4f(CubeMetal.Shader.id, "u_ModelTransform", ModelTransform);
 		uniform_set_mat4f(CubeMetal.Shader.id, "u_MapToCamera", MapToCamera);
@@ -1653,12 +2074,21 @@ int main(void)
 		glDrawArrays(GL_TRIANGLES, 0, 36);
 		glBindVertexArray(0);
 
+		glUseProgram(DrawNormals.id);
+		uniform_set_mat4f(DrawNormals.id, "u_ModelTransform", ModelTransform);
+		uniform_set_mat4f(DrawNormals.id, "u_MapToCamera", MapToCamera);
+		uniform_set_mat4f(DrawNormals.id, "u_MapToPersp", MapToPersp);
+
+		glBindVertexArray(CubeMetal.VertexArray.id);
+		glDrawArrays(GL_TRIANGLES, 0, 36);
+		glBindVertexArray(0);
+
 		//
 		// NOTE(Justin): UBO example
 		//
 
 		// NOTE(Justin): We need to buffer the camera matrix every frame because
-		// the camera pos and dir changes frequently.
+		// the camera pos and dir change frequently.
 
 		glBindBuffer(GL_UNIFORM_BUFFER, MatricesUBO);
 		glBufferSubData(GL_UNIFORM_BUFFER, sizeof(glm::mat4), sizeof(glm::mat4), glm::value_ptr(MapToCamera));
@@ -1688,10 +2118,46 @@ int main(void)
 
 		glBindVertexArray(0);
 
+#endif
+		//
+		// NOTE(Justin): First geometry shader example
+		//
 
+//		glUseProgram(Test.id);
+//		glBindVertexArray(PointsNDC.VAO);
+//		glDrawArrays(GL_POINTS, 0, 4);
+//
+		//
+		// NOTE(Justin): Exploding cube
+		//
 
+#if 0
+		glUseProgram(CubeExplode.Shader.id);
+		ModelTransform = glm::mat4(1.0f);
+		ModelTransform = glm::translate(ModelTransform, 5 * E2);
 
+		uniform_set_mat4f(CubeExplode.Shader.id, "u_ModelTransform", ModelTransform);
+		uniform_set_mat4f(CubeExplode.Shader.id, "u_MapToCamera", MapToCamera);
+		uniform_set_mat4f(CubeExplode.Shader.id, "u_MapToPersp", MapToPersp);
 
+		uniform_set_f32(CubeExplode.Shader.id, "u_time", glfwGetTime());
+
+		glActiveTexture(GL_TEXTURE0);
+		glBindTexture(GL_TEXTURE_2D, CubeExplode.Textures[0].id);
+		glBindVertexArray(CubeExplode.VertexArray.id);
+		glDrawArrays(GL_TRIANGLES, 0, 36);
+		glBindVertexArray(0);
+		
+		glUseProgram(DrawNormals.id);
+		uniform_set_mat4f(DrawNormals.id, "u_ModelTransform", ModelTransform);
+		uniform_set_mat4f(DrawNormals.id, "u_MapToCamera", MapToCamera);
+		uniform_set_mat4f(DrawNormals.id, "u_MapToPersp", MapToPersp);
+
+		glBindVertexArray(CubeExplode.VertexArray.id);
+		glDrawArrays(GL_TRIANGLES, 0, 36);
+		glBindVertexArray(0);
+
+#endif
 #if 0
 		LightPositions[0].x = 5.0f * cos(glfwGetTime());
 		LightPositions[0].y = 0.0f;
