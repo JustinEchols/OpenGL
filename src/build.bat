@@ -1,9 +1,6 @@
 @echo off
 
-REM TODO(Justin): The need to input the assimp dll
-REM TODO(Justin): Ignore warnings on external dependencies
-
-REM NOTE(Justin): To compile demo.cpp, change the main_file to demo.cpp.
+REM NOTE(Justin): To compile demo.cpp, change main_file to demo.cpp.
 set main_file=demo_explode.cpp
 set common_compiler_flags=-Od -nologo -W4 -Zi -wd4100 -wd4005 -wd4201 -wd4800 -wd4244 -wd4459 -wd4505 -DGLEW_STATIC=1 -D_CRT_SECURE_NO_WARNINGS=1
 set common_linker_flags=-incremental:no gdi32.lib user32.lib shell32.lib msvcrt.lib opengl32.lib winmm.lib glew32s.lib glfw3.lib assimp-vc142-mtd.lib
