@@ -1,7 +1,7 @@
 @echo off
 
 REM NOTE(Justin): To compile demo.cpp, change main_file to demo.cpp.
-set main_file=demo_explode.cpp
+set main_file=application.cpp
 set common_compiler_flags=-Od -nologo -W4 -Zi -wd4100 -wd4005 -wd4201 -wd4800 -wd4244 -wd4459 -wd4505 -DGLEW_STATIC=1 -D_CRT_SECURE_NO_WARNINGS=1
 set common_linker_flags=-incremental:no gdi32.lib user32.lib shell32.lib msvcrt.lib opengl32.lib winmm.lib glew32s.lib glfw3.lib assimp-vc142-mtd.lib
 set include_directories= /I "../dependencies/assimp/include" /I "../dependencies/GLFW64/include" /I "../dependencies/GLEW/include" /I "../dependencies/glm"
