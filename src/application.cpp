@@ -103,6 +103,35 @@ concat_strings(char *string_a, char *string_b)
 }
 #endif
 
+internal b32
+strings_are_same(char *string_a, char *string_b)
+{
+	b32 Result = 0;
+
+	u32 a_length = get_string_length(string_a);
+	u32 b_length = get_string_length(string_b);
+
+	if(a_length == b_length)
+	{
+		char *pa = string_a;
+		char *pb = string_b;
+
+		while(*pa != '\0')
+		{
+			Result = (*pa++ == *pb++);
+			if(Result)
+			{
+				// The chars are the same, do nothing and look at the next pair.
+			}
+			else
+			{
+				break;
+			}
+		}
+	}
+	return(Result);
+}
+
 #if 1
 internal char *
 single_digit_to_string(u32 digit)
@@ -232,6 +261,8 @@ get_path_to_dir(char *full_path_to_file)
 
 	return(Result);
 }
+
+
 
 internal vertex_array_t
 vertex_array_create()
@@ -1061,6 +1092,35 @@ node_process(app_state_t *AppState, const aiScene *Scene, aiNode *Node, model_t 
 // the struct. We still have to allocate memory for the other resources such as
 // mesh veritces, mesh indices, mesh tectures, and so on.
 
+internal char *
+get_model_name(char *full_path_to_file)
+{
+	char *Result;
+
+	u32 length = get_string_length(full_path_to_file);
+	char *c = full_path_to_file + length;
+
+	while(*c != '/')
+	{
+		c--;
+	}
+	// c gets decremented so that it points to '/' THEN the loop breaks.
+	// Therefore we need to increment the pointer one time to point to the start
+	// of the model name.
+	
+	// TODO(Justin): Return the string without the extension.
+	// IDEAD twopointer one points to the beginig of the name
+	// one points to the '.'. While the first pointer is not equal to the
+	// second,
+	// copy into a buff?
+	char *model_name_with_extension = ++c;
+
+	Result = model_name_with_extension;
+
+	return(Result);
+
+}
+
 internal void
 model_process(app_state_t *AppState, const char *model_filename,
 		char *vertex_shader_filename, char *geometry_shader_filename, char *fragment_shader_filename)
@@ -1072,8 +1132,10 @@ model_process(app_state_t *AppState, const char *model_filename,
 
 	u32 mesh_count = Scene->mNumMeshes;
 	size_t mesh_size = sizeof(mesh_t);
+
 	Result.Meshes = (mesh_t *)calloc((size_t)mesh_count, mesh_size);
 	Result.mesh_count = 0;
+	Result.name = get_model_name((char *)model_filename);
 	
 	aiNode *Node = Scene->mRootNode;
 
@@ -1088,6 +1150,65 @@ model_process(app_state_t *AppState, const char *model_filename,
 	else
 	{
 	}
+}
+
+// The mesh draw funciton will probably end up being a very long function
+// possibly with many parameters..
+
+internal void
+mesh_draw2(mesh_t *Mesh, shader_program_t *Shader)
+{
+	if (Mesh->MeshTextures.texture_count)
+	{
+		u32 diffuse_count = 1;
+		u32 specular_count = 1;
+		u32 normal_count = 1;
+		u32 height_count = 1;
+
+		char uniform_name[64];
+		char digit_buff[16];
+		for(u32 texture_index = 0; texture_index < Mesh->MeshTextures.texture_count; texture_index++)
+		{
+			texture_t* MeshTexture = Mesh->MeshTextures.Textures + texture_index;
+
+			glActiveTexture(GL_TEXTURE0 + texture_index);
+
+			if(MeshTexture->type == TEXTURE_TYPE_DIFFUSE)
+			{
+				copy_strings(uniform_name, "u_TexelDiffuse");
+				digit_to_string(digit_buff, diffuse_count);
+				concat_strings(uniform_name, uniform_name, digit_buff);
+				diffuse_count++;
+			}
+			else if(MeshTexture->type == TEXTURE_TYPE_SPECULAR)
+			{
+				copy_strings(uniform_name, "u_TexelSpecular");
+				digit_to_string(digit_buff, specular_count);
+				concat_strings(uniform_name, uniform_name, digit_buff);
+				specular_count++;
+			}
+			else if(MeshTexture->type == TEXTURE_TYPE_NORMAL)
+			{
+				copy_strings(uniform_name, "u_TexelNormal");
+				digit_to_string(digit_buff, normal_count);
+				concat_strings(uniform_name, uniform_name, digit_buff);
+				normal_count++;
+			}
+			else if(MeshTexture->type == TEXTURE_TYPE_HEIGHT)
+			{
+				copy_strings(uniform_name, "u_TexelHeight");
+				digit_to_string(digit_buff, height_count);
+				concat_strings(uniform_name, uniform_name, digit_buff);
+				height_count++;
+			}
+			glUniform1i(glGetUniformLocation(Shader->id, uniform_name), texture_index);
+			glBindTexture(GL_TEXTURE_2D, MeshTexture->id);
+		}
+	}
+	glBindVertexArray(Mesh->MeshVAO);
+	glDrawElements(GL_TRIANGLES, Mesh->MeshIndices.indices_count, GL_UNSIGNED_INT, 0);
+	glBindVertexArray(0);
+	glActiveTexture(GL_TEXTURE0);
 }
 
 internal void
@@ -1499,13 +1620,37 @@ internal void GLAPIENTRY
 opengl_debug_callback(GLenum source, GLenum type, GLuint id, GLenum severity, GLsizei length, 
 																	const GLchar *message, const void *userParam)
 {
-	char *gl_source = gl_enum_type_to_string(source);
-	char *gl_type = gl_enum_type_to_string(type);
-	char *gl_severity = gl_enum_type_to_string(severity);
+	//char *gl_source = gl_enum_type_to_string(source);
+	//char *gl_type = gl_enum_type_to_string(type);
+	//char *gl_severity = gl_enum_type_to_string(severity);
 
 	printf("[OpenGL Debug Callback] %s\n", message);
 }
 
+internal f32
+get_asteroid_displacement(f32 offset)
+{
+	f32 Result = 0.0f;
+	Result = ((rand() % (s32)(2 * offset * 100)) / 100.0f) - offset;
+	return(Result);
+
+}
+
+internal model_t
+model_get(app_state_t *AppState, char *model_name)
+{
+	model_t Result = {};
+
+	for(u32 model_index = 0; model_index < AppState->model_count; model_index++)
+	{
+		model_t Model = AppState->Models[model_index];
+		if(strings_are_same(Model.name, model_name))
+		{
+			Result = Model;
+		}
+	}
+	return(Result);
+}
 
 int main(void)
 {
@@ -1573,88 +1718,6 @@ int main(void)
 	app_state_t AppState = {};
 
 	//
-	// NOTE(Justin): Framebuffer
-	//
-	
-#if 0
-	GLuint FBO;
-	glGenFramebuffers(1, &FBO);
-	glBindFramebuffer(GL_FRAMEBUFFER, FBO);
-
-	//
-	// NOTE(Justin): Texture attachment to FB
-	//
-
-	GLuint TextureColorBufferAttachment;
-	glGenTextures(1, &TextureColorBufferAttachment);
-	glBindTexture(GL_TEXTURE_2D, TextureColorBufferAttachment);
-
-	// The data parameter is NULL because we are only allocating memory, not
-	// writing to it. Writing to the texture occurs when we render tothe FB.
-
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, Window.width, Window.height, 0, GL_RGB, GL_UNSIGNED_BYTE, NULL);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-
-	// Attach the texture to the FB.
-	// target, attachment, textarget, texture, mipmap level
-
-	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, TextureColorBufferAttachment, 0);
-
-	// Allocate a render buffer object for stencil and depth testing
-	GLuint RBO;
-	glGenRenderbuffers(1, &RBO);
-	glBindRenderbuffer(GL_RENDERBUFFER, RBO);
-	glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, Window.width, Window.height);
-	glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_RENDERBUFFER, RBO);
-
-
-	if(glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
-	{
-		printf("[OpenGL] ERROR: Framebuffer is not complete!\n");
-	}
-	glBindFramebuffer(GL_FRAMEBUFFER, 0);
-
-	GLuint PlaneVBO, PlaneVAO;
-	glGenVertexArrays(1, &PlaneVAO);
-	glGenBuffers(1, &PlaneVBO);
-
-	glBindVertexArray(PlaneVAO);
-	glBindBuffer(GL_ARRAY_BUFFER, PlaneVBO);
-
-	glBufferData(GL_ARRAY_BUFFER, sizeof(plane_vertices), plane_vertices, GL_STATIC_DRAW);
-	glEnableVertexAttribArray(0);
-	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(f32), (void *)0);
-	glEnableVertexAttribArray(1);
-	glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(f32), (void *)(3 * sizeof(f32)));
-
-	GLuint QuadVBO, QuadVAO;
-	glGenVertexArrays(1, &QuadVAO);
-	glGenBuffers(1, &QuadVBO);
-
-	glBindVertexArray(QuadVAO);
-	glBindBuffer(GL_ARRAY_BUFFER, QuadVBO);
-
-	glBufferData(GL_ARRAY_BUFFER, sizeof(quad_ndc_vertices), quad_ndc_vertices, GL_STATIC_DRAW);
-	glEnableVertexAttribArray(0);
-	glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(f32), (void *)0);
-	glEnableVertexAttribArray(1);
-	glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(f32), (void *)(2 * sizeof(f32)));
-
-
-	shader_program_t ScreenShader = shader_program_create_from_files("shaders/screen_quad.vs", "shaders/screen_quad.fs");
-
-	// Read and write frame buffer calls now change the state of the currently
-	// bound frambe buffer. In this case FBO. The framebuffer cannot be used
-	// because it is not complete
-
-	// We have to attach at least one buffer (color, depth or stencil buffer).
-	// There should be at least one color attachment.
-	// All attachments should be complete as well (reserved memory).
-	// Each buffer should have the same number of samples.
-	
-#endif
-	//
 	// NOTE(Justin): Model Initalization
 	//
 	//
@@ -1666,49 +1729,71 @@ int main(void)
 	// resources asssociated with the model. So we could just pass the path to
 	// the directory of teh model and try and do all the processing that way.
 	// Seems reasonable.
+	
+	model_process(&AppState, "models/planet/planet.obj", "shaders/planet.vs", NULL, "shaders/planet.fs");
+	model_process(&AppState, "models/rock/rock.obj", "shaders/instance_asteroid.vs", NULL, "shaders/instance_asteroid.fs");
+
+	u32 asteroid_count = 1000;
+	glm::mat4 *AsteroidModelTransforms = (glm::mat4 *)calloc((size_t)asteroid_count, sizeof(glm::mat4));
+	srand(glfwGetTime());
+	f32 radius = 50.0f;
+	f32 offset = 2.5f;
+	for(u32 transform_index = 0; transform_index < asteroid_count; transform_index++)
+	{
+		glm::mat4 ModelTransform = glm::mat4(1.0f);
+		f32 angle = (f32)transform_index / (f32)asteroid_count * 360.0f;
+		f32 displacement = get_asteroid_displacement(offset);
+		f32 x = radius * sin(angle) + displacement;
+		displacement = get_asteroid_displacement(offset);
+		f32 y = displacement * 0.04f;
+		displacement = get_asteroid_displacement(offset);
+		f32 z = radius * cos(angle) + displacement;
+
+		ModelTransform = glm::translate(ModelTransform, glm::vec3(x, y, z));
+
+		f32 asteroid_scale = (rand() % 20) / 100.0f + 0.05f;
+		ModelTransform = glm::scale(ModelTransform, glm::vec3(asteroid_scale));
+
+		f32 asteroid_angle = (rand() % 360);
+		ModelTransform = glm::rotate(ModelTransform, asteroid_angle, glm::vec3(0.4f, 0.6f, 0.8f));
+
+		AsteroidModelTransforms[transform_index] = ModelTransform;
+	}
+
+	GLuint AsteroidTransformsVBO;
+	glGenBuffers(1, &AsteroidTransformsVBO);
+	glBindBuffer(GL_ARRAY_BUFFER, AsteroidTransformsVBO);
+	glBufferData(GL_ARRAY_BUFFER, asteroid_count * sizeof(glm::mat4), &AsteroidModelTransforms[0], GL_STATIC_DRAW);
+
+	model_t RockModel = model_get(&AppState, "rock.obj");
+	for(u32 mesh_index = 0; mesh_index < RockModel.mesh_count; mesh_index++)
+	{
+		GLuint MeshVAO = RockModel.Meshes[mesh_index].MeshVAO;
+		glBindVertexArray(MeshVAO);
+
+		size_t v4_size = sizeof(glm::vec4);
+		glEnableVertexAttribArray(3);
+		glVertexAttribPointer(3, 4, GL_FLOAT, GL_FALSE, 4 * sizeof(v4_size), (void *)0);
+
+		glEnableVertexAttribArray(4);
+		glVertexAttribPointer(4, 4, GL_FLOAT, GL_FALSE, 4 * sizeof(v4_size), (void *)(1 * v4_size));
+
+		glEnableVertexAttribArray(5);
+		glVertexAttribPointer(5, 4, GL_FLOAT, GL_FALSE, 4 * sizeof(v4_size), (void *)(2 * v4_size));
+
+		glEnableVertexAttribArray(6);
+		glVertexAttribPointer(6, 4, GL_FLOAT, GL_FALSE, 4 * sizeof(v4_size), (void *)(3 * v4_size));
+
+		glVertexAttribDivisor(3, 1);
+		glVertexAttribDivisor(4, 1);
+		glVertexAttribDivisor(5, 1);
+		glVertexAttribDivisor(6, 1);
+
+		glBindVertexArray(0);
+	}
 
 	cube_t CubeSkybox = cube_no_textures_init(&cube_vertices_and_normals[0],
 											ArrayCount(cube_vertices_and_normals),
-											"shaders/environment_map.vs", "shaders/environment_map.fs");
-
-	//
-	// NOTE(Justin): Instancing example.
-	//
-
-	glm::vec2 PositionNDCOffsets[100];
-	u32 index = 0;
-	f32 offset = 0.1f;
-	for(int y = -10; y < 10; y += 2)
-	{
-		for(int x = -10; x < 10; x += 2)
-		{
-			glm::vec3 Offset;
-			Offset.x = (f32)x / 10.0f + offset;
-			Offset.y = (f32)y / 10.0f + offset;
-			PositionNDCOffsets[index++] = Offset;
-		}
-	}
-
-	quad_t QuadInstance;
-	glGenVertexArrays(1, &QuadInstance.VAO);
-	glGenBuffers(1, &QuadInstance.VBO);
-
-	glBindVertexArray(QuadInstance.VAO);
-
-	glBindBuffer(GL_ARRAY_BUFFER, QuadInstance.VBO);
-	glBufferData(GL_ARRAY_BUFFER, 6 * 5 * sizeof(f32), &ndc_quad_vertices[0], GL_STATIC_DRAW);
-
-	glEnableVertexAttribArray(0);
-	glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(f32), (void *)0);
-
-	glEnableVertexAttribArray(1);
-	glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(f32), (void *)(2 * sizeof(f32)));
-
-	QuadInstance.Shader = shader_program_create_from_files("shaders/instance_quad.vs", "shaders/instance_quad.fs");
-	gl_log_shader_info(&QuadInstance.Shader);
-
-//	quad_t QuadInstance = quad_create(&ndc_quad_vertices[0], &indices[0], "", TEXTURE_TYPE_DIFFUSE,
-//												"shaders/instance_quad.vs", "shaders/instance_quad.fs", 0);
 #if 0
 
 	cube_t CubeTranslucent = cube_no_textures_init(&cube_vertices_and_normals[0],
@@ -1742,37 +1827,6 @@ int main(void)
 	Cube.VertexBufferLayout.attribute_stride = (void*)0;
 	vertex_array_add_buffer_layout(0, &LightVertexArray, &Cube.VertexBufferLayout);
 
-	//
-	// NOTE(Justin): Uniform buffer example.
-	//
-
-#if 0
-	shader_program_t RedShader = shader_program_create_from_files("shaders/uniform_buffer.vs",
-																  "shaders/uniform_buffer_red.fs");
-	shader_program_t GreenShader = shader_program_create_from_files("shaders/uniform_buffer.vs",
-																  "shaders/uniform_buffer_green.fs");
-	shader_program_t BlueShader = shader_program_create_from_files("shaders/uniform_buffer.vs",
-																  "shaders/uniform_buffer_blue.fs");
-	shader_program_t YellowShader = shader_program_create_from_files("shaders/uniform_buffer.vs",
-																  "shaders/uniform_buffer_yellow.fs");
-	u32 UniformBlockIndexRed = glGetUniformBlockIndex(RedShader.id, "Transforms");
-	u32 UniformBlockIndexGreen = glGetUniformBlockIndex(GreenShader.id, "Transforms");
-	u32 UniformBlockIndexBlue = glGetUniformBlockIndex(BlueShader.id, "Transforms");
-	u32 UniformBlockIndexYellow = glGetUniformBlockIndex(YellowShader.id, "Transforms");
-
-	glUniformBlockBinding(RedShader.id, UniformBlockIndexRed, 0);
-	glUniformBlockBinding(GreenShader.id, UniformBlockIndexGreen, 0);
-	glUniformBlockBinding(BlueShader.id, UniformBlockIndexBlue, 0);
-	glUniformBlockBinding(YellowShader.id, UniformBlockIndexYellow, 0);
-	
-	u32 MatricesUBO;
-	glGenBuffers(1, &MatricesUBO);
-
-	glBindBuffer(GL_UNIFORM_BUFFER, MatricesUBO);
-	glBufferData(GL_UNIFORM_BUFFER, 2 * sizeof(glm::mat4), NULL, GL_STATIC_DRAW);
-	glBindBuffer(GL_UNIFORM_BUFFER, 0);
-
-	glBindBufferRange(GL_UNIFORM_BUFFER, 0, MatricesUBO, 0, 2 * sizeof(glm::mat4));
 
 
 	//
@@ -1788,69 +1842,6 @@ int main(void)
 			"shaders/explode_along_normals.vs", "shaders/explode_along_normals.gs", "shaders/explode_along_normals.fs",
 			"textures/metal.png", "");
 
-
-
-	//
-	// TODO(Justin): Maybe we should have routines that only compile and only
-	// link and keep these actions logically separated... Seems like a good
-	// idea.
-	//
-
-	shader_program_t Test = shader_program_create_from_file(GL_VERTEX_SHADER, "shaders/build_house_at_point.vs");
-	shader_program_add_shader(&Test, GL_GEOMETRY_SHADER, "shaders/build_house_at_point.gs");
-	shader_program_add_shader(&Test, GL_FRAGMENT_SHADER, "shaders/build_house_at_point.fs");
-
-
-	//
-	// NOTE(Justin): glBufferSubData example.
-	//
-
-	points_ndc_t PointsNDC;
-
-	// Carefule with the semantics of these variables they are not technically
-	// position counts and color counts they are counts of how many f32s are in
-	// the array. An actual position count would be number of f32s divided by 2
-	// since an ndc pos consists of 2 floats.
-
-	PointsNDC.positions = &ndc_space_positions[0];
-	PointsNDC.positions_count = ArrayCount(ndc_space_positions);
-	PointsNDC.colors = &ndc_space_colors[0];
-	PointsNDC.colors_count = ArrayCount(ndc_space_colors);
-
-	glGenVertexArrays(1, &PointsNDC.VAO);
-	glGenBuffers(1, &PointsNDC.VBO);
-	glBindVertexArray(PointsNDC.VAO);
-	glBindBuffer(GL_ARRAY_BUFFER, PointsNDC.VBO);
-
-	// To write to part of a buffer, we first need a buffer to store the data.
-	// Call glBufferData, give it the correct size, and pass NULL as the pointer
-	// to the data. This allocates  GPU memory for the currently bound buffer.
-	// We can write ot it now or bind later and write to it.
-
-	glBufferData(GL_ARRAY_BUFFER, (PointsNDC.positions_count + PointsNDC.colors_count) * sizeof(f32), 
-			NULL, GL_STATIC_DRAW);
-
-	glBufferSubData(GL_ARRAY_BUFFER, 0, PointsNDC.positions_count * sizeof(f32), PointsNDC.positions);
-	glBufferSubData(GL_ARRAY_BUFFER, PointsNDC.positions_count * sizeof(f32),
-									 PointsNDC.colors_count * sizeof(f32), PointsNDC.colors);
-
-	// AS long as we correctly specify the format of the data in the buffer (how
-	// the data looks) and give it a ! index then we can draw properly. The
-	// stride is now the size of the attribute since attribuites of the same
-	// type are tightly packed. they are laid out in memory consecutively. When
-	// we need to specify a pointer to the next attribute the stride is the size
-	// of the next attribute but the starting offset is now an offset that is
-	// all the data associated with the first attribute
-	//
-	// interleaved attributes before: xyrgb1 xyrgb2 xyrgb3 ... xyrgbn
-	//
-	// consecutive attributes after:  xy1 xy2 xy3 ... xyn rgb1 rgb2 rgb3 ... rgbn
-
-	glEnableVertexAttribArray(0);
-	glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(f32), (void *)0);
-	glEnableVertexAttribArray(1);
-	glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(f32), (void *)(PointsNDC.positions_count * sizeof(f32)));
-#endif
 
 	//
 	// NOTE(Justin): Skybox.
@@ -1912,17 +1903,6 @@ int main(void)
 
 	glm::mat4 MapToPersp = glm::perspective(field_of_view, aspect_ratio, n, f);
 
-	//
-	// NOTE(Justin): After defining the persp and view matrices, copy matrices
-	// to uniform buffer 
-	//
-
-#if 0
-	glBindBuffer(GL_UNIFORM_BUFFER, MatricesUBO);
-	glBufferSubData(GL_UNIFORM_BUFFER, 0, sizeof(glm::mat4), glm::value_ptr(MapToPersp));
-	glBindBuffer(GL_UNIFORM_BUFFER, 0);
-#endif
-
 	glm::vec3 LightPositions[4];
 	LightPositions[0] = cube_positions[0];
 
@@ -1966,14 +1946,11 @@ int main(void)
 		// NOTE(Justin): Render
 		//
 
-#if 0
-		glBindFramebuffer(GL_FRAMEBUFFER, FBO);
-#endif
-
 		//
 		// NOTE(Justin): SkyBox
 		//
 
+#if 0
 		glDepthMask(GL_FALSE);
 		glUseProgram(SkyBox.Shader.id);
 		glActiveTexture(GL_TEXTURE0);
@@ -1989,6 +1966,7 @@ int main(void)
 		glBindVertexArray(0);
 		glDepthMask(GL_TRUE);
 		glClear(GL_DEPTH_BUFFER_BIT);
+#endif
 
 #if 0
 		glUseProgram(CubeSkybox.Shader.id);
@@ -2022,26 +2000,16 @@ int main(void)
 			}
 		}
 
-		//
-		// NOTE(Justin): Quad instancing example
-		//
-
-		glUseProgram(QuadInstance.Shader.id);
-		char digit_buff[8];
-		char *str1 = "PositionNDCOffsets[";
-		char *str2 = "]";
-		for(u32 instance_index = 0; instance_index < 100; instance_index++)
+		glUseProgram(RockModel.Meshes[0].MeshShader.id);
+		glActiveTexture(GL_TEXTURE0);
+		glBindTexture(GL_TEXTURE_2D, RockModel.Meshes[0].MeshTextures.Textures[0].id);
+		uniform_set_mat4f(RockModel.Meshes[0].MeshShader.id, "u_MapToPersp", MapToPersp);
+		uniform_set_mat4f(RockModel.Meshes[0].MeshShader.id, "u_MapToCamera", MapToCamera);
+		for(u32 mesh_index = 0; mesh_index < RockModel.mesh_count; mesh_index++)
 		{
-			char uniform_name[64];
-			copy_strings(uniform_name, str1);
-			digit_to_string(digit_buff, instance_index);
-			concat_strings(uniform_name, str1, digit_buff);
-			concat_strings(uniform_name, uniform_name, str2);
-
-			uniform_set_vec2f(QuadInstance.Shader.id, uniform_name, PositionNDCOffsets[instance_index]);
+			glBindVertexArray(RockModel.Meshes[mesh_index].MeshVAO);
+			glDrawElementsInstanced(GL_TRIANGLES, RockModel.Meshes[mesh_index].MeshIndices.indices_count, GL_UNSIGNED_INT, 0, asteroid_count);
 		}
-		glBindVertexArray(QuadInstance.VAO);
-		glDrawArraysInstanced(GL_TRIANGLES, 0, 6, 100);
 
 #if 0
 		glUseProgram(CubeTranslucent.Shader.id);
@@ -2083,50 +2051,6 @@ int main(void)
 		glDrawArrays(GL_TRIANGLES, 0, 36);
 		glBindVertexArray(0);
 
-		//
-		// NOTE(Justin): UBO example
-		//
-
-		// NOTE(Justin): We need to buffer the camera matrix every frame because
-		// the camera pos and dir change frequently.
-
-		glBindBuffer(GL_UNIFORM_BUFFER, MatricesUBO);
-		glBufferSubData(GL_UNIFORM_BUFFER, sizeof(glm::mat4), sizeof(glm::mat4), glm::value_ptr(MapToCamera));
-		glBindBuffer(GL_UNIFORM_BUFFER, 0);
-
-		glBindVertexArray(Cube.VertexArray.id);
-
-		glUseProgram(RedShader.id);
-		ModelTransform = glm::translate(ModelTransform, 5 * E1);
-		uniform_set_mat4f(RedShader.id, "u_ModelTransform", ModelTransform);
-		glDrawArrays(GL_TRIANGLES, 0, 36);
-
-		glUseProgram(GreenShader.id);
-		ModelTransform = glm::translate(ModelTransform, E1);
-		uniform_set_mat4f(GreenShader.id, "u_ModelTransform", ModelTransform);
-		glDrawArrays(GL_TRIANGLES, 0, 36);
-
-		glUseProgram(BlueShader.id);
-		ModelTransform = glm::translate(ModelTransform, E2);
-		uniform_set_mat4f(BlueShader.id, "u_ModelTransform", ModelTransform);
-		glDrawArrays(GL_TRIANGLES, 0, 36);
-
-		glUseProgram(YellowShader.id);
-		ModelTransform = glm::translate(ModelTransform, -E1);
-		uniform_set_mat4f(YellowShader.id, "u_ModelTransform", ModelTransform);
-		glDrawArrays(GL_TRIANGLES, 0, 36);
-
-		glBindVertexArray(0);
-
-#endif
-		//
-		// NOTE(Justin): First geometry shader example
-		//
-
-//		glUseProgram(Test.id);
-//		glBindVertexArray(PointsNDC.VAO);
-//		glDrawArrays(GL_POINTS, 0, 4);
-//
 		//
 		// NOTE(Justin): Exploding cube
 		//
@@ -2211,17 +2135,6 @@ int main(void)
 			glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
 			glBindVertexArray(0);
 		}
-#endif
-#if 0
-		glBindFramebuffer(GL_FRAMEBUFFER, 0);
-		glClearColor(1.0f, 1.0f, 1.0f, 1.0f);
-		glClear(GL_COLOR_BUFFER_BIT);
-
-		glUseProgram(ScreenShader.id);
-		glBindVertexArray(QuadVAO);
-		glDisable(GL_DEPTH_TEST);
-		glBindTexture(GL_TEXTURE_2D, TextureColorBufferAttachment);
-		glDrawArrays(GL_TRIANGLES, 0, 6);
 #endif
 
         glfwPollEvents();
