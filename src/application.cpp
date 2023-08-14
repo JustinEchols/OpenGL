@@ -31,7 +31,6 @@ TODO:
 #include <assimp/postprocess.h>
 #include <assimp/Importer.hpp>
 
-
 #include "application.h"
 #include "application_cube.h"
 #include "application_math.h"
@@ -43,226 +42,6 @@ TODO:
 #include "application_mesh.cpp"
 
 global_variable input_t AppInput;
-
-internal u32
-get_string_length(char *string)
-{
-	u32 Result = 0;
-	for(char *c = string; *c != '\0'; c++)
-	{
-		Result++;
-	}
-	return(Result);
-}
-
-// TODO(Justin): This is completley unsafe and not to be desired at all. Only
-// works for when len a < len b. Meant to be used for copying paths to a buffer
-// Will always work if strin_a is a buffer big enough to copy string_b to.
-
-internal void
-copy_strings(char *string_a, char *string_b)
-{
-	char *src = string_b;
-	char *dest = string_a;
-	while(*src != '\0')
-	{
-		*dest++ = *src++;
-	}
-	*dest++ = '\0';
-}
-
-
-#if 1
-internal void
-concat_strings(char *buff, char *string_a, char *string_b)
-{
-	// TODO(Justin): Make sure the buffer
-
-	copy_strings(buff, string_a);
-
-	u32 length = get_string_length(string_a);
-	char *c = buff + length;
-
-	copy_strings(c, string_b);
-}
-#endif
-
-#if 0
-internal char *
-concat_strings(char *string_a, char *string_b)
-{
-	// TODO(Justin): Make sure the buffer
-	char Result[256];
-
-	copy_strings(Result, string_a);
-	u32 length = get_string_length(Result);
-	char *c = Result + length;
-	copy_strings(c, string_b);
-
-	return(Result);
-}
-#endif
-
-internal b32
-strings_are_same(char *string_a, char *string_b)
-{
-	b32 Result = 0;
-
-	u32 a_length = get_string_length(string_a);
-	u32 b_length = get_string_length(string_b);
-
-	if(a_length == b_length)
-	{
-		char *pa = string_a;
-		char *pb = string_b;
-
-		while(*pa != '\0')
-		{
-			Result = (*pa++ == *pb++);
-			if(Result)
-			{
-				// The chars are the same, do nothing and look at the next pair.
-			}
-			else
-			{
-				break;
-			}
-		}
-	}
-	return(Result);
-}
-
-#if 1
-internal char *
-single_digit_to_string(u32 digit)
-{
-	ASSERT((0 <= digit) && (digit <= 9));
-
-	char *Result;
-
-	if(digit == 0)
-	{
-		Result = "0";
-	}
-	else if(digit == 1)
-	{
-		Result = "1";
-	}
-	else if(digit == 2)
-	{
-		Result = "2";
-	}
-	else if(digit == 3)
-	{
-		Result = "3";
-	}
-	else if(digit == 4)
-	{
-		Result = "4";
-	}
-	else if(digit == 5)
-	{
-		Result = "5";
-	}
-	else if(digit == 6)
-	{
-		Result = "6";
-	}
-	else if(digit == 7)
-	{
-		Result = "7";
-	}
-	else if(digit == 8)
-	{
-		Result = "8";
-	}
-	else
-	{
-		Result = "9";
-	}
-	return(Result);
-}
-#endif
-
-// Only works for numbers 0-99
-internal void
-digit_to_string(char *buff, u32 value)
-{
-	ASSERT((0 <= value) && (value <= 99));
-
-	u32 remainder = value % 10;
-	u32 ones_digit = remainder;
-	u32 tens_digit = (value - remainder) / 10;
-
-	char *c;
-	if(tens_digit == 0)
-	{
-		c = single_digit_to_string(ones_digit);
-		copy_strings(buff, c);
-	}
-	else
-	{
-		char *b = single_digit_to_string(ones_digit);
-		char *a = single_digit_to_string(tens_digit);
-
-		concat_strings(buff, a, b);
-	}
-}
-
-internal string_t
-copy_string_to_buff(char *string)
-{
-	string_t Result = {};
-
-	char buff[256];
-	char *c = string;
-	u32 length = get_string_length(string);
-
-	for(u32 char_index = 0; char_index < length; char_index++)
-	{
-		buff[char_index] = *c++;
-	}
-	buff[length] = '\0';
-
-	Result.data = buff;
-	Result.count = length;
-	
-	return(Result);
-}
-
-internal string_t 
-get_path_to_dir(char *full_path_to_file)
-{
-	string_t Result = {};
-
-	char *one_past_last_slash;
-	for(char *c = full_path_to_file; *c != '\0'; c++)
-	{
-		if(*c == '/')
-		{
-			one_past_last_slash = c;
-		}
-	}
-	one_past_last_slash++;
-
-	u32 char_count = one_past_last_slash - full_path_to_file;
-
-	char buff[256];
-	char *c = full_path_to_file;
-	u32 char_index;
-	for(char_index = 0; char_index < char_count; char_index++)
-	{
-		buff[char_index] = *c++;
-	}
-	buff[char_index] = '\0';
-
-	Result.data = buff;
-	Result.count = char_count;
-
-	return(Result);
-}
-
-
 
 internal vertex_array_t
 vertex_array_create()
@@ -522,8 +301,7 @@ shader_program_add_shader(shader_program_t *Shader, GLenum SHADER_TYPE, char *sh
 
 	char *shader_source_buff = (char *)malloc(MAX_SHADER_SIZE);
 	shader_load_source_from_file(shader_source_buff, MAX_SHADER_SIZE, shader_filename);
-
-	glShaderSource(shader_handle, 1, &shader_source_buff, NULL);
+glShaderSource(shader_handle, 1, &shader_source_buff, NULL);
 	glCompileShader(shader_handle);
 
 	int lparams = -1;
@@ -592,6 +370,8 @@ shader_program_create_from_files(char *vertex_shader_filename, char *fragment_sh
 	shader_load_source_from_file(fragment_shader_src, sizeof(fragment_shader_src), fragment_shader_filename);
 
 	Result.id = shader_program_create_from_strings(vertex_shader_src, fragment_shader_src);
+
+	gl_log_shader_info(&Result);
 	return(Result);
 }
 
@@ -925,9 +705,8 @@ mesh_process_vertices(aiMesh *Mesh)
 
 
 internal void
-mesh_process_texture_map(app_state_t *AppState, aiMaterial *MeshMaterial,
-		mesh_textures_t *MeshTextures, u32 texture_count, aiTextureType texture_type, char *path_to_dir)
-		//aiString path_to_texture)
+mesh_process_texture_map(app_state_t *AppState, aiMaterial *MeshMaterial, mesh_textures_t *MeshTextures, 
+		u32 texture_count, aiTextureType texture_type, char *path_to_dir)//string2_t PathToDir)
 {
 	// NOTE(Justin): This I believe was not the problem with the model loading
 	// code. The path to teh texture keeps getting overwritten.
@@ -975,22 +754,20 @@ mesh_process_texture_map(app_state_t *AppState, aiMaterial *MeshMaterial,
 }
 
 internal mesh_textures_t
-mesh_process_material(app_state_t *AppState, aiMaterial *MeshMaterial, char *path_to_dir)
+mesh_process_material(app_state_t *AppState, aiMaterial *MeshMaterial, char *path_to_dir)//string2_t PathToDir)
 {
 	mesh_textures_t MeshTextures = {};
 
 	u32 texture_diffuse_count = MeshMaterial->GetTextureCount(aiTextureType_DIFFUSE);
 	u32 texture_specular_count = MeshMaterial->GetTextureCount(aiTextureType_SPECULAR);
+	u32 texture_height_count = MeshMaterial->GetTextureCount(aiTextureType_HEIGHT);
+	u32 texture_ambient_count = MeshMaterial->GetTextureCount(aiTextureType_AMBIENT);
 
 
 	size_t texture_size = sizeof(texture_t);
-	u32 texture_count = texture_diffuse_count + texture_specular_count;
+	u32 texture_count = texture_diffuse_count + texture_specular_count + texture_height_count + texture_ambient_count;
 
 	MeshTextures.Textures = (texture_t *)calloc((size_t)texture_count, texture_size);
-	//MeshTextures.texture_count = texture_count;
-	//aiString path_to_texture1 = aiString("models/backpack/");
-	//aiString path_to_texture = aiString();
-	//path_to_texture = path_to_dir;
 
 	mesh_process_texture_map(AppState, MeshMaterial, &MeshTextures, texture_diffuse_count, aiTextureType_DIFFUSE, 
 			path_to_dir);
@@ -998,12 +775,18 @@ mesh_process_material(app_state_t *AppState, aiMaterial *MeshMaterial, char *pat
 	mesh_process_texture_map(AppState, MeshMaterial, &MeshTextures, texture_specular_count, aiTextureType_SPECULAR,
 			path_to_dir);
 
+
+	mesh_process_texture_map(AppState, MeshMaterial, &MeshTextures, texture_height_count, aiTextureType_HEIGHT,
+			path_to_dir);
+
+	mesh_process_texture_map(AppState, MeshMaterial, &MeshTextures, texture_ambient_count, aiTextureType_AMBIENT,
+			path_to_dir);
+
 	return(MeshTextures);
 }
 
 internal void
-node_process(app_state_t *AppState, const aiScene *Scene, aiNode *Node, model_t *Model,
-		char *path_to_dir, char *vertex_shader_filename, char *geometry_shader_filename, char *fragment_shader_filename)
+node_process(app_state_t *AppState, const aiScene *Scene, aiNode *Node, model_t *Model, char *path_to_dir)//string2_t PathToDir)
 {
 	mesh_t* ModelMesh = &Model->Meshes[Model->mesh_count];
 	for (u32 i = 0; i < Node->mNumMeshes; i++)
@@ -1045,7 +828,7 @@ node_process(app_state_t *AppState, const aiScene *Scene, aiNode *Node, model_t 
 		if (Mesh->mMaterialIndex >= 0)
 		{
 			aiMaterial* MeshMaterial = Scene->mMaterials[Mesh->mMaterialIndex];
-			MeshTextures = mesh_process_material(AppState, MeshMaterial, path_to_dir);
+			MeshTextures = mesh_process_material(AppState, MeshMaterial, path_to_dir);// PathToDir);
 		}
 
 		ModelMesh->MeshVBO = MeshVBO;
@@ -1056,26 +839,11 @@ node_process(app_state_t *AppState, const aiScene *Scene, aiNode *Node, model_t 
 		ModelMesh->MeshIndices = MeshIndices;
 		ModelMesh->MeshTextures = MeshTextures;
 
-
-		// TODO(Justin): System for handling shaders.
-
-		shader_program_t MeshShader;
-		MeshShader = shader_program_create_from_file(GL_VERTEX_SHADER, vertex_shader_filename);
-		if(geometry_shader_filename)
-		{
-			MeshShader.geometry_shader_filename = geometry_shader_filename;
-			shader_program_add_shader(&MeshShader, GL_GEOMETRY_SHADER, geometry_shader_filename);
-		}
-		shader_program_add_shader(&MeshShader, GL_FRAGMENT_SHADER, fragment_shader_filename);
-
-		gl_log_shader_info(&MeshShader);
-		ModelMesh->MeshShader = MeshShader;
 		Model->mesh_count++;
 	}
 	for(u32 i = 0; i < Node->mNumChildren; i++)
 	{
-		node_process(AppState, Scene, Node->mChildren[i], Model, path_to_dir,
-				vertex_shader_filename, geometry_shader_filename, fragment_shader_filename);
+		node_process(AppState, Scene, Node->mChildren[i], Model, path_to_dir);//PathToDir);
 	}
 }
 
@@ -1122,8 +890,7 @@ get_model_name(char *full_path_to_file)
 }
 
 internal void
-model_process(app_state_t *AppState, const char *model_filename,
-		char *vertex_shader_filename, char *geometry_shader_filename, char *fragment_shader_filename)
+model_process(app_state_t *AppState, const char *model_filename)
 {
 	Assimp::Importer Importer;
 	const aiScene* Scene = Importer.ReadFile(model_filename, ASSIMP_LOAD_FLAGS);
@@ -1139,9 +906,15 @@ model_process(app_state_t *AppState, const char *model_filename,
 	
 	aiNode *Node = Scene->mRootNode;
 
-	string_t PathToDir = get_path_to_dir((char *)model_filename);
+	// NOTE(Justin) When just passing the pointer to the buff to the sub routines, we encounter a problem. The
+	// memory in the buffer gets overwritten after the first recursion. But if
+	// we copy the memory to a buffer here as below, the memory is not over written and everything 
+	// renders properly. Why?
 
-	node_process(AppState, Scene, Node, &Result, PathToDir.data, vertex_shader_filename, geometry_shader_filename, fragment_shader_filename);
+	StackString(PathToDir, 64)
+	PathToDir = get_path_to_dir2((char *)model_filename);
+
+	node_process(AppState, Scene, Node, &Result, PathToDir.buff);
 	if(mesh_count == Result.mesh_count)
 	{
 		AppState->Models[AppState->model_count] = Result;
@@ -1156,53 +929,62 @@ model_process(app_state_t *AppState, const char *model_filename,
 // possibly with many parameters..
 
 internal void
-mesh_draw2(mesh_t *Mesh, shader_program_t *Shader)
+mesh_draw(mesh_t *Mesh, shader_program_t *Shader)
 {
-	if (Mesh->MeshTextures.texture_count)
+	if(Mesh->MaterialType == Reflective)
 	{
-		u32 diffuse_count = 1;
-		u32 specular_count = 1;
-		u32 normal_count = 1;
-		u32 height_count = 1;
-
-		char uniform_name[64];
-		char digit_buff[16];
-		for(u32 texture_index = 0; texture_index < Mesh->MeshTextures.texture_count; texture_index++)
+		// NOTE(Justin): Assume environment mapping.
+		glActiveTexture(GL_TEXTURE0);
+		glBindTexture(GL_TEXTURE_CUBE_MAP, Mesh->MeshTextures.Textures[0].id);
+	}
+	else
+	{
+		if (Mesh->MeshTextures.texture_count)
 		{
-			texture_t* MeshTexture = Mesh->MeshTextures.Textures + texture_index;
+			u32 diffuse_count = 1;
+			u32 specular_count = 1;
+			u32 normal_count = 1;
+			u32 height_count = 1;
 
-			glActiveTexture(GL_TEXTURE0 + texture_index);
+			char uniform_name[64];
+			char digit_buff[16];
+			for(u32 texture_index = 0; texture_index < Mesh->MeshTextures.texture_count; texture_index++)
+			{
+				texture_t *MeshTexture = Mesh->MeshTextures.Textures + texture_index;
 
-			if(MeshTexture->type == TEXTURE_TYPE_DIFFUSE)
-			{
-				copy_strings(uniform_name, "u_TexelDiffuse");
-				digit_to_string(digit_buff, diffuse_count);
-				concat_strings(uniform_name, uniform_name, digit_buff);
-				diffuse_count++;
+				glActiveTexture(GL_TEXTURE0 + texture_index);
+
+				if(MeshTexture->type == TEXTURE_TYPE_DIFFUSE)
+				{
+					copy_strings(uniform_name, "u_TexelDiffuse");
+					digit_to_string(digit_buff, diffuse_count);
+					concat_strings(uniform_name, uniform_name, digit_buff);
+					diffuse_count++;
+				}
+				else if(MeshTexture->type == TEXTURE_TYPE_SPECULAR)
+				{
+					copy_strings(uniform_name, "u_TexelSpecular");
+					digit_to_string(digit_buff, specular_count);
+					concat_strings(uniform_name, uniform_name, digit_buff);
+					specular_count++;
+				}
+				else if(MeshTexture->type == TEXTURE_TYPE_NORMAL)
+				{
+					copy_strings(uniform_name, "u_TexelNormal");
+					digit_to_string(digit_buff, normal_count);
+					concat_strings(uniform_name, uniform_name, digit_buff);
+					normal_count++;
+				}
+				else if(MeshTexture->type == TEXTURE_TYPE_HEIGHT)
+				{
+					copy_strings(uniform_name, "u_TexelHeight");
+					digit_to_string(digit_buff, height_count);
+					concat_strings(uniform_name, uniform_name, digit_buff);
+					height_count++;
+				}
+				glUniform1i(glGetUniformLocation(Shader->id, uniform_name), texture_index);
+				glBindTexture(GL_TEXTURE_2D, MeshTexture->id);
 			}
-			else if(MeshTexture->type == TEXTURE_TYPE_SPECULAR)
-			{
-				copy_strings(uniform_name, "u_TexelSpecular");
-				digit_to_string(digit_buff, specular_count);
-				concat_strings(uniform_name, uniform_name, digit_buff);
-				specular_count++;
-			}
-			else if(MeshTexture->type == TEXTURE_TYPE_NORMAL)
-			{
-				copy_strings(uniform_name, "u_TexelNormal");
-				digit_to_string(digit_buff, normal_count);
-				concat_strings(uniform_name, uniform_name, digit_buff);
-				normal_count++;
-			}
-			else if(MeshTexture->type == TEXTURE_TYPE_HEIGHT)
-			{
-				copy_strings(uniform_name, "u_TexelHeight");
-				digit_to_string(digit_buff, height_count);
-				concat_strings(uniform_name, uniform_name, digit_buff);
-				height_count++;
-			}
-			glUniform1i(glGetUniformLocation(Shader->id, uniform_name), texture_index);
-			glBindTexture(GL_TEXTURE_2D, MeshTexture->id);
 		}
 	}
 	glBindVertexArray(Mesh->MeshVAO);
@@ -1211,55 +993,8 @@ mesh_draw2(mesh_t *Mesh, shader_program_t *Shader)
 	glActiveTexture(GL_TEXTURE0);
 }
 
-internal void
-mesh_draw(app_state_t *AppState, mesh_t *Mesh, glm::mat4 ModelTransform, glm::mat4 MapToCamera, glm::mat4 MapToPersp, glm::vec3 LightPosition)
-{
-	shader_program_t Shader = Mesh->MeshShader;
-	glUseProgram(Shader.id);
 
-	// TODO(Justin): Can we get the program information for the mesh shader and
-	// then set the uniforms we need to set? Otherwise will need a different
-	// draw call for each mesh that uses a different shader with differen inputs
-	// and outputs... :(
-	uniform_set_mat4f(Shader.id, "ModelTransform", ModelTransform);
-	uniform_set_mat4f(Shader.id, "MapToCamera", MapToCamera);
-	uniform_set_mat4f(Shader.id,"MapToPersp", MapToPersp);
 
-	uniform_set_vec3f(Shader.id, "u_CameraPos", AppState->Camera.Pos);
-	uniform_set_f32(Shader.id, "u_Material.shininess", 32.0f);
-
-	LightPosition.x = 5.0f * cos(glfwGetTime());
-	LightPosition.y = 0.0f;
-	LightPosition.z = -5.0f * sin(glfwGetTime());
-
-	uniform_set_vec3f(Shader.id, "u_LightPoint.Pos", LightPosition);
-	uniform_set_vec3f(Shader.id, "u_LightPoint.Ambient", glm::vec3(0.2f, 0.2f, 0.2f));
-	uniform_set_vec3f(Shader.id, "u_LightPoint.Diffuse", glm::vec3(0.5f, 0.5f, 0.5f));
-	uniform_set_vec3f(Shader.id, "u_LightPoint.Specular", glm::vec3(1.0f, 1.0f, 1.0f));
-
-	uniform_set_f32(Shader.id, "u_LightPoint.atten_constant", 1.0f);
-	uniform_set_f32(Shader.id, "u_LightPoint.atten_linear", 0.09f);
-	uniform_set_f32(Shader.id, "u_LightPoint.atten_quadratic", 0.032f);
-
-	// TODO(Justin): Loop through all the textures for each mesh and set them.
-	if (Mesh->MeshTextures.texture_count)
-	{
-		for(u32 texture_index = 0; texture_index < Mesh->MeshTextures.texture_count; texture_index++)
-		{
-			texture_t* MeshTexture = Mesh->MeshTextures.Textures + texture_index;
-			// TODO(Justin): What type of texture are we setting? Is it implicit
-			// in MeshTexture. It is being set as GL_TEXTURE_2D for each one.
-			// The type of texture should probably be store in MeshTexturee.
-			texture_set_active_and_bind(texture_index, MeshTexture);
-			//MeshTexture++;
-			//texture_set_active_and_bind(1, MeshTexture);
-		}
-	}
-	glBindVertexArray(Mesh->MeshVAO);
-	glDrawElements(GL_TRIANGLES, Mesh->MeshIndices.indices_count, GL_UNSIGNED_INT, 0);
-	glBindVertexArray(0);
-	glActiveTexture(GL_TEXTURE0);
-}
 
 
 
@@ -1491,6 +1226,7 @@ skybox_init(char **texture_files, f32 *skybox_vertices, u32 vertices_count,
 		}
 		else
 		{
+			printf("[skybox_init] ERROR: Failed to load texture %s\n", *(texture_files + texture_index));
 		}
 	}
 	stbi_set_flip_vertically_on_load(true);
@@ -1636,15 +1372,16 @@ get_asteroid_displacement(f32 offset)
 
 }
 
-internal model_t
+internal model_t *
 model_get(app_state_t *AppState, char *model_name)
 {
-	model_t Result = {};
+	model_t *Result = 0;
 
 	for(u32 model_index = 0; model_index < AppState->model_count; model_index++)
 	{
-		model_t Model = AppState->Models[model_index];
-		if(strings_are_same(Model.name, model_name))
+		model_t *Model = &AppState->Models[model_index];
+		b32 is_model = strings_are_same(Model->name, model_name);
+		if(is_model)
 		{
 			Result = Model;
 		}
@@ -1652,12 +1389,55 @@ model_get(app_state_t *AppState, char *model_name)
 	return(Result);
 }
 
+internal void
+model_draw(app_state_t *AppState, shader_program_t *Shader, char *model_name)
+{
+	model_t *Model = model_get(AppState, model_name);
+	if(Model)
+	{
+		for(u32 mesh_index = 0; mesh_index < Model->mesh_count; mesh_index++)
+		{
+			mesh_t Mesh = Model->Meshes[mesh_index];
+			mesh_draw(&Mesh, Shader);
+		}
+	}
+	else
+	{
+		// model_get returned null pointer;
+	}
+}
+
+#if 0
+internal instance_array_t
+instance_array_create(u32 array_count, size_t array_element_size)
+{
+	instanced_array_t Result = {};
+
+	Result.count = array_count; 
+	Result.data = calloc((size_t)array_count, array_element_size);
+
+	if(Result.data)
+	{
+		GLuint VBO;
+		glGenBuffers(1, &VBO);
+		glBindBuffer(GL_ARRAY_BUFFER, VBO);
+		glBufferData(GL_ARRAY_BUFFER, array_count * array_element_size, NULL, GL_STATIC_DRAW);
+		glBindBuffer(GL_ARRAY_BUFFER, 0);
+		Result.VBO = VBO;
+	}
+
+	return(Result);
+}
+#endif
+
+
+
+
 int main(void)
 {
 	gl_log_restart();
 	gl_log_message("Starting GLFW\n%s\n", glfwGetVersionString());
 	glfwSetErrorCallback(glfw_error_callback);
-
 
 	if(!glfwInit())
 	{
@@ -1668,6 +1448,12 @@ int main(void)
 	glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
 	glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
 	glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+
+	//
+	// NOTE(Justin): Set the screen buffer to use 4 sub samples per screen
+	// coord./pixel. For MSAA.
+	//
+
 	glfwWindowHint(GLFW_SAMPLES, 4);
 
 	// TODO(Justin): Need a build option to for debug build. The debug context is usefule but slow
@@ -1698,7 +1484,8 @@ int main(void)
 		printf("Oops\n");
 	}
 
-	// TODO(Justin): OpenGL info struct
+	// TODO(Justin): OpenGL info struct.
+	// TODO(Justin): OpenGL global state struct.
 	const GLubyte *renderer_name = glGetString(GL_RENDERER);
 	const GLubyte* renderer_version = glGetString(GL_VERSION);
 	printf("Renderer = %s\n", renderer_name);
@@ -1714,7 +1501,10 @@ int main(void)
 	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
 	//glEnable(GL_CULL_FACE);
-
+	
+	
+	glEnable(GL_MULTISAMPLE);
+	
 	app_state_t AppState = {};
 
 	//
@@ -1722,30 +1512,33 @@ int main(void)
 	//
 	//
 
-	// TODO(Justin): Still need to remove hardcoded values in the model loading
-	// sub routines.
+	model_process(&AppState, "models/planet/planet.obj");
+	model_process(&AppState, "models/rock/rock.obj");
 
-	// TODO(Justin): When loading a model we probably need to use all the
-	// resources asssociated with the model. So we could just pass the path to
-	// the directory of teh model and try and do all the processing that way.
-	// Seems reasonable.
-	
-	model_process(&AppState, "models/planet/planet.obj", "shaders/planet.vs", NULL, "shaders/planet.fs");
-	model_process(&AppState, "models/rock/rock.obj", "shaders/instance_asteroid.vs", NULL, "shaders/instance_asteroid.fs");
+	shader_program_t PlanetShader = shader_program_create_from_files("shaders/planet.vs", "shaders/planet.fs");
+	shader_program_t AsteroidShader = shader_program_create_from_files("shaders/instance_asteroid.vs", 
+																	   "shaders/instance_asteroid.fs");
 
-	u32 asteroid_count = 1000;
-	glm::mat4 *AsteroidModelTransforms = (glm::mat4 *)calloc((size_t)asteroid_count, sizeof(glm::mat4));
-	srand(glfwGetTime());
+	u32 asteroid_count = 10000;
+	instanced_array_t ModelTransformArray;
+	ModelTransformArray.count = asteroid_count; 
+	ModelTransformArray.data = calloc((size_t)asteroid_count, sizeof(glm::mat4));
+
+	srand((u32)glfwGetTime());
 	f32 radius = 50.0f;
-	f32 offset = 2.5f;
-	for(u32 transform_index = 0; transform_index < asteroid_count; transform_index++)
+	f32 offset = 15.0f;
+
+	glm::mat4 *AsteroidModelTransforms = (glm::mat4 *)ModelTransformArray.data;
+
+
+	for(u32 transform_index = 0; transform_index < ModelTransformArray.count; transform_index++)
 	{
 		glm::mat4 ModelTransform = glm::mat4(1.0f);
 		f32 angle = (f32)transform_index / (f32)asteroid_count * 360.0f;
 		f32 displacement = get_asteroid_displacement(offset);
 		f32 x = radius * sin(angle) + displacement;
 		displacement = get_asteroid_displacement(offset);
-		f32 y = displacement * 0.04f;
+		f32 y = displacement * 0.4f;
 		displacement = get_asteroid_displacement(offset);
 		f32 z = radius * cos(angle) + displacement;
 
@@ -1765,82 +1558,35 @@ int main(void)
 	glBindBuffer(GL_ARRAY_BUFFER, AsteroidTransformsVBO);
 	glBufferData(GL_ARRAY_BUFFER, asteroid_count * sizeof(glm::mat4), &AsteroidModelTransforms[0], GL_STATIC_DRAW);
 
-	model_t RockModel = model_get(&AppState, "rock.obj");
-	for(u32 mesh_index = 0; mesh_index < RockModel.mesh_count; mesh_index++)
+	model_t *AsteroidModel = model_get(&AppState, "rock.obj");
+	for(u32 mesh_index = 0; mesh_index < AsteroidModel->mesh_count; mesh_index++)
 	{
-		GLuint MeshVAO = RockModel.Meshes[mesh_index].MeshVAO;
+		GLuint MeshVAO = AsteroidModel->Meshes[mesh_index].MeshVAO;
 		glBindVertexArray(MeshVAO);
 
-		size_t v4_size = sizeof(glm::vec4);
 		glEnableVertexAttribArray(3);
-		glVertexAttribPointer(3, 4, GL_FLOAT, GL_FALSE, 4 * sizeof(v4_size), (void *)0);
+		glVertexAttribPointer(3, 4, GL_FLOAT, GL_FALSE, sizeof(glm::mat4), (void *)0);
 
 		glEnableVertexAttribArray(4);
-		glVertexAttribPointer(4, 4, GL_FLOAT, GL_FALSE, 4 * sizeof(v4_size), (void *)(1 * v4_size));
+		glVertexAttribPointer(4, 4, GL_FLOAT, GL_FALSE, sizeof(glm::mat4), (void *)(1 * sizeof(glm::vec4)));
 
 		glEnableVertexAttribArray(5);
-		glVertexAttribPointer(5, 4, GL_FLOAT, GL_FALSE, 4 * sizeof(v4_size), (void *)(2 * v4_size));
+		glVertexAttribPointer(5, 4, GL_FLOAT, GL_FALSE, sizeof(glm::mat4), (void *)(2 * sizeof(glm::vec4)));
 
 		glEnableVertexAttribArray(6);
-		glVertexAttribPointer(6, 4, GL_FLOAT, GL_FALSE, 4 * sizeof(v4_size), (void *)(3 * v4_size));
+		glVertexAttribPointer(6, 4, GL_FLOAT, GL_FALSE, sizeof(glm::mat4), (void *)(3 * sizeof(glm::vec4)));
 
-		glVertexAttribDivisor(3, 1);
+		// First argument is the attribute location. Second argument is when we
+		// update an instance of the attribute.  If the second argument is 2
+		// then the attribute gets updated every other instance.
+
+		glVertexAttribDivisor(3, 1); // vertex attribute at location 3 is an instanced array.
 		glVertexAttribDivisor(4, 1);
 		glVertexAttribDivisor(5, 1);
 		glVertexAttribDivisor(6, 1);
 
 		glBindVertexArray(0);
 	}
-
-	cube_t CubeSkybox = cube_no_textures_init(&cube_vertices_and_normals[0],
-											ArrayCount(cube_vertices_and_normals),
-#if 0
-
-	cube_t CubeTranslucent = cube_no_textures_init(&cube_vertices_and_normals[0],
-							ArrayCount(cube_vertices_and_normals),
-							"shaders/env_map_refract.vs", "shaders/env_map_refract.fs");
-
-	cube_t CubeMetal = cube_init(&cube_vertices_normals_and_tex_coods[0], ArrayCount(cube_vertices_normals_and_tex_coods),
-				"shaders/interface_block.vs", "shaders/interface_block.fs", "textures/metal.png", "");
-
-
-	quad_t WindowTransparent = quad_create(points, indices, "textures/blending_transparent_window.png", 
-			TEXTURE_TYPE_DIFFUSE, "shaders/transparent_window.vs", "shaders/transparent_window.fs", 1);
-
-	quad_t GrassQuad = quad_create(points, indices, "textures/grass.png", TEXTURE_TYPE_DIFFUSE,
-													"shaders/grass.vs", "shaders/grass.fs", 1);
-
-	
-#endif
-	// Lamp
-	cube_t Cube = cube_init(&cube_vertices_normals_and_tex_coods[0],
-			ArrayCount(cube_vertices_normals_and_tex_coods),
-			"shaders/cube_001.vs", "shaders/cube_001.fs","textures/metal.png", "");
-
-	vertex_array_t LightVertexArray = vertex_array_create();
-
-	glBindVertexArray(LightVertexArray.id);
-	vertex_buffer_bind(&Cube.VertexBuffer);
-
-	// Position
-	Cube.VertexBufferLayout.element_count_per_attribute = 3;
-	Cube.VertexBufferLayout.attribute_stride = (void*)0;
-	vertex_array_add_buffer_layout(0, &LightVertexArray, &Cube.VertexBufferLayout);
-
-
-
-	//
-	// NOTE(Justin): Geometry shader examples
-	//
-
-	shader_program_t DrawNormals = shader_program_create_from_file(GL_VERTEX_SHADER, "shaders/draw_normals.vs");
-	shader_program_add_shader(&DrawNormals, GL_GEOMETRY_SHADER, "shaders/draw_normals.gs");
-	shader_program_add_shader(&DrawNormals, GL_FRAGMENT_SHADER, "shaders/draw_normals.fs");
-
-	cube_t CubeExplode = cube_create(&cube_vertices_normals_and_tex_coods[0], 
-			ArrayCount(cube_vertices_normals_and_tex_coods),
-			"shaders/explode_along_normals.vs", "shaders/explode_along_normals.gs", "shaders/explode_along_normals.fs",
-			"textures/metal.png", "");
 
 
 	//
@@ -1849,27 +1595,18 @@ int main(void)
 
 	char *skybox_texture_files[] =  
 	{
-		"textures/skybox/right.jpg",
-		"textures/skybox/left.jpg",
-		"textures/skybox/top.jpg",
-		"textures/skybox/bottom.jpg",
-		"textures/skybox/front.jpg",
-		"textures/skybox/back.jpg",
-
+		"textures/skybox_nebula/right.png",
+		"textures/skybox_nebula/left.png",
+		"textures/skybox_nebula/top.png",
+		"textures/skybox_nebula/bottom.png",
+		"textures/skybox_nebula/front.png",
+		"textures/skybox_nebula/back.png",
 	};
 
 
 	skybox_t SkyBox = skybox_init(skybox_texture_files, &skybox_vertices[0], ArrayCount(skybox_vertices),
 		"shaders/skybox.vs", "shaders/skybox.fs");
 
-	shader_program_t LightShader;
-
-	char *light_vertex_shader_filename = "shaders/light_001.vs";
-	char *light_fragment_shader_filename = "shaders/light_001.fs";
-
-	LightShader = shader_program_create_from_files(light_vertex_shader_filename, light_fragment_shader_filename);
-
-	gl_log_shader_info(&LightShader);
 
 	AppInput.Mouse.Pos.x = Window.width / 2;
 	AppInput.Mouse.Pos.y = Window.height / 2;
@@ -1887,7 +1624,6 @@ int main(void)
 	Camera.speed = 5.0f;
 
 	AppState.Camera = Camera;
-	AppState.LightShader = LightShader;
 	
 	//
 	// NOTE(Justin): Transforms and Positions.
@@ -1899,39 +1635,23 @@ int main(void)
 	f32 field_of_view = glm::radians(45.0f);
 	f32 aspect_ratio = (f32)Window.width / (f32)Window.height;
 	f32 n = 0.1f;
-	f32 f = 100.0f;
+	f32 f = 1000.0f;
 
 	glm::mat4 MapToPersp = glm::perspective(field_of_view, aspect_ratio, n, f);
-
-	glm::vec3 LightPositions[4];
-	LightPositions[0] = cube_positions[0];
-
-	glUseProgram(Cube.Shader.id);
-	uniform_set_s32(Cube.Shader.id, "u_material.diffuse", 0);
-	uniform_set_s32(Cube.Shader.id, "u_material.specular", 1);
-
-	glUseProgram(CubeSkybox.Shader.id);
-	uniform_set_s32(Cube.Shader.id, "u_SkyboxTexel", 0);
-
-
-
-	// TODO(Justin): Hardcoded values are not scalable :(.
-	for(u32 model_index = 0; model_index < AppState.model_count; model_index++)
-	{
-		model_t Model = AppState.Models[model_index];
-		for(u32 MeshIndex = 0; MeshIndex < AppState.Models[0].mesh_count; MeshIndex++)
-		{
-			mesh_t *Mesh = Model.Meshes + MeshIndex;
-			glUseProgram(Mesh->MeshShader.id);
-			uniform_set_s32(Mesh->MeshShader.id, "u_Material.Diffuse1", 0);
-			uniform_set_s32(Mesh->MeshShader.id, "u_Material.Specular1", 1);
-		}
-	}
 
 
 	glUseProgram(SkyBox.Shader.id);
 	uniform_set_s32(SkyBox.Shader.id, "SkyBox", 0);
-	
+
+	glUseProgram(AsteroidShader.id);
+	uniform_set_s32(AsteroidShader.id, "u_AsteroidTexel", 0);
+
+	// TODO(Justin): Should we set these as soon as we have loaded the model?
+	glUseProgram(PlanetShader.id);
+	uniform_set_s32(PlanetShader.id, "u_TexelDiffuse1", 0);
+
+
+
 
 	f32 time_delta = 0.0f;
 	f32 time_previous = (f32)glfwGetTime();
@@ -1946,11 +1666,6 @@ int main(void)
 		// NOTE(Justin): Render
 		//
 
-		//
-		// NOTE(Justin): SkyBox
-		//
-
-#if 0
 		glDepthMask(GL_FALSE);
 		glUseProgram(SkyBox.Shader.id);
 		glActiveTexture(GL_TEXTURE0);
@@ -1959,183 +1674,48 @@ int main(void)
 		uniform_set_mat4f(SkyBox.Shader.id, "MapToCamera", MapToCamera);
 		uniform_set_mat4f(SkyBox.Shader.id,"MapToPersp", MapToPersp);
 
-		GLCall(glBindVertexArray(SkyBox.VertexArray.id));
-		GLCall(glBindTexture(GL_TEXTURE_CUBE_MAP, SkyBox.TextureCubeMap.id));
+		glBindVertexArray(SkyBox.VertexArray.id);
+		glBindTexture(GL_TEXTURE_CUBE_MAP, SkyBox.TextureCubeMap.id);
 
-		GLCall(glDrawArrays(GL_TRIANGLES, 0, 36));
+		glDrawArrays(GL_TRIANGLES, 0, 36);
 		glBindVertexArray(0);
 		glDepthMask(GL_TRUE);
 		glClear(GL_DEPTH_BUFFER_BIT);
-#endif
 
-#if 0
-		glUseProgram(CubeSkybox.Shader.id);
 		MapToCamera = glm::lookAt(AppState.Camera.Pos, AppState.Camera.Pos + AppState.Camera.Direction, AppState.Camera.Up);
-
 		glm::mat4 ModelTransform = glm::mat4(1.0f);
-		ModelTransform = glm::translate(ModelTransform, 10 * E1);
+		ModelTransform = glm::translate(ModelTransform, -3 * E2);
+		ModelTransform = glm::scale(ModelTransform, glm::vec3(4.0f));
 
-		uniform_set_mat4f(CubeSkybox.Shader.id, "ModelTransform", ModelTransform);
-		uniform_set_mat4f(CubeSkybox.Shader.id, "MapToCamera", MapToCamera);
-		uniform_set_mat4f(CubeSkybox.Shader.id,"MapToPersp", MapToPersp);
-		uniform_set_vec3f(CubeSkybox.Shader.id,"u_CameraPos", AppState.Camera.Pos);
-		
-		glBindVertexArray(CubeSkybox.VertexArray.id);
+		glUseProgram(PlanetShader.id);
+
+
+		uniform_set_mat4f(PlanetShader.id, "u_MapToPersp", MapToPersp);
+		uniform_set_mat4f(PlanetShader.id, "u_MapToCamera", MapToCamera);
+		uniform_set_mat4f(PlanetShader.id, "u_ModelTransform", ModelTransform);
+
+		model_draw(&AppState, &PlanetShader, "planet.obj");
+
+#if 1
+		glUseProgram(AsteroidShader.id);
+
+		uniform_set_mat4f(AsteroidShader.id, "u_MapToPersp", MapToPersp);
+		uniform_set_mat4f(AsteroidShader.id, "u_MapToCamera", MapToCamera);
+		uniform_set_s32(AsteroidShader.id, "u_AsteroidTexel", 0);
+
+
 		glActiveTexture(GL_TEXTURE0);
-		glBindTexture(GL_TEXTURE_CUBE_MAP, SkyBox.TextureCubeMap.id);
-		glDrawArrays(GL_TRIANGLES, 0, 36);
-		glBindVertexArray(0);
-#endif
+		glBindTexture(GL_TEXTURE_2D, AsteroidModel->Meshes[0].MeshTextures.Textures[0].id);
 
-		MapToCamera = glm::lookAt(AppState.Camera.Pos, AppState.Camera.Pos + AppState.Camera.Direction, AppState.Camera.Up);
-		for(u32 model_index = 0; model_index < AppState.model_count; model_index++)
+		for(u32 mesh_index = 0; mesh_index < AsteroidModel->mesh_count; mesh_index++)
 		{
-			glm::mat4 ModelTransform = glm::mat4(1.0f);
-			ModelTransform = glm::translate(ModelTransform, model_index * 5 * E1 );
-			model_t Model = AppState.Models[model_index];
-			for(u32 mesh_index = 0; mesh_index < Model.mesh_count; mesh_index++)
-			{
-				mesh_t ModelMesh = Model.Meshes[mesh_index];
-				mesh_draw(&AppState, &ModelMesh, ModelTransform, MapToCamera, MapToPersp, LightPositions[0]);
-			}
-		}
-
-		glUseProgram(RockModel.Meshes[0].MeshShader.id);
-		glActiveTexture(GL_TEXTURE0);
-		glBindTexture(GL_TEXTURE_2D, RockModel.Meshes[0].MeshTextures.Textures[0].id);
-		uniform_set_mat4f(RockModel.Meshes[0].MeshShader.id, "u_MapToPersp", MapToPersp);
-		uniform_set_mat4f(RockModel.Meshes[0].MeshShader.id, "u_MapToCamera", MapToCamera);
-		for(u32 mesh_index = 0; mesh_index < RockModel.mesh_count; mesh_index++)
-		{
-			glBindVertexArray(RockModel.Meshes[mesh_index].MeshVAO);
-			glDrawElementsInstanced(GL_TRIANGLES, RockModel.Meshes[mesh_index].MeshIndices.indices_count, GL_UNSIGNED_INT, 0, asteroid_count);
-		}
-
-#if 0
-		glUseProgram(CubeTranslucent.Shader.id);
-	
-		ModelTransform = glm::translate(ModelTransform, 5 * E1);
-
-		uniform_set_mat4f(CubeTranslucent.Shader.id, "u_ModelTransform", ModelTransform);
-		uniform_set_mat4f(CubeTranslucent.Shader.id, "u_MapToCamera", MapToCamera);
-		uniform_set_mat4f(CubeTranslucent.Shader.id,"u_MapToPersp", MapToPersp);
-
-		uniform_set_vec3f(CubeTranslucent.Shader.id,"u_CameraPos", AppState.Camera.Pos);
-		uniform_set_f32(CubeTranslucent.Shader.id,"u_refractive_index", (1.0f / 1.33f));
-
-		glActiveTexture(GL_TEXTURE0);
-		glBindTexture(GL_TEXTURE_CUBE_MAP, SkyBox.TextureCubeMap.id);
-		glBindVertexArray(CubeTranslucent.VertexArray.id);
-		glDrawArrays(GL_TRIANGLES, 0, 36);
-		glBindVertexArray(0);
-
-
-		glUseProgram(CubeMetal.Shader.id);
-		ModelTransform = glm::translate(ModelTransform, 5 * E1);
-		uniform_set_mat4f(CubeMetal.Shader.id, "u_ModelTransform", ModelTransform);
-		uniform_set_mat4f(CubeMetal.Shader.id, "u_MapToCamera", MapToCamera);
-		uniform_set_mat4f(CubeMetal.Shader.id,"u_MapToPersp", MapToPersp);
-
-		glActiveTexture(GL_TEXTURE0);
-		glBindTexture(GL_TEXTURE_2D, CubeMetal.Textures[0].id);
-		glBindVertexArray(CubeMetal.VertexArray.id);
-		glDrawArrays(GL_TRIANGLES, 0, 36);
-		glBindVertexArray(0);
-
-		glUseProgram(DrawNormals.id);
-		uniform_set_mat4f(DrawNormals.id, "u_ModelTransform", ModelTransform);
-		uniform_set_mat4f(DrawNormals.id, "u_MapToCamera", MapToCamera);
-		uniform_set_mat4f(DrawNormals.id, "u_MapToPersp", MapToPersp);
-
-		glBindVertexArray(CubeMetal.VertexArray.id);
-		glDrawArrays(GL_TRIANGLES, 0, 36);
-		glBindVertexArray(0);
-
-		//
-		// NOTE(Justin): Exploding cube
-		//
-
-#if 0
-		glUseProgram(CubeExplode.Shader.id);
-		ModelTransform = glm::mat4(1.0f);
-		ModelTransform = glm::translate(ModelTransform, 5 * E2);
-
-		uniform_set_mat4f(CubeExplode.Shader.id, "u_ModelTransform", ModelTransform);
-		uniform_set_mat4f(CubeExplode.Shader.id, "u_MapToCamera", MapToCamera);
-		uniform_set_mat4f(CubeExplode.Shader.id, "u_MapToPersp", MapToPersp);
-
-		uniform_set_f32(CubeExplode.Shader.id, "u_time", glfwGetTime());
-
-		glActiveTexture(GL_TEXTURE0);
-		glBindTexture(GL_TEXTURE_2D, CubeExplode.Textures[0].id);
-		glBindVertexArray(CubeExplode.VertexArray.id);
-		glDrawArrays(GL_TRIANGLES, 0, 36);
-		glBindVertexArray(0);
-		
-		glUseProgram(DrawNormals.id);
-		uniform_set_mat4f(DrawNormals.id, "u_ModelTransform", ModelTransform);
-		uniform_set_mat4f(DrawNormals.id, "u_MapToCamera", MapToCamera);
-		uniform_set_mat4f(DrawNormals.id, "u_MapToPersp", MapToPersp);
-
-		glBindVertexArray(CubeExplode.VertexArray.id);
-		glDrawArrays(GL_TRIANGLES, 0, 36);
-		glBindVertexArray(0);
-
-#endif
-#if 0
-		LightPositions[0].x = 5.0f * cos(glfwGetTime());
-		LightPositions[0].y = 0.0f;
-		LightPositions[0].z = -5.0f * sin(glfwGetTime());
-		
-		cubes_draw(&AppState, &Cube, MapToCamera, MapToPersp, LightPositions[0], 2, cube_positions);
-
-		//
-		// NOTE(Justin): Lamp
-		//
-
-
-		glUseProgram(AppState.LightShader.id);
-
-		// NOTE that we are updating and setting the global unifrom light position above which is why the cube is transformed accordingly
-		// it is because we have alrady calculated the lamps new position above and are just using it here
-		ModelTransform = glm::mat4(1.0f);
-
-		LightPositions[0].x = 5.0f * cos(glfwGetTime());
-		LightPositions[0].y = 0.0f;
-		LightPositions[0].z = -5.0f * sin(glfwGetTime());
-
-		ModelTransform = glm::translate(ModelTransform, LightPositions[0]);
-		glm::vec3 RotateXZ = glm::vec3(5.0f * cos(glfwGetTime()), 0.0f, -5.0f * sin(glfwGetTime()));
-		ModelTransform = glm::translate(ModelTransform, RotateXZ);
-
-		ModelTransform = glm::scale(ModelTransform, glm::vec3(0.2f));
-
-		uniform_set_mat4f(AppState.LightShader.id, "ModelTransform", ModelTransform);
-		uniform_set_mat4f(AppState.LightShader.id, "MapToCamera", MapToCamera);
-		uniform_set_mat4f(AppState.LightShader.id,"MapToPersp", MapToPersp);
-
-		glBindVertexArray(LightVertexArray.id);
-		glDrawArrays(GL_TRIANGLES, 0, 36);
-		glBindVertexArray(0);
-
-		glUseProgram(GrassQuad.Shader.id);
-		uniform_set_mat4f(GrassQuad.Shader.id, "MapToCamera", MapToCamera);
-		uniform_set_mat4f(GrassQuad.Shader.id,"MapToPersp", MapToPersp);
-
-		glActiveTexture(GL_TEXTURE0);
-		glBindTexture(GL_TEXTURE_2D, GrassQuad.Texture.id);
-
-		for(u32 quad_count = 0; quad_count < 5; quad_count++)
-		{
-			ModelTransform = glm::mat4(1.0f);
-			ModelTransform = glm::translate(ModelTransform, cube_positions[quad_count]);
-			uniform_set_mat4f(GrassQuad.Shader.id, "ModelTransform", ModelTransform);
-
-			glBindVertexArray(GrassQuad.VAO);
-			glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
+			glBindVertexArray(AsteroidModel->Meshes[mesh_index].MeshVAO);
+			glDrawElementsInstanced(GL_TRIANGLES, AsteroidModel->Meshes[mesh_index].MeshIndices.indices_count, 
+																			GL_UNSIGNED_INT, 0, asteroid_count);
 			glBindVertexArray(0);
 		}
 #endif
+
 
         glfwPollEvents();
         glfwSwapBuffers(Window.handle);

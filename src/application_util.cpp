@@ -1,4 +1,232 @@
 
+internal u32
+get_string_length(char *string)
+{
+	u32 Result = 0;
+	for(char *c = string; *c != '\0'; c++)
+	{
+		Result++;
+	}
+	return(Result);
+}
+
+// TODO(Justin): This is completley unsafe and not to be desired at all. Only
+// works for when len a < len b. Meant to be used for copying paths to a buffer
+// Will always work if strin_a is a buffer big enough to copy string_b to.
+
+internal void
+copy_strings(char *string_a, char *string_b)
+{
+	char *src = string_b;
+	char *dest = string_a;
+	while(*src != '\0')
+	{
+		*dest++ = *src++;
+	}
+	*dest++ = '\0';
+}
+
+internal void
+concat_strings(char *buff, char *string_a, char *string_b)
+{
+	// TODO(Justin): Make sure the buffer
+
+	copy_strings(buff, string_a);
+
+	u32 length = get_string_length(string_a);
+	char *c = buff + length;
+
+	copy_strings(c, string_b);
+}
+
+internal b32
+strings_are_same(char *string_a, char *string_b)
+{
+	b32 Result = 0;
+
+	u32 a_length = get_string_length(string_a);
+	u32 b_length = get_string_length(string_b);
+
+	if(a_length == b_length)
+	{
+		char *pa = string_a;
+		char *pb = string_b;
+
+		while(*pa != '\0')
+		{
+			Result = (*pa++ == *pb++);
+			if(Result)
+			{
+				// The chars are the same, do nothing and look at the next pair.
+			}
+			else
+			{
+				break;
+			}
+		}
+	}
+	return(Result);
+}
+
+internal char *
+single_digit_to_string(u32 digit)
+{
+	ASSERT((0 <= digit) && (digit <= 9));
+
+	char *Result;
+
+	if(digit == 0)
+	{
+		Result = "0";
+	}
+	else if(digit == 1)
+	{
+		Result = "1";
+	}
+	else if(digit == 2)
+	{
+		Result = "2";
+	}
+	else if(digit == 3)
+	{
+		Result = "3";
+	}
+	else if(digit == 4)
+	{
+		Result = "4";
+	}
+	else if(digit == 5)
+	{
+		Result = "5";
+	}
+	else if(digit == 6)
+	{
+		Result = "6";
+	}
+	else if(digit == 7)
+	{
+		Result = "7";
+	}
+	else if(digit == 8)
+	{
+		Result = "8";
+	}
+	else
+	{
+		Result = "9";
+	}
+	return(Result);
+}
+
+// Only works for numbers 0-99
+internal void
+digit_to_string(char *buff, u32 value)
+{
+	ASSERT((0 <= value) && (value <= 99));
+
+	u32 remainder = value % 10;
+	u32 ones_digit = remainder;
+	u32 tens_digit = (value - remainder) / 10;
+
+	char *c;
+	if(tens_digit == 0)
+	{
+		c = single_digit_to_string(ones_digit);
+		copy_strings(buff, c);
+	}
+	else
+	{
+		char *b = single_digit_to_string(ones_digit);
+		char *a = single_digit_to_string(tens_digit);
+
+		concat_strings(buff, a, b);
+	}
+}
+
+internal string_t
+copy_string_to_buff(char *string)
+{
+	string_t Result = {};
+
+	char buff[256];
+	char *c = string;
+	u32 length = get_string_length(string);
+
+	for(u32 char_index = 0; char_index < length; char_index++)
+	{
+		buff[char_index] = *c++;
+	}
+	buff[length] = '\0';
+
+	Result.data = buff;
+	Result.count = length;
+	
+	return(Result);
+}
+
+#if 1
+internal string2_t
+get_path_to_dir2(char *full_path_to_file)
+{
+	StackString(Result, 64);
+
+	char *one_past_last_slash;
+	for(char *c = full_path_to_file; *c != '\0'; c++)
+	{
+		if(*c == '/')
+		{
+			one_past_last_slash = c;
+		}
+	}
+	one_past_last_slash++;
+	u32 char_count = one_past_last_slash - full_path_to_file;
+
+	char *c = full_path_to_file;
+	u32 char_index;
+	for(char_index = 0; char_index < char_count; char_index++)
+
+	{
+		Result.buff[char_index] = *c++;
+	}
+	Result.buff[char_index] = '\0';
+	Result.length = char_count;
+
+	return(Result);
+}
+#endif
+internal string_t 
+get_path_to_dir(char *full_path_to_file)
+{
+	string_t Result = {};
+
+	char *one_past_last_slash;
+	for(char *c = full_path_to_file; *c != '\0'; c++)
+	{
+		if(*c == '/')
+		{
+			one_past_last_slash = c;
+		}
+	}
+	one_past_last_slash++;
+
+	u32 char_count = one_past_last_slash - full_path_to_file;
+
+	char buff[256];
+	char *c = full_path_to_file;
+	u32 char_index;
+	for(char_index = 0; char_index < char_count; char_index++)
+
+	{
+		buff[char_index] = *c++;
+	}
+	buff[char_index] = '\0';
+
+	Result.data = buff;
+	Result.count = char_count;
+
+	return(Result);
+}
+
 internal void
 gl_clear_errors()
 {

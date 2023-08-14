@@ -26,6 +26,11 @@ typedef double f64;
 #define global_variable static
 #define local_persist static
 
+#define Kilobytes(count) (1024 * count)
+#define Megabytes(count) (1024 * Kilobytes(count))
+#define Gigabytes(count) (1024 * Megabytes(count))
+#define Terabytes(count) (1024 * Gigabytes(count))
+
 #define GL_LOG_FILE "gl.log"
 #define E1 glm::vec3(1.0f, 0.0f, 0.0f)
 #define E2 glm::vec3(0.0f, 1.0f, 0.0f)
@@ -34,7 +39,6 @@ typedef double f64;
 #define MAX_SHADER_SIZE 100000
 
 #define ASSERT(expression) if((!expression)) {*(int *)0 = 0;}
-//#define ASSERT(expression) if((!expression)) __debugbreak()
 #define ArrayCount(a) (sizeof(a) / sizeof(a[0]))
 
 #define GLCall(gl_func) gl_clear_errors();\
@@ -49,6 +53,16 @@ typedef double f64;
 
 #define Stringify_(x) #x
 #define Stringify(x) Stringify_(x)
+
+#define Glue_(a, b) a##b
+#define Glue(a, b) Glue_(a, b)
+
+#define StackStringBufferName(name) Glue(foo, name)
+#define StackString(name, count) char StackStringBufferName(name)[count];\
+	string2_t name;\
+name.size = count;\
+name.length = 0;\
+name.buff = StackStringBufferName(name);
 
 typedef enum
 {
@@ -70,20 +84,6 @@ typedef enum
 	Laser,
 } material_type_t;
 
-typedef struct
-{
-	glm::vec3 Tangent;
-	glm::vec3 BiTangent;
-	glm::vec3 Normal;
-} local_frame_t;
-
-typedef struct
-{
-	glm::vec3 Min;
-	glm::vec3 Max;
-} bounding_box_t;
-
-
 typedef enum
 {
 	CastsShadow,
@@ -100,6 +100,26 @@ typedef enum
 	TranslucentHasVertexColors,
 
 } material_flags_t;
+
+typedef struct
+{
+	glm::vec3 Tangent;
+	glm::vec3 BiTangent;
+	glm::vec3 Normal;
+} local_frame_t;
+
+typedef struct
+{
+	GLFWwindow* handle;
+	s32 width, height;
+} window_t;
+
+typedef struct
+{
+	glm::vec3 Min;
+	glm::vec3 Max;
+} bounding_box_t;
+
 
 typedef struct
 {
@@ -214,6 +234,8 @@ enum texture_type_t
 {
 	TEXTURE_TYPE_DIFFUSE,
 	TEXTURE_TYPE_SPECULAR,
+	TEXTURE_TYPE_NORMAL,
+	TEXTURE_TYPE_HEIGHT,
 	TEXTURE_TYPE_SKYBOX,
 
 	TEXTURE_TYPE_COUNT
@@ -226,8 +248,10 @@ typedef struct
 	s32 channel_count;
 	u32 mipmap_level;
 	u8 *memory;
-	//char *path;
+
 	char path[1024];
+
+	// Not sure if enum or string is better.
 	texture_type_t type;
 } texture_t;
 
@@ -275,24 +299,20 @@ typedef struct
 
 } line_t;
 
-// TODO(Justin): Not sure on the naming or grouping for the uniform struct and
-// the array of uniform structs in the shader struct.
-
-// TODO(Justin): Will need to either have two structs, uniform_t and
-// uniform_array_t or have one struct that can do both.
-
-
 
 typedef struct
 {
-	GLFWwindow* handle;
-	s32 width, height;
-} window_t;
+	GLuint VBO;
+
+	u32 count;
+	void *data;
+} instanced_array_t;
 
 
 
-// TODO(Justin): Not sure where the attribute_count should be. In a the vertex
-// buffer layout or in the mesh vertex definition. 
+
+
+
 typedef struct
 {
 	glm::vec3 Position;
@@ -350,7 +370,8 @@ typedef struct
 	mesh_indices_t  MeshIndices;
 	mesh_textures_t MeshTextures;
 
-	shader_program_t MeshShader;
+
+	material_type_t MaterialType;
 
 	// TODO(Justin): Each mesh has a shader reason why is because each mesh has
 	// a different set of data attached to it?
@@ -358,9 +379,11 @@ typedef struct
 
 typedef struct
 {
-	size_t length;
-	char data[MAXLEN];
+	u32 size;
+	u32 length;
+	char *buff;
 } string2_t;
+
 typedef struct
 {
 	// TODO(Justin) Data is not a good name to use;
@@ -372,6 +395,7 @@ typedef struct
 typedef struct
 {
 	char *path_to_dir;
+	char *name;
 	glm::vec3 Pos;
 
 	u32 mesh_count;
@@ -380,6 +404,7 @@ typedef struct
 
 typedef struct
 {
+
 	texture_t TextureCubeMap;
 	char **texture_files;
 
