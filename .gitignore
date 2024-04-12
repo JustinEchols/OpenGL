@@ -5,7 +5,7 @@ dependencies
 misc
 demos
 OtherSrc
-Shaders
+shaders
 textures
 gl.log
 
