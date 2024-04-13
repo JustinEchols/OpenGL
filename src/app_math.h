@@ -258,6 +258,13 @@ ZAxis()
 //
 
 inline f32
+Square(f32 X)
+{
+	f32 Result = X * X;
+	return(Result);
+}
+
+inline f32
 Lerp(f32 a, f32 t, f32 b)
 {
 	f32 Result = (1.0f - t) * a + t * b;
