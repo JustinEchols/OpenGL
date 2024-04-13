@@ -35,6 +35,7 @@ enum render_group_entry_type
 	RENDER_GROUP_ENTRY_TYPE_render_entry_triangle,
 	RENDER_GROUP_ENTRY_TYPE_render_entry_model,
 	RENDER_GROUP_ENTRY_TYPE_render_entry_plane,
+	RENDER_GROUP_ENTRY_TYPE_render_entry_quad,
 };
 
 struct render_group_entry_header
@@ -72,7 +73,7 @@ struct render_entry_model
 {
 	render_entity_basis EntityBasis;
 
-	v3f P;
+	//v3f P;
 	basis Basis;
 	mat4 Transform;
 
@@ -80,12 +81,10 @@ struct render_entry_model
 	v3f *Vertices;
 	v2f *TexCoords;
 	v3f *Normals;
-	u32 *Faces;
 	
 	u32 VertexCount;
 	u32 TexCoordCount;
 	u32 NormalCount;
-	u32 FaceCount;
 	u32 IndicesCount;
 
 	loaded_bitmap *Texture;
@@ -97,6 +96,18 @@ struct render_entry_plane
 	v3f P;
 	v3f N;
 	v2f Dim;
+};
+
+struct render_entry_quad
+{
+	render_entity_basis EntityBasis;
+
+	basis Basis;
+	v3f *Vertices;
+	v4f *Colors;
+
+	u32 VertexCount;
+
 };
 
 struct render_entry_coordinate_system
@@ -113,7 +124,7 @@ struct render_entry_coordinate_system
 
 struct render_group 
 {
-	f32 PixelsToMeters;
+	f32 MetersToPixels;
 	mat4 MapToScreen;
 	mat4 MapToPersp;
 	mat4 MapToCamera;
