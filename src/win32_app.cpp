@@ -447,7 +447,7 @@ Win32DisplayBuffer(win32_offscreen_buffer *Buffer, HDC DeviceContext, s32 Width,
 
 #if 0
 	StretchDIBits(DeviceContext,
-			0, 0, Width, Height,
+			0, 0, Buffer->Width, Buffer->Height,
 			0, 0, Buffer->Width, Buffer->Height,
 			Buffer->Memory,
 			&Buffer->Info,
@@ -522,10 +522,6 @@ Win32SecondsElapsed(LARGE_INTEGER Start, LARGE_INTEGER End)
 }
 
 
-
-
-
-
 int CALLBACK
 WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLine, int ShowCode)
 {
@@ -566,7 +562,7 @@ WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLine, int ShowC
 		HWND Window = CreateWindowExA(
 				0,
 				WindowClass.lpszClassName,
-				"Terrain",
+				"OpenGL",
 				WS_OVERLAPPEDWINDOW | WS_VISIBLE,
 				CW_USEDEFAULT,
 				CW_USEDEFAULT,
@@ -587,7 +583,7 @@ WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLine, int ShowC
 			Rid[0].hwndTarget = Window;
 			RegisterRawInputDevices(Rid, 1, sizeof(Rid[0]));
 
-			ShowCursor(true);
+			ShowCursor(false);
 			Win32CenterCursor(Window);
 				
 			s32 MonitorRefreshRate = 60;
