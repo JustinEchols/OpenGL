@@ -2,6 +2,8 @@
 
 #include "app_platform.h"
 
+#define QUAD_VERTEX_COUNT 4
+
 struct memory_arena
 {
 	u8 *Base;
@@ -78,21 +80,19 @@ ZeroSize(void *Ptr, memory_index Size)
 	}
 }
 
-
-
-
 #include "app_intrinsics.h"
 #include "app_math.h"
-
-
 #include "app_render_group.h"
 
 struct mesh
 {
-	u32 *Indices;
+	char *Name;
+	char *FullPath;
+
 	v3f *Vertices;
 	v2f *TexCoords;
 	v3f *Normals;
+	v4f *Colors;
 
 	// NOTE(Justin): Obj format for face is v/vt/vn where v is the vertex
 	// position vt is the texture coordinate and vn is the normal. These are
@@ -100,17 +100,18 @@ struct mesh
 	// the indices from 1. When loading the data we subtract 1 so that the
 	// indices start from 0.
 
-	u32 *Faces;
+	u32 *Indices;
 	
 	u32 VertexCount;
 	u32 TexCoordCount;
 	u32 NormalCount;
-	u32 FaceCount;
 	u32 IndicesCount;
+	u32 ColorCount;
 
 	loaded_bitmap *Texture;
 };
 
+// TODO(Justin): GL flag for rendering specific geometry?
 struct loaded_obj
 {
 	char *FileName;
@@ -120,9 +121,6 @@ struct loaded_obj
 
 	mesh Mesh;
 };
-
-
-
 
 struct camera
 {
@@ -144,6 +142,12 @@ struct triangle
 	v3f Colors[3];
 };
 
+struct quad
+{
+	v3f Vertices[4];
+	v3f Colors[4];
+};
+
 struct rectangle
 {
 	v4f Min;
@@ -161,18 +165,34 @@ enum entity_type
 {
 	ENTITY_NULL,
 	ENTITY_PLAYER,
+	ENTITY_PRIMITIVE,
 	ENTITY_CIRCLE,
 	ENTITY_RECTANGLE,
 	ENTITY_TRIANGLE,
 	ENTITY_MODEL,
 	ENTITY_WALL,
+	ENTITY_QUAD,
 };
+
+
 
 
 
 // NOTE(Justin): Should we consider being able to store basis vectors as an
 // array of floats and 3 v3fs? That way we can just use matrix multiplication to
 // calculate the new basis after a transformation is applied.
+
+struct interval
+{
+	f32 Min, Max;
+};
+
+struct aabb
+{
+	v3f Center;
+	v3f Radius;
+};
+
 
 struct entity
 {
@@ -181,19 +201,21 @@ struct entity
 	entity_type Type;
 	u32 Flags;
 
-	v3f P;
+	basis Basis;
 	v3f dP;
 
+	mesh Mesh;
+
+	mat4 Transform;
+
+	// TODO(Justin): Having all the different shapes is no good. The entity
+	// should just have a mesh and a flag telling us what kind of shape/mesh it
+	// is.
 	triangle Triangle;
 	rectangle Rectangle;
+	quad Quad;
 
 	plane Wall;
-	//aabb AABB;
-	loaded_obj Model;
-
-	basis Basis;
-	
-	mat4 Transform;
 
 };
 
@@ -211,7 +233,8 @@ struct app_state
 	memory_arena WorldArena;
 	world *World;
 
-	f32 PixelsToMeters;
+	quad Ground;
+	f32 MetersToPixels;
 
 	loaded_bitmap Test;
 
