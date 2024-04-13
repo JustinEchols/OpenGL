@@ -1,7 +1,7 @@
 
 #include "app_render_group.h"
 
-inline void
+internal void
 OpenGLRectangle(v2f MinP, v2f MaxP, v4f Color)
 {
 	glBegin(GL_TRIANGLES);
@@ -96,7 +96,6 @@ BasisDraw(basis *B)
 	glEnd();
 }
 
-
 internal void
 OpenGLRenderGroupToOutput(render_group *RenderGroup, app_offscreen_buffer *OutputTarget)
 {
@@ -132,6 +131,7 @@ OpenGLRenderGroupToOutput(render_group *RenderGroup, app_offscreen_buffer *Outpu
 	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
 	glEnable(GL_LINE_SMOOTH);
+	//glEnable(GL_CULL_FACE);
 
 	glMatrixMode(GL_TEXTURE);
 	glLoadIdentity();
@@ -206,47 +206,73 @@ OpenGLRenderGroupToOutput(render_group *RenderGroup, app_offscreen_buffer *Outpu
 				// Translation of the basis origin works as expected
 				// Scaling the basis axes scales the model as expected
 				basis *Basis = &Entry->Basis;
-#if 1
+
 				glBegin(GL_QUADS);
-				for(u32 Index = 0; Index < Entry->FaceCount; Index += 3)
+				for(u32 Index = 0; Index < Entry->IndicesCount; Index += 3)
 				{
-					v3f V = Entry->Vertices[Entry->Faces[Index]];
+					v3f V = Entry->Vertices[Entry->Indices[Index]];
 
 					v3f VInB = Basis->O + V.x * Basis->U +
 										  V.y * Basis->V +
 										  V.z * Basis->W;
 
-					v2f T = Entry->TexCoords[Entry->Faces[Index] + 1];
-					v3f N = Entry->Normals[Entry->Faces[Index] + 2];
+					v2f T = Entry->TexCoords[Entry->Indices[Index] + 1];
+					v3f N = Entry->Normals[Entry->Indices[Index] + 2];
 
-					glTexCoord2f(T.x, T.y);
+					glColor3f(1.0f, 1.0f, 1.0f);
 					glVertex3f(VInB.x, VInB.y, VInB.z);
 				}
 
 				glEnd();
-#endif
-
-				//BasisDraw(Basis);
-
 				BaseAddress += sizeof(*Entry);
 
 			} break;
-			case RENDER_GROUP_ENTRY_TYPE_render_entry_coordinate_system:
+			case RENDER_GROUP_ENTRY_TYPE_render_entry_quad:
 			{
-				render_entry_coordinate_system *Entry = (render_entry_coordinate_system *)Data;
+				render_entry_quad *Entry = (render_entry_quad *)Data;
 
-				v4f Color = {1, 1, 0, 1};
-				v2f Dim = {2, 2};
+				glBegin(GL_TRIANGLES);
+				basis *Basis = &Entry->Basis;
 
-				v2f P = Entry->Origin;
+				v4f C0 = Entry->Colors[0];
+				v4f C1 = Entry->Colors[1];
+				v4f C2 = Entry->Colors[2];
+				v4f C3 = Entry->Colors[3];
 
+				v3f V0 = Entry->Vertices[0];
+				v3f V1 = Entry->Vertices[1];
+				v3f V2 = Entry->Vertices[2];
+				v3f V3 = Entry->Vertices[3];
+
+				v3f V0InB = Basis->O + V0.x * Basis->U + V0.y * Basis->V + V0.z * Basis->W;
+				v3f V1InB = Basis->O + V1.x * Basis->U + V1.y * Basis->V + V1.z * Basis->W;
+				v3f V2InB = Basis->O + V2.x * Basis->U + V2.y * Basis->V + V2.z * Basis->W;
+				v3f V3InB = Basis->O + V3.x * Basis->U + V3.y * Basis->V + V3.z * Basis->W;
+
+				// NOTE(Justin): Lower triangle
+				glColor4fv(C0.e);
+				glVertex3fv(V0InB.e);
+
+				glColor4fv(C1.e);
+				glVertex3fv(V1InB.e);
+
+				glColor4fv(C2.e);
+				glVertex3fv(V2InB.e);
+
+				// NOTE(Justin): Uppder triangle
+				glColor4fv(C0.e);
+				glVertex3fv(V0InB.e);
+
+				glColor4fv(C3.e);
+				glVertex3fv(V3InB.e);
+
+				glColor4fv(C2.e);
+				glVertex3fv(V2InB.e);
+
+				glEnd();
 				BaseAddress += sizeof(*Entry);
 
 			} break;
-			case RENDER_GROUP_ENTRY_TYPE_render_entry_plane:
-			{
-			} break;
-
 			INVALID_DEFAULT_CASE;
 		}
 	}
