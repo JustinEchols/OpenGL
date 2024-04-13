@@ -1,4 +1,7 @@
 
+
+#define GL_PRIMITIVE(PrimitiveType) GL_##PrimitiveType
+
 internal void
 RectangleDraw(app_offscreen_buffer *Buffer, v4f Color)
 {
@@ -291,73 +294,73 @@ PushRectangle(render_group *RenderGroup, v3f Offset, v2f Dim, v4f Color = V4F(1.
 	if(Entry)
 	{
 		mat4 M = RenderGroupGetViewingTransformation(RenderGroup);
-		f32 PixelsToMeters = RenderGroup->PixelsToMeters;
+		f32 MetersToPixels = RenderGroup->MetersToPixels;
 
 		Entry->EntityBasis.Basis = RenderGroup->DefaultBasis;
-		Entry->EntityBasis.Offset = PixelsToMeters * (Offset - V3F(0.5f * Dim, 0));
+		Entry->EntityBasis.Offset = MetersToPixels * (Offset - V3F(0.5f * Dim, 0));
 		Entry->Color = Color;
-		Entry->Dim = PixelsToMeters * Dim;
+		Entry->Dim = MetersToPixels * Dim;
 	}
 }
 
-inline void
+internal void
 PushTriangle(render_group *RenderGroup, v4f *Vertices, v3f Offset, v3f *Colors)
 {
 	render_entry_triangle *Entry = PushRenderElement(RenderGroup, render_entry_triangle);
 	if(Entry)
 	{
 		mat4 M = RenderGroupGetViewingTransformation(RenderGroup);
-		f32 PixelsToMeters = RenderGroup->PixelsToMeters;
+		f32 MetersToPixels = RenderGroup->MetersToPixels;
 
 		Entry->EntityBasis.Basis = RenderGroup->DefaultBasis;
-		Entry->EntityBasis.Offset = PixelsToMeters * Offset;
+		Entry->EntityBasis.Offset = MetersToPixels * Offset;
 		Entry->Vertices = Vertices;
 		Entry->Colors = Colors;
 	}
 }
 
-inline void
-PushModel(render_group *RenderGroup, loaded_obj Model, basis B, mat4 Transform)
+internal void
+PushModel(render_group *RenderGroup, mesh *Mesh, basis B, mat4 Transform)
 {
 	render_entry_model *Entry = PushRenderElement(RenderGroup, render_entry_model);
 	if(Entry)
 	{
-		//f32 PixelsToMeters = RenderGroup->PixelsToMeters;
-		//Entry->EntityBasis.Basis = RenderGroup->DefaultBasis;
-		//Entry->EntityBasis.Offset = PixelsToMeters * Offset;
-
-		mesh *Mesh = &Model.Mesh;
+		//mesh *Mesh = &Model.Mesh;
 
 		Entry->Indices = Mesh->Indices;
 		Entry->Vertices = Mesh->Vertices;
 		Entry->TexCoords = Mesh->TexCoords;
 		Entry->Normals = Mesh->Normals;
-		Entry->Faces = Mesh->Faces;
+		//Entry->Faces = Mesh->Faces;
 
 		Entry->VertexCount = Mesh->VertexCount;
 		Entry->TexCoordCount = Mesh->TexCoordCount;
 		Entry->NormalCount = Mesh->NormalCount;
-		Entry->FaceCount = Mesh->FaceCount;
+		//Entry->FaceCount = Mesh->FaceCount;
 		Entry->IndicesCount = Mesh->IndicesCount;
 
 		Entry->Texture = Mesh->Texture;
+
+		mat4 MetersToPixels = Mat4Scale(RenderGroup->MetersToPixels);
+		B.U  = MetersToPixels * B.U;
+		B.V  = MetersToPixels * B.V;
+		B.W  = MetersToPixels * B.W;
 
 		Entry->Basis = B;
 		Entry->Transform = Transform;
 	}
 }
 
-inline void
-PushPlane(render_group *RenderGroup, plane Plane, v3f Offset)
+internal void
+PushQuad(render_group *RenderGroup, basis B, v3f *Vertices, v4f *Colors, u32 VertexCount)
 {
-	render_entry_plane *Entry = PushRenderElement(RenderGroup, render_entry_plane);
+	render_entry_quad *Entry = PushRenderElement(RenderGroup, render_entry_quad);
 	if(Entry)
 	{
-		Entry->EntityBasis.Basis = RenderGroup->DefaultBasis;
-		Entry->EntityBasis.Offset = Offset;
-		Entry->P = Plane.P;
-		Entry->N = Plane.N;
-		Entry->Dim = Plane.Dim;
+		Entry->Basis = B;
+		Entry->Vertices = Vertices;
+		Entry->Colors = Colors;
+		Entry->VertexCount = VertexCount;
 	}
 }
 
@@ -379,7 +382,7 @@ PushCoordinateSystem(render_group *RenderGroup, v2f Origin, v2f XAxis, v2f YAxis
 	if(Entry)
 	{
 		mat4 M = RenderGroupGetViewingTransformation(RenderGroup);
-		f32 PixelsToMeters = RenderGroup->PixelsToMeters;
+		f32 MetersToPixels = RenderGroup->MetersToPixels;
 
 		Entry->Origin = Origin;
 		Entry->XAxis = XAxis;
@@ -398,7 +401,7 @@ RenderGroupToOutput(render_group *RenderGroup, app_offscreen_buffer *OutputTarge
 {
 	v2f ScreenCenter = 0.5f * V2F((f32)OutputTarget->Width, (f32)OutputTarget->Height);
 
-	f32 MetersToPixels = 1.0f / RenderGroup->PixelsToMeters;
+	f32 MetersToPixels = 1.0f / RenderGroup->MetersToPixels;
 	mat4 M = RenderGroupGetViewingTransformation(RenderGroup);
 	for(u32 BaseAddress = 0; BaseAddress < RenderGroup->PushBufferSize; )
 	{
@@ -478,12 +481,12 @@ RenderGroupToOutput(render_group *RenderGroup, app_offscreen_buffer *OutputTarge
 }
 
 internal render_group *
-RenderGroupAllocate(memory_arena *Arena, u32 PushBufferMaxSize, f32 PixelsToMeters,
+RenderGroupAllocate(memory_arena *Arena, u32 PushBufferMaxSize, f32 MetersToPixels,
 		mat4 MapToScreen, mat4 MapToPersp, mat4 MapToCamera, mat4 MapToWorld)
 {
 	render_group *Result = PushStruct(Arena, render_group);
 
-	Result->PixelsToMeters = PixelsToMeters;
+	Result->MetersToPixels = MetersToPixels;
 
 	Result->MapToPersp = MapToPersp;
 	Result->MapToScreen = MapToScreen;
