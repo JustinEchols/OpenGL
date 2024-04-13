@@ -17,6 +17,18 @@ EntityAdd(app_state *AppState, entity_type Type)
 	return(Entity);
 }
 
+internal basis
+BasisStandard(void)
+{
+	basis Result = {};
+
+	Result.O = V3F(0.0f);
+	Result.U = XAxis();
+	Result.V = YAxis();
+	Result.W = ZAxis();
+
+	return(Result);
+}
 
 internal entity *
 TriangleAdd(app_state *AppState, v4f Vertices[], v3f Colors[])
@@ -44,17 +56,7 @@ RectangleAdd(app_state *AppState, v4f Min, v4f Max)
 	return(Entity);
 }
 
-internal entity *
-WallAdd(app_state *AppState, v3f P, v3f N, v2f Dim)
-{
-	entity *Entity = EntityAdd(AppState, ENTITY_WALL);
 
-	Entity->Wall.P = P;
-	Entity->Wall.N = N;
-	Entity->Wall.Dim = Dim;
-
-	return(Entity);
-}
 
 internal entity *
 ModelAdd(app_state *AppState, loaded_obj Model, loaded_bitmap *Texture = 0)
@@ -63,61 +65,55 @@ ModelAdd(app_state *AppState, loaded_obj Model, loaded_bitmap *Texture = 0)
 
 	// TODO(Justin): Init AABB of the model
 
-	Entity->Model = Model;
-	Entity->Basis.O = V3F(0.0f);
-	Entity->Basis.U = XAxis();
-	Entity->Basis.V = YAxis();
-	Entity->Basis.W = -1.0f * ZAxis();
+	Entity->Mesh = Model.Mesh;
+	Entity->Basis = BasisStandard();
+	//Entity->Transform = Transform;
 
 	// TODO(Justin): Texture with loaded model
-	Entity->Model.Mesh.Texture = Texture;
 
 	return(Entity);
 }
 
 internal entity *
-PlayerAdd(app_state *AppState, loaded_obj Model, v3f P)
+QuadAdd(app_state *AppState, mesh *Mesh)
+{
+	entity *Entity = EntityAdd(AppState, ENTITY_QUAD);
+
+	Entity->Basis = BasisStandard();
+	Entity->Mesh = *Mesh;
+	
+	return(Entity);
+}
+
+
+internal entity *
+PlayerAdd(app_state *AppState, loaded_obj Model)
 {
 	entity *Entity = EntityAdd(AppState, ENTITY_PLAYER);
-	Entity->Model = Model;
-	Entity->P = P;
+	Entity->Mesh = Model.Mesh;
+	Entity->Basis = BasisStandard();
 
 	return(Entity);
 }
 
+
 internal void
 EntityMove(app_state *AppState, entity *Entity, v3f ddP, f32 dt)
 { 
-	mat4 RY = Mat4YRotation((dt * 2.0f * PI32 / 4.0f));
-#if 0
-	for(u32 EntityIndex = 1; EntityIndex < AppState->EntityCount; ++EntityIndex)
+
+	if(V3FNotZero(ddP))
 	{
-		entity *Entity = AppState->Entities + EntityIndex;
-		if(Entity)
-		{
-			mesh *Mesh = &Entity->Model.Mesh;
-			for(u32 VertexIndex = 0; VertexIndex < Mesh->VertexCount; ++VertexIndex)
-			{
-				Mesh->Vertices[VertexIndex] = RY * Mesh->Vertices[VertexIndex];
-			}
-		}
+		ddP = Normalize(ddP);
 	}
-#else
-	for(u32 EntityIndex = 1; EntityIndex < AppState->EntityCount; ++EntityIndex)
-	{
-		entity *Entity = AppState->Entities + EntityIndex;
-		if(Entity)
-		{
-			basis *Basis = &Entity->Basis;
-			mat4 Mat4Basis = Mat4(Basis->U, Basis->V, Basis->W);
-			Mat4Basis = RY * Mat4Basis;
-			Basis->U = Mat4Column(Mat4Basis, 0).xyz;
-			Basis->V = Mat4Column(Mat4Basis, 1).xyz;
-			Basis->W = Mat4Column(Mat4Basis, 2).xyz;
-		}
-	}
-#endif
-	
+
+	f32 PlayerSpeed = 10.0f;
+	ddP *= PlayerSpeed;
+	ddP += -8.0f * Entity->dP;
+
+	v3f PlayerDelta = 0.5f * ddP * Square(dt) + Entity->dP * dt;
+
+	Entity->Basis.O += PlayerDelta;
+	Entity->dP = Entity->dP + ddP * dt;
 }
 
 inline f32
@@ -211,7 +207,7 @@ DEBUGObjReadEntireFile(thread_context *Thread, char *FileName, memory_arena *Are
 		u32 VertexCount = 0;
 		u32 TextureCoordCount = 0;
 		u32 NormalCount = 0;
-		u32 FaceCount = 0;
+		u32 IndicesCount = 0;
 
 		u32 IndexCount = 0;
 
@@ -297,13 +293,13 @@ DEBUGObjReadEntireFile(thread_context *Thread, char *FileName, memory_arena *Are
 			FilePosition++;
 		}
 
-		FaceCount = 3 * FaceRows * FaceCols;
-		Mesh->FaceCount = FaceCount;
+		IndicesCount = 3 * FaceRows * FaceCols;
+		Mesh->IndicesCount = IndicesCount;
 
 		Mesh->Vertices = PushArray(Arena, Mesh->VertexCount, v3f);
 		Mesh->TexCoords = PushArray(Arena, Mesh->TexCoordCount, v2f);
 		Mesh->Normals = PushArray(Arena, Mesh->NormalCount, v3f);
-		Mesh->Faces = PushArray(Arena, Mesh->FaceCount, u32);
+		Mesh->Indices = PushArray(Arena, Mesh->IndicesCount, u32);
 
 		Content = Result.Memory;
 		Content += FirstVertexOffset;
@@ -327,9 +323,9 @@ DEBUGObjReadEntireFile(thread_context *Thread, char *FileName, memory_arena *Are
 		Content += FirstFaceOffset;
 
 		u8 *FaceData = Content;
-		u32 FaceIndex = 0;
+		u32 Index = 0;
 		char *C = (char *)FaceData;
-		for(u32 Iteration = 0; Iteration < FaceCount; ++Iteration)
+		for(u32 Iteration = 0; Iteration < IndicesCount; ++Iteration)
 		{
 			b32 Updated = false;
 			u32 Num = 0;
@@ -342,7 +338,7 @@ DEBUGObjReadEntireFile(thread_context *Thread, char *FileName, memory_arena *Are
 
 			if(Updated)
 			{
-				Mesh->Faces[FaceIndex++] = Num - 1;
+				Mesh->Indices[Index++] = Num - 1;
 			}
 
 			while(*C && !CharIsNum(*C))
@@ -418,12 +414,9 @@ DEBUGBitmapReadEntireFile(thread_context *Thread, char *Filename, debug_platform
 		s32 BlueShiftDown = (s32)BlueScan.Index;
 		s32 AlphaShiftDown = (s32)AlphaScan.Index;
 
-		u8 *SrcRow = (u8 *)Pixels;
-		u8 *DestRow = (u8 *)Result.Memory;
-		for(s32 Y = 0; Y < BitmapHeader->Height; Y++)
+		u32 *Src = Pixels;
+		for(s32 Y = 0; Y < BitmapHeader->Height; ++Y)
 		{
-			u32 *Src = (u32 *)SrcRow;
-			u32 *Dest = (u32 *)DestRow;
 			for(s32 X = 0; X < BitmapHeader->Width; ++X)
 			{
 				u32 R = ((*Src & RedMask) >> RedShiftDown);
@@ -433,14 +426,8 @@ DEBUGBitmapReadEntireFile(thread_context *Thread, char *Filename, debug_platform
 
 				u32 Color = ((A << 24) | (R << 16) | (G << 8) | (B << 0));
 
-				*Dest = Color;
-
-				Src++;
-				Dest++;
+				*Src++ = Color;
 			}
-
-			SrcRow += Result.Stride;
-			DestRow += Result.Stride;
 		}
 	}
 
@@ -451,7 +438,7 @@ internal void
 CameraInit(app_state *AppState)
 {
 	camera *Camera = &AppState->Camera;
-	Camera->P = {0.0f, 0.0f, 3.0f};
+	Camera->P = {0.0f, 3.0f, 3.0f};
 	Camera->Yaw = -90.0f;
 	Camera->Pitch = 0.0f;
 	Camera->Direction.x = Cos(DegreeToRad(Camera->Yaw)) * Cos(DegreeToRad(Camera->Pitch));
@@ -487,6 +474,26 @@ CameraUpdate(app_state *AppState, app_offscreen_buffer *BackBuffer, camera *Came
 	AppState->MapToCamera = Mat4CameraMap(Camera->P, Camera->P + Camera->Direction);
 }
 
+internal mesh *
+MeshAllocate(memory_arena *Arena, u32 VertexCount, u32 TexCoordCount,
+								  u32 NormalCount, u32 IndicesCount, u32 ColorCount)
+{
+	mesh *Mesh = PushStruct(Arena, mesh);
+	Mesh->Vertices = PushArray(Arena, VertexCount, v3f);
+	Mesh->TexCoords = PushArray(Arena, TexCoordCount, v2f);
+	Mesh->Normals = PushArray(Arena, NormalCount, v3f);
+	Mesh->Indices = PushArray(Arena, IndicesCount, u32);
+	Mesh->Colors = PushArray(Arena, ColorCount, v4f);
+
+	Mesh->VertexCount = VertexCount;
+	Mesh->TexCoordCount = TexCoordCount;
+	Mesh->NormalCount = NormalCount;
+	Mesh->IndicesCount = IndicesCount;
+	Mesh->ColorCount = ColorCount;
+
+	return(Mesh);
+}
+
 extern "C" APP_UPDATE_AND_RENDER(AppUpdateAndRender)
 {
 	Platform = Memory->PlatformAPI;
@@ -507,11 +514,9 @@ extern "C" APP_UPDATE_AND_RENDER(AppUpdateAndRender)
 		AppState->Pyramid = DEBUGObjReadEntireFile(Thread, "models/pyramid.obj", WorldArena, Platform.DEBUGPlatformReadEntireFile);
 		AppState->Suzanne = DEBUGObjReadEntireFile(Thread, "models/suzanne.obj", WorldArena, Platform.DEBUGPlatformReadEntireFile);
 		AppState->Test = DEBUGBitmapReadEntireFile(Thread, "structured_art.bmp", Platform.DEBUGPlatformReadEntireFile);;
-		AppState->PixelsToMeters = 5.0f;
-
+		AppState->MetersToPixels = 5.0f;
 
 		CameraInit(AppState);
-
 
 		f32 FOV = DegreeToRad(45.0f);
 		f32 AspectRatio = (f32)BackBuffer->Width / (f32)BackBuffer->Height;
@@ -525,8 +530,20 @@ extern "C" APP_UPDATE_AND_RENDER(AppUpdateAndRender)
 
 		AppState->MapToWorld = Mat4WorldSpaceMap(V3F(0.0f, 0.0f, -30.0f));
 
-		ModelAdd(AppState, AppState->Cube);
-		
+		//PlayerAdd(AppState, AppState->Cube);
+
+		mesh *QuadMesh = MeshAllocate(WorldArena, 4, 0, 0, 0, 0);
+
+		QuadMesh->Vertices[0] = V3F(-100.0f, 0.0, -10.0f);
+		QuadMesh->Vertices[1] = V3F(100.0f, 0.0, -10.0f);
+		QuadMesh->Vertices[2] = V3F(100.0f, 0.0, -200.0f);
+		QuadMesh->Vertices[3] = V3F(-100.0f, 0.0, -200.0f);
+		QuadMesh->Colors[0] = V4F(1.0f, 0.0, 0.0f, 1.0f);
+		QuadMesh->Colors[1] = V4F(0.0f, 1.0, 0.0f, 1.0f);
+		QuadMesh->Colors[2] = V4F(0.0f, 0.0, 1.0f, 1.0f);
+		QuadMesh->Colors[3] = V4F(1.0f, 1.0, 0.0f, 1.0f);
+		QuadAdd(AppState, QuadMesh);
+
 		Memory->IsInitialized = true;
 	}
 
@@ -540,14 +557,17 @@ extern "C" APP_UPDATE_AND_RENDER(AppUpdateAndRender)
 
 		TransientState->IsInitialized = true;
 	}
+	AppState->MetersToPixels = 2.0f;
 
 	f32 dt = Input->dtForFrame;
 
-#if 1
 	camera *Camera = &AppState->Camera;
 	app_controller_input *KeyBoardController = &Input->Controllers[0];
 
+	v3f ddP = {};
+#if 1
 	v3f Shift = {};
+
 	if(KeyBoardController->W.EndedDown)
 	{
 		Shift += Camera->Direction;
@@ -570,16 +590,6 @@ extern "C" APP_UPDATE_AND_RENDER(AppUpdateAndRender)
 	{
 		Shift += Cross(YAxis(), -1.0f * Camera->Direction);
 	}
-	if(KeyBoardController->Up.EndedDown)
-	{
-		Shift = {0.0f, 0.0f, -1.0f * dt};
-		Camera->P += Shift;
-	}
-	if(KeyBoardController->Down.EndedDown)
-	{
-		Shift = {0.0f, 0.0f, 1.0f * dt};
-		Camera->P += Shift;
-	}
 
 	if(V3FNotZero(Shift))
 	{
@@ -597,35 +607,25 @@ extern "C" APP_UPDATE_AND_RENDER(AppUpdateAndRender)
 
 	CameraUpdate(AppState, BackBuffer, Camera, Input->dMouseX, Input->dMouseY, dt);
 	AppState->MapToCamera = Mat4CameraMap(Camera->P, Camera->P + Camera->Direction);
-#endif
 
-#if 0
-	app_controller_input *KeyBoardController = &Input->Controllers[0];
+#else
 
-	v3f ddP = {};
-	if(KeyBoardController->W.EndedDown)
-	{
-		ddP += -1.0f * ZAxis();
-	}
-	if(KeyBoardController->S.EndedDown)
-	{
-		ddP += 1.0f * ZAxis();
-	}
-	if(KeyBoardController->A.EndedDown)
-	{
-		ddP += -1.0f * XAxis();
-	}
-	if(KeyBoardController->D.EndedDown) 
-	{
-		ddP += 1.0f * XAxis();
-	}
-
-	if(V3FNotZero(ddP))
-	{
-		ddP = Normalize(ddP);
-	}
-
-	ddP *= dt * 8.0f;
+		if(KeyBoardController->W.EndedDown)
+		{
+			ddP += -1.0f * ZAxis();
+		}
+		if(KeyBoardController->S.EndedDown)
+		{
+			ddP += 1.0f * ZAxis();
+		}
+		if(KeyBoardController->A.EndedDown)
+		{
+			ddP += -1.0f * XAxis();
+		}
+		if(KeyBoardController->D.EndedDown) 
+		{
+			ddP += 1.0f * XAxis();
+		}
 #endif
 
 
@@ -638,7 +638,7 @@ extern "C" APP_UPDATE_AND_RENDER(AppUpdateAndRender)
 
 	temporary_memory RenderMemory = TemporaryMemoryBegin(&TransientState->TransientArena);
 	render_group *RenderGroup = RenderGroupAllocate(&TransientState->TransientArena, Megabytes(1),
-													AppState->PixelsToMeters,
+													AppState->MetersToPixels,
 													MapToScreen,
 													MapToPersp,
 													MapToCamera,
@@ -652,12 +652,15 @@ extern "C" APP_UPDATE_AND_RENDER(AppUpdateAndRender)
 		render_basis *Basis = PushStruct(&TransientState->TransientArena, render_basis);
 		RenderGroup->DefaultBasis = Basis;
 
+
 		switch(Entity->Type)
 		{
 			case ENTITY_PLAYER:
 			{
-				//mat4 Translate = Mat4Translation(ddP);
-				//PushModel(RenderGroup, Entity->Model, Translate); 
+				EntityMove(AppState, Entity, ddP, dt);
+
+				mat4 Translate = Mat4Identity();
+				PushModel(RenderGroup, &Entity->Mesh, Entity->Basis, Translate); 
 			} break;
 			case ENTITY_TRIANGLE:
 			{
@@ -671,30 +674,25 @@ extern "C" APP_UPDATE_AND_RENDER(AppUpdateAndRender)
 			}
 			case ENTITY_MODEL:
 			{
-				AppState->Time += dt * 2.0f * PI32 / 4.0f;
-				mat4 R = Mat4XRotation(dt * 2.0f * PI32 / 4.0f);
-
-				mat4 Translate = Mat4Translation(0.5f * V3F(Cos(AppState->Time), 0.0f, 0.0f));
-
-				Entity->Basis.O = Translate * Entity->Basis.O;
-				Entity->Basis.U = R * Entity->Basis.U; 
-				Entity->Basis.V = R * Entity->Basis.V; 
-				Entity->Basis.W = R * Entity->Basis.W; 
-
-				PushModel(RenderGroup, Entity->Model, Entity->Basis, Translate); 
+				mat4 Translate = Mat4Identity();
+				PushModel(RenderGroup, &Entity->Mesh, Entity->Basis, Translate); 
 			} break;
 			case ENTITY_WALL:
 			{
-				PushPlane(RenderGroup, Entity->Wall, V3F(0.0f));
+			} break;
+			case ENTITY_QUAD:
+			{
+				PushQuad(RenderGroup, Entity->Basis, Entity->Mesh.Vertices, Entity->Mesh.Colors, QUAD_VERTEX_COUNT);
 			} break;
 
 			INVALID_DEFAULT_CASE;
 		}
 
-		v3f ddP = {};
-		//EntityMove(AppState, Entity, ddP, dt);
+
+
 	}
 
 	RenderToOutput(RenderGroup, BackBuffer);
 	TemporaryMemoryEnd(RenderMemory);
+
 }
