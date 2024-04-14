@@ -79,11 +79,11 @@ struct render_entry_model
 
 	u32 *Indices;
 	v3f *Vertices;
-	v2f *TexCoords;
+	v2f *UV;
 	v3f *Normals;
 	
 	u32 VertexCount;
-	u32 TexCoordCount;
+	u32 UVCount;
 	u32 NormalCount;
 	u32 IndicesCount;
 
@@ -103,10 +103,14 @@ struct render_entry_quad
 	render_entity_basis EntityBasis;
 
 	basis Basis;
+
 	v3f *Vertices;
+	v2f *UV;
 	v4f *Colors;
 
 	u32 VertexCount;
+
+	loaded_bitmap *Texture;
 
 };
 

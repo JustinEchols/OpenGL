@@ -1,5 +1,7 @@
 
 #include "app.h"
+//#define STB_IMAGE_IMPLEMENTATION
+//#include "stb_image.h"
 #include "app_render_group.cpp"
 
 internal entity *
@@ -254,7 +256,7 @@ DEBUGObjReadEntireFile(thread_context *Thread, char *FileName, memory_arena *Are
 				{
 					FirstTextureOffset = FilePosition + 4;
 				}
-				Mesh->TexCoordCount++;
+				Mesh->UVCount++;
 			}
 
 			if((Current == n) && (Next == Space))
@@ -297,7 +299,7 @@ DEBUGObjReadEntireFile(thread_context *Thread, char *FileName, memory_arena *Are
 		Mesh->IndicesCount = IndicesCount;
 
 		Mesh->Vertices = PushArray(Arena, Mesh->VertexCount, v3f);
-		Mesh->TexCoords = PushArray(Arena, Mesh->TexCoordCount, v2f);
+		Mesh->UV = PushArray(Arena, Mesh->UVCount, v2f);
 		Mesh->Normals = PushArray(Arena, Mesh->NormalCount, v3f);
 		Mesh->Indices = PushArray(Arena, Mesh->IndicesCount, u32);
 
@@ -311,7 +313,7 @@ DEBUGObjReadEntireFile(thread_context *Thread, char *FileName, memory_arena *Are
 		Content += FirstTextureOffset;
 
 		u8 *TextureData = Content;
-		ParseV2VertexAttribute(TextureData, Mesh->TexCoords, Mesh->TexCoordCount, 2);
+		ParseV2VertexAttribute(TextureData, Mesh->UV, Mesh->UVCount, 2);
 
 		Content = Result.Memory;
 		Content += FirstNormalOffset;
@@ -438,7 +440,7 @@ internal void
 CameraInit(app_state *AppState)
 {
 	camera *Camera = &AppState->Camera;
-	Camera->P = {0.0f, 3.0f, 3.0f};
+	Camera->P = {0.0f, 3.0f, -30.0f};
 	Camera->Yaw = -90.0f;
 	Camera->Pitch = 0.0f;
 	Camera->Direction.x = Cos(DegreeToRad(Camera->Yaw)) * Cos(DegreeToRad(Camera->Pitch));
@@ -475,18 +477,18 @@ CameraUpdate(app_state *AppState, app_offscreen_buffer *BackBuffer, camera *Came
 }
 
 internal mesh *
-MeshAllocate(memory_arena *Arena, u32 VertexCount, u32 TexCoordCount,
+MeshAllocate(memory_arena *Arena, u32 VertexCount, u32 UVCount,
 								  u32 NormalCount, u32 IndicesCount, u32 ColorCount)
 {
 	mesh *Mesh = PushStruct(Arena, mesh);
 	Mesh->Vertices = PushArray(Arena, VertexCount, v3f);
-	Mesh->TexCoords = PushArray(Arena, TexCoordCount, v2f);
+	Mesh->UV = PushArray(Arena, UVCount, v2f);
 	Mesh->Normals = PushArray(Arena, NormalCount, v3f);
 	Mesh->Indices = PushArray(Arena, IndicesCount, u32);
 	Mesh->Colors = PushArray(Arena, ColorCount, v4f);
 
 	Mesh->VertexCount = VertexCount;
-	Mesh->TexCoordCount = TexCoordCount;
+	Mesh->UVCount = UVCount;
 	Mesh->NormalCount = NormalCount;
 	Mesh->IndicesCount = IndicesCount;
 	Mesh->ColorCount = ColorCount;
@@ -513,7 +515,7 @@ extern "C" APP_UPDATE_AND_RENDER(AppUpdateAndRender)
 		AppState->Dodecahedron = DEBUGObjReadEntireFile(Thread, "models/dodecahedron.obj", WorldArena, Platform.DEBUGPlatformReadEntireFile);
 		AppState->Pyramid = DEBUGObjReadEntireFile(Thread, "models/pyramid.obj", WorldArena, Platform.DEBUGPlatformReadEntireFile);
 		AppState->Suzanne = DEBUGObjReadEntireFile(Thread, "models/suzanne.obj", WorldArena, Platform.DEBUGPlatformReadEntireFile);
-		AppState->Test = DEBUGBitmapReadEntireFile(Thread, "structured_art.bmp", Platform.DEBUGPlatformReadEntireFile);;
+		AppState->Test = DEBUGBitmapReadEntireFile(Thread, "red.bmp", Platform.DEBUGPlatformReadEntireFile);;
 		AppState->MetersToPixels = 5.0f;
 
 		CameraInit(AppState);
@@ -532,16 +534,24 @@ extern "C" APP_UPDATE_AND_RENDER(AppUpdateAndRender)
 
 		//PlayerAdd(AppState, AppState->Cube);
 
-		mesh *QuadMesh = MeshAllocate(WorldArena, 4, 0, 0, 0, 0);
+		mesh *QuadMesh = MeshAllocate(WorldArena, 4, 4, 4, 0, 4);
 
-		QuadMesh->Vertices[0] = V3F(-100.0f, 0.0, -10.0f);
-		QuadMesh->Vertices[1] = V3F(100.0f, 0.0, -10.0f);
+		QuadMesh->Vertices[0] = V3F(-100.0f, 0.0, -1.0f);
+		QuadMesh->Vertices[1] = V3F(100.0f, 0.0, -1.0f);
 		QuadMesh->Vertices[2] = V3F(100.0f, 0.0, -200.0f);
 		QuadMesh->Vertices[3] = V3F(-100.0f, 0.0, -200.0f);
-		QuadMesh->Colors[0] = V4F(1.0f, 0.0, 0.0f, 1.0f);
-		QuadMesh->Colors[1] = V4F(0.0f, 1.0, 0.0f, 1.0f);
-		QuadMesh->Colors[2] = V4F(0.0f, 0.0, 1.0f, 1.0f);
-		QuadMesh->Colors[3] = V4F(1.0f, 1.0, 0.0f, 1.0f);
+
+		QuadMesh->UV[0] = V2F(0.0f, 0.0);
+		QuadMesh->UV[1] = V2F(1.0f, 0.0);
+		QuadMesh->UV[2] = V2F(1.0f, 1.0);
+		QuadMesh->UV[3] = V2F(0.0f, 1.0);
+
+		QuadMesh->Colors[0] = V4F(0.5f, 0.5f, 0.5f, 1.0f);
+		QuadMesh->Colors[1] = V4F(0.5f, 0.5f, 0.5f, 1.0f);
+		QuadMesh->Colors[2] = V4F(0.5f, 0.5f, 0.5f, 1.0f);
+		QuadMesh->Colors[3] = V4F(0.5f, 0.5f, 0.5f, 1.0f);
+
+		QuadMesh->Texture = &AppState->Test;
 		QuadAdd(AppState, QuadMesh);
 
 		Memory->IsInitialized = true;
@@ -682,7 +692,8 @@ extern "C" APP_UPDATE_AND_RENDER(AppUpdateAndRender)
 			} break;
 			case ENTITY_QUAD:
 			{
-				PushQuad(RenderGroup, Entity->Basis, Entity->Mesh.Vertices, Entity->Mesh.Colors, QUAD_VERTEX_COUNT);
+				PushQuad(RenderGroup, Entity->Mesh.Texture, Entity->Basis,
+						Entity->Mesh.Vertices, Entity->Mesh.UV, Entity->Mesh.Colors, QUAD_VERTEX_COUNT);
 			} break;
 
 			INVALID_DEFAULT_CASE;

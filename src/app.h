@@ -2,6 +2,8 @@
 
 #include "app_platform.h"
 
+
+
 #define QUAD_VERTEX_COUNT 4
 
 struct memory_arena
@@ -90,7 +92,7 @@ struct mesh
 	char *FullPath;
 
 	v3f *Vertices;
-	v2f *TexCoords;
+	v2f *UV;
 	v3f *Normals;
 	v4f *Colors;
 
@@ -103,7 +105,7 @@ struct mesh
 	u32 *Indices;
 	
 	u32 VertexCount;
-	u32 TexCoordCount;
+	u32 UVCount;
 	u32 NormalCount;
 	u32 IndicesCount;
 	u32 ColorCount;

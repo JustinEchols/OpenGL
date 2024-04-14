@@ -329,12 +329,12 @@ PushModel(render_group *RenderGroup, mesh *Mesh, basis B, mat4 Transform)
 
 		Entry->Indices = Mesh->Indices;
 		Entry->Vertices = Mesh->Vertices;
-		Entry->TexCoords = Mesh->TexCoords;
+		Entry->UV = Mesh->UV;
 		Entry->Normals = Mesh->Normals;
 		//Entry->Faces = Mesh->Faces;
 
 		Entry->VertexCount = Mesh->VertexCount;
-		Entry->TexCoordCount = Mesh->TexCoordCount;
+		Entry->UVCount = Mesh->UVCount;
 		Entry->NormalCount = Mesh->NormalCount;
 		//Entry->FaceCount = Mesh->FaceCount;
 		Entry->IndicesCount = Mesh->IndicesCount;
@@ -352,15 +352,17 @@ PushModel(render_group *RenderGroup, mesh *Mesh, basis B, mat4 Transform)
 }
 
 internal void
-PushQuad(render_group *RenderGroup, basis B, v3f *Vertices, v4f *Colors, u32 VertexCount)
+PushQuad(render_group *RenderGroup, loaded_bitmap *Texture, basis B, v3f *Vertices, v2f *UV, v4f *Colors, u32 VertexCount)
 {
 	render_entry_quad *Entry = PushRenderElement(RenderGroup, render_entry_quad);
 	if(Entry)
 	{
 		Entry->Basis = B;
 		Entry->Vertices = Vertices;
+		Entry->UV = UV;
 		Entry->Colors = Colors;
 		Entry->VertexCount = VertexCount;
+		Entry->Texture = Texture;
 	}
 }
 

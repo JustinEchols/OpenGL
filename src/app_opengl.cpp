@@ -1,7 +1,7 @@
 
 #include "app_render_group.h"
 
-internal void
+inline void
 OpenGLRectangle(v2f MinP, v2f MaxP, v4f Color)
 {
 	glBegin(GL_TRIANGLES);
@@ -30,7 +30,7 @@ OpenGLRectangle(v2f MinP, v2f MaxP, v4f Color)
 	glEnd();
 }
 
-internal void
+inline void
 OpenGLTriangle(v4f *Vertices, v3f *Colors)
 {
 	glBegin(GL_TRIANGLES);
@@ -55,7 +55,7 @@ OpenGLTriangle(v4f *Vertices, v3f *Colors)
 	glEnd();
 }
 
-internal void
+inline void
 OpenGLPoints(v3f *Points, u32 PointCount)
 {
 	glBegin(GL_POINTS);
@@ -71,8 +71,8 @@ OpenGLPoints(v3f *Points, u32 PointCount)
 	glEnd();
 }
 
-internal void
-BasisDraw(basis *B)
+inline void
+OpenGLBasisDraw(basis *B)
 {
 	v3f O = B->O;
 	v3f OX = O + B->U;
@@ -96,33 +96,47 @@ BasisDraw(basis *B)
 	glEnd();
 }
 
+inline void
+OpenGLQuadDraw(v3f V0, v2f T0, v4f C0,
+				v3f V1, v2f T1, v4f C1,
+				v3f V2, v2f T2, v4f C2,
+				v3f V3, v2f T3, v4f C3)
+{
+	// NOTE(Justin): Lower triangle
+	glColor4fv(C0.e);
+	glTexCoord2fv(T0.e);
+	glVertex3fv(V0.e);
+
+	glColor4fv(C1.e);
+	glTexCoord2fv(T1.e);
+	glVertex3fv(V1.e);
+
+	glColor4fv(C2.e);
+	glTexCoord2fv(T2.e);
+	glVertex3fv(V2.e);
+
+	// NOTE(Justin): Uppder triangle
+	glColor4fv(C0.e);
+	glTexCoord2fv(T0.e);
+	glVertex3fv(V0.e);
+
+	glColor4fv(C3.e);
+	glTexCoord2fv(T3.e);
+	glVertex3fv(V3.e);
+
+	glColor4fv(C2.e);
+	glTexCoord2fv(T2.e);
+	glVertex3fv(V2.e);
+}
+
+
 internal void
 OpenGLRenderGroupToOutput(render_group *RenderGroup, app_offscreen_buffer *OutputTarget)
 {
 	glViewport(0, 0, OutputTarget->Width, OutputTarget->Height);
 
-#if 0
-	GLuint TextureHandle = 0;
-	static b32 Init = false;
-	if(!Init)
-	{
-		glGenTextures(1, &TextureHandle);
-		Init = true;
-	}
 
-	glBindTexture(GL_TEXTURE_2D, TextureHandle);
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8,
-			OutputTarget->Width, OutputTarget->Height,
-			0, GL_BGRA_EXT, GL_UNSIGNED_BYTE, OutputTarget->Memory);
 
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
-	glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
-
-	glEnable(GL_TEXTURE_2D);
-#endif
 
 	glClearColor(1.0f, 0.0f, 1.0f, 1.0f);
 	glClear(GL_COLOR_BUFFER_BIT);
@@ -205,9 +219,10 @@ OpenGLRenderGroupToOutput(render_group *RenderGroup, app_offscreen_buffer *Outpu
 				// NOTE(Justin):
 				// Translation of the basis origin works as expected
 				// Scaling the basis axes scales the model as expected
+
 				basis *Basis = &Entry->Basis;
 
-				glBegin(GL_QUADS);
+				glBegin(GL_TRIANGLES);
 				for(u32 Index = 0; Index < Entry->IndicesCount; Index += 3)
 				{
 					v3f V = Entry->Vertices[Entry->Indices[Index]];
@@ -216,7 +231,7 @@ OpenGLRenderGroupToOutput(render_group *RenderGroup, app_offscreen_buffer *Outpu
 										  V.y * Basis->V +
 										  V.z * Basis->W;
 
-					v2f T = Entry->TexCoords[Entry->Indices[Index] + 1];
+					v2f T = Entry->UV[Entry->Indices[Index] + 1];
 					v3f N = Entry->Normals[Entry->Indices[Index] + 2];
 
 					glColor3f(1.0f, 1.0f, 1.0f);
@@ -231,6 +246,30 @@ OpenGLRenderGroupToOutput(render_group *RenderGroup, app_offscreen_buffer *Outpu
 			{
 				render_entry_quad *Entry = (render_entry_quad *)Data;
 
+				GLenum Error;
+				GLuint TextureHandle = 0;
+				static b32 Init = false;
+				if(!Init)
+				{
+					glGenTextures(1, &TextureHandle);
+					Error = glGetError();
+					Init = true;
+				}
+
+				glDisable(GL_BLEND);
+				glBindTexture(GL_TEXTURE_2D, TextureHandle);
+				
+				glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8,
+						Entry->Texture->Width, Entry->Texture->Height,
+						0, GL_BGRA_EXT, GL_UNSIGNED_BYTE, Entry->Texture->Memory);
+
+				glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+				glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+				glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
+				glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
+
+				glEnable(GL_TEXTURE_2D);
+
 				glBegin(GL_TRIANGLES);
 				basis *Basis = &Entry->Basis;
 
@@ -238,6 +277,11 @@ OpenGLRenderGroupToOutput(render_group *RenderGroup, app_offscreen_buffer *Outpu
 				v4f C1 = Entry->Colors[1];
 				v4f C2 = Entry->Colors[2];
 				v4f C3 = Entry->Colors[3];
+
+				v2f UV0 = Entry->UV[0];
+				v2f UV1 = Entry->UV[1];
+				v2f UV2 = Entry->UV[2];
+				v2f UV3 = Entry->UV[3];
 
 				v3f V0 = Entry->Vertices[0];
 				v3f V1 = Entry->Vertices[1];
@@ -249,27 +293,15 @@ OpenGLRenderGroupToOutput(render_group *RenderGroup, app_offscreen_buffer *Outpu
 				v3f V2InB = Basis->O + V2.x * Basis->U + V2.y * Basis->V + V2.z * Basis->W;
 				v3f V3InB = Basis->O + V3.x * Basis->U + V3.y * Basis->V + V3.z * Basis->W;
 
-				// NOTE(Justin): Lower triangle
-				glColor4fv(C0.e);
-				glVertex3fv(V0InB.e);
-
-				glColor4fv(C1.e);
-				glVertex3fv(V1InB.e);
-
-				glColor4fv(C2.e);
-				glVertex3fv(V2InB.e);
-
-				// NOTE(Justin): Uppder triangle
-				glColor4fv(C0.e);
-				glVertex3fv(V0InB.e);
-
-				glColor4fv(C3.e);
-				glVertex3fv(V3InB.e);
-
-				glColor4fv(C2.e);
-				glVertex3fv(V2InB.e);
+				OpenGLQuadDraw(V0InB, UV0, C0,
+							   V1InB, UV1, C1,
+							   V2InB, UV2, C2,
+							   V3InB, UV3, C3);
 
 				glEnd();
+
+				glBindTexture(GL_TEXTURE_2D, 0);
+				glEnable(GL_BLEND);
 				BaseAddress += sizeof(*Entry);
 
 			} break;
