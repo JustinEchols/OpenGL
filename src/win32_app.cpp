@@ -554,7 +554,8 @@ WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLine, int ShowC
 	WindowClass.lpszClassName = "OpenGL Window Class";
 
 
-	Win32ResizeDIB(&Win32GlobalBackBuffer, 960, 540);
+
+	//Win32ResizeDIB(&Win32GlobalBackBuffer, 960, 540);
 	//Win32ResizeDIB(&Win32GlobalBackBuffer, 1920, 1080);
 
 	if(RegisterClassA(&WindowClass))
@@ -574,6 +575,8 @@ WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLine, int ShowC
 				0);
 		if(Window)
 		{
+			win32_client_dimensions ClientDim = Win32ClientDimensions(Window);
+			Win32ResizeDIB(&Win32GlobalBackBuffer, ClientDim.Width, ClientDim.Height);
 			Win32OpenGLInit(Window);
 
 			RAWINPUTDEVICE Rid[1];

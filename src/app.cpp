@@ -1,7 +1,9 @@
 
 #include "app.h"
-//#define STB_IMAGE_IMPLEMENTATION
-//#include "stb_image.h"
+
+#define STBI_ASSERT(X) Assert(X)
+#define STB_IMAGE_IMPLEMENTATION
+#include "stb_image.h"
 #include "app_render_group.cpp"
 
 internal entity *
@@ -61,7 +63,7 @@ RectangleAdd(app_state *AppState, v4f Min, v4f Max)
 
 
 internal entity *
-ModelAdd(app_state *AppState, loaded_obj Model, loaded_bitmap *Texture = 0)
+ModelAdd(app_state *AppState, loaded_obj Model, mat4 Transform = Mat4Identity(), loaded_bitmap *Texture = 0)
 {
 	entity *Entity = EntityAdd(AppState, ENTITY_MODEL);
 
@@ -69,7 +71,7 @@ ModelAdd(app_state *AppState, loaded_obj Model, loaded_bitmap *Texture = 0)
 
 	Entity->Mesh = Model.Mesh;
 	Entity->Basis = BasisStandard();
-	//Entity->Transform = Transform;
+	Entity->Transform = Transform;
 
 	// TODO(Justin): Texture with loaded model
 
@@ -440,7 +442,7 @@ internal void
 CameraInit(app_state *AppState)
 {
 	camera *Camera = &AppState->Camera;
-	Camera->P = {0.0f, 3.0f, -30.0f};
+	Camera->P = {0.0f, 10.0f, 0.0f};
 	Camera->Yaw = -90.0f;
 	Camera->Pitch = 0.0f;
 	Camera->Direction.x = Cos(DegreeToRad(Camera->Yaw)) * Cos(DegreeToRad(Camera->Pitch));
@@ -496,6 +498,13 @@ MeshAllocate(memory_arena *Arena, u32 VertexCount, u32 UVCount,
 	return(Mesh);
 }
 
+struct loaded_jpeg
+{
+	void *Memory;
+	s32 Width;
+	s32 Height;
+};
+
 extern "C" APP_UPDATE_AND_RENDER(AppUpdateAndRender)
 {
 	Platform = Memory->PlatformAPI;
@@ -515,7 +524,8 @@ extern "C" APP_UPDATE_AND_RENDER(AppUpdateAndRender)
 		AppState->Dodecahedron = DEBUGObjReadEntireFile(Thread, "models/dodecahedron.obj", WorldArena, Platform.DEBUGPlatformReadEntireFile);
 		AppState->Pyramid = DEBUGObjReadEntireFile(Thread, "models/pyramid.obj", WorldArena, Platform.DEBUGPlatformReadEntireFile);
 		AppState->Suzanne = DEBUGObjReadEntireFile(Thread, "models/suzanne.obj", WorldArena, Platform.DEBUGPlatformReadEntireFile);
-		AppState->Test = DEBUGBitmapReadEntireFile(Thread, "red.bmp", Platform.DEBUGPlatformReadEntireFile);;
+		AppState->Test = DEBUGBitmapReadEntireFile(Thread, "textures/ground.bmp", Platform.DEBUGPlatformReadEntireFile);;
+
 		AppState->MetersToPixels = 5.0f;
 
 		CameraInit(AppState);
@@ -530,9 +540,7 @@ extern "C" APP_UPDATE_AND_RENDER(AppUpdateAndRender)
 		AppState->MapToScreenSpace = 
 			Mat4ScreenSpaceMap(BackBuffer->Width, BackBuffer->Height);
 
-		AppState->MapToWorld = Mat4WorldSpaceMap(V3F(0.0f, 0.0f, -30.0f));
-
-		//PlayerAdd(AppState, AppState->Cube);
+		AppState->MapToWorld = Mat4WorldSpaceMap(V3F(0.0f, 0.0f, -1.0f));
 
 		mesh *QuadMesh = MeshAllocate(WorldArena, 4, 4, 4, 0, 4);
 
@@ -546,6 +554,11 @@ extern "C" APP_UPDATE_AND_RENDER(AppUpdateAndRender)
 		QuadMesh->UV[2] = V2F(1.0f, 1.0);
 		QuadMesh->UV[3] = V2F(0.0f, 1.0);
 
+		QuadMesh->Normals[0] = V3F(0.0f, 0.0, 1.0f);
+		QuadMesh->Normals[1] = V3F(0.0f, 0.0, 1.0f);
+		QuadMesh->Normals[2] = V3F(0.0f, 0.0, 1.0f);
+		QuadMesh->Normals[3] = V3F(0.0f, 0.0, 1.0f);
+
 		QuadMesh->Colors[0] = V4F(0.5f, 0.5f, 0.5f, 1.0f);
 		QuadMesh->Colors[1] = V4F(0.5f, 0.5f, 0.5f, 1.0f);
 		QuadMesh->Colors[2] = V4F(0.5f, 0.5f, 0.5f, 1.0f);
@@ -553,6 +566,11 @@ extern "C" APP_UPDATE_AND_RENDER(AppUpdateAndRender)
 
 		QuadMesh->Texture = &AppState->Test;
 		QuadAdd(AppState, QuadMesh);
+
+
+		//PlayerAdd(AppState, AppState->Cube);
+		//ModelAdd(AppState, AppState->Suzanne, Mat4Translation(10.0f, 0.0f, 0.0f));
+		//ModelAdd(AppState, AppState->Suzanne, Mat4Translation(-10.0f, 0.0f, 0.0f));
 
 		Memory->IsInitialized = true;
 	}
@@ -684,8 +702,7 @@ extern "C" APP_UPDATE_AND_RENDER(AppUpdateAndRender)
 			}
 			case ENTITY_MODEL:
 			{
-				mat4 Translate = Mat4Identity();
-				PushModel(RenderGroup, &Entity->Mesh, Entity->Basis, Translate); 
+				PushModel(RenderGroup, &Entity->Mesh, Entity->Basis, Entity->Transform); 
 			} break;
 			case ENTITY_WALL:
 			{

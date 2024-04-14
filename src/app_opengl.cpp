@@ -115,18 +115,20 @@ OpenGLQuadDraw(v3f V0, v2f T0, v4f C0,
 	glTexCoord2fv(T2.e);
 	glVertex3fv(V2.e);
 
-	// NOTE(Justin): Uppder triangle
+	// NOTE(Justin): Upper triangle
 	glColor4fv(C0.e);
 	glTexCoord2fv(T0.e);
 	glVertex3fv(V0.e);
+
+	glColor4fv(C2.e);
+	glTexCoord2fv(T2.e);
+	glVertex3fv(V2.e);
 
 	glColor4fv(C3.e);
 	glTexCoord2fv(T3.e);
 	glVertex3fv(V3.e);
 
-	glColor4fv(C2.e);
-	glTexCoord2fv(T2.e);
-	glVertex3fv(V2.e);
+
 }
 
 
@@ -135,17 +137,19 @@ OpenGLRenderGroupToOutput(render_group *RenderGroup, app_offscreen_buffer *Outpu
 {
 	glViewport(0, 0, OutputTarget->Width, OutputTarget->Height);
 
-
-
+	//glEnable(GL_DEPTH_TEST);
+	//glDepthFunc(GL_GEQUAL);
 
 	glClearColor(1.0f, 0.0f, 1.0f, 1.0f);
-	glClear(GL_COLOR_BUFFER_BIT);
+	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
 	glEnable(GL_BLEND);
 	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
 	glEnable(GL_LINE_SMOOTH);
-	//glEnable(GL_CULL_FACE);
+	
+	glFrontFace(GL_CCW);
+	glEnable(GL_CULL_FACE);
 
 	glMatrixMode(GL_TEXTURE);
 	glLoadIdentity();
@@ -246,13 +250,11 @@ OpenGLRenderGroupToOutput(render_group *RenderGroup, app_offscreen_buffer *Outpu
 			{
 				render_entry_quad *Entry = (render_entry_quad *)Data;
 
-				GLenum Error;
 				GLuint TextureHandle = 0;
 				static b32 Init = false;
 				if(!Init)
 				{
 					glGenTextures(1, &TextureHandle);
-					Error = glGetError();
 					Init = true;
 				}
 

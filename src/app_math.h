@@ -877,6 +877,20 @@ Mat4Translation(v3f V)
 }
 
 inline mat4
+Mat4Translation(f32 X, f32 Y, f32 Z)
+{
+	mat4 R =
+	{
+		{{1, 0, 0, X},
+		{0, 1, 0, Y},
+		{0, 0, 1, Z},
+		{0, 0, 0, 1}},
+	};
+
+	return(R);
+}
+
+inline mat4
 Mat4YRotation(f32 Angle)
 {
 	mat4 R =
