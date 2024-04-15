@@ -68,7 +68,6 @@ struct render_entry_model
 {
 	render_entity_basis EntityBasis;
 
-	//v3f P;
 	basis Basis;
 	mat4 Transform;
 
@@ -137,22 +136,6 @@ struct render_group
 	u32 PushBufferMaxSize;
 	u8 *PushBufferBase;
 };
-
-// NOTE(Justin): Renderer API
-
-#if 0
-inline void * push_render_element_(render_group *RenderGroup, u32 size, render_group_entry_type Type)
-
-inline void push_piece(render_group *RenderGroup, loaded_bitmap *Texture, loaded_bitmap *NormalMap,
-		v2f Origin, v2f XAxis, v2f YAxis, v2f Align, v2f Dim, v4f Color)
-
-inline void push_bitmap(render_group *RenderGroup, loaded_bitmap *Bitmap, loaded_bitmap *NormalMap,
-		v2f Origin, v2f XAxis, v2f YAxis, v2f Align, f32 alpha = 1.0f)
-
-inline void push_rectangle(render_group *RenderGroup, v2f Origin, v2f XAxis, v2f YAxis, v2f Dim, v4f Color)
-
-inline void clear(render_group *RenderGroup, v4f Color)
-#endif
 
 #define APP_RENDER_GROUP_H
 #endif
