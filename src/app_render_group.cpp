@@ -1,7 +1,5 @@
 
 
-#define GL_PRIMITIVE(PrimitiveType) GL_##PrimitiveType
-
 internal void
 RectangleDraw(app_offscreen_buffer *Buffer, v4f Color)
 {
