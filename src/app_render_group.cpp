@@ -320,48 +320,64 @@ PushTriangle(render_group *RenderGroup, v4f *Vertices, v3f Offset, v3f *Colors)
 }
 
 internal void
-PushModel(render_group *RenderGroup, mesh *Mesh, basis B, mat4 Transform)
+PushModel(render_group *RenderGroup, mesh *Mesh, basis B, mat4 Translate, mat4 Scale)
 {
 	render_entry_model *Entry = PushRenderElement(RenderGroup, render_entry_model);
 	if(Entry)
 	{
-		//mesh *Mesh = &Model.Mesh;
+		B.O  = Translate * B.O;
+		B.U  = Scale * B.U;
+		B.V  = Scale * B.V;
+		B.W  = Scale * B.W;
 
+		mat4 MetersToPixels = Mat4Scale(RenderGroup->MetersToPixels);
+
+		B.O = MetersToPixels * B.O;
+		B.U = MetersToPixels * B.U;
+		B.V = MetersToPixels * B.V;
+		B.W = MetersToPixels * B.W;
+
+		Entry->Basis = B;
 		Entry->Indices = Mesh->Indices;
 		Entry->Vertices = Mesh->Vertices;
 		Entry->UV = Mesh->UV;
 		Entry->Normals = Mesh->Normals;
-		//Entry->Faces = Mesh->Faces;
+		Entry->Colors = Mesh->Colors;
 
 		Entry->VertexCount = Mesh->VertexCount;
 		Entry->UVCount = Mesh->UVCount;
 		Entry->NormalCount = Mesh->NormalCount;
-		//Entry->FaceCount = Mesh->FaceCount;
 		Entry->IndicesCount = Mesh->IndicesCount;
+		Entry->ColorCount = Mesh->ColorCount;
 
 		Entry->Texture = Mesh->Texture;
-
-		mat4 MetersToPixels = Mat4Scale(RenderGroup->MetersToPixels);
-		B.U  = MetersToPixels * B.U;
-		B.V  = MetersToPixels * B.V;
-		B.W  = MetersToPixels * B.W;
-
-		Entry->Basis = B;
-		Entry->Transform = Transform;
 	}
 }
 
 internal void
-PushQuad(render_group *RenderGroup, loaded_bitmap *Texture, basis B, v3f *Vertices, v2f *UV, v4f *Colors, u32 VertexCount)
+PushQuad(render_group *RenderGroup, loaded_bitmap *Texture, mat4 Translate, mat4 Scale,
+		basis B, v3f *Vertices, v2f *UV, v4f *Colors, u32 VertexCount)
 {
 	render_entry_quad *Entry = PushRenderElement(RenderGroup, render_entry_quad);
 	if(Entry)
 	{
+		B.O  = Translate * B.O;
+		B.U  = Scale * B.U;
+		B.V  = Scale * B.V;
+		B.W  = Scale * B.W;
+
+		mat4 MetersToPixels = Mat4Scale(RenderGroup->MetersToPixels);
+		B.O = MetersToPixels * B.O;
+		B.U = MetersToPixels * B.U;
+		B.V = MetersToPixels * B.V;
+		B.W = MetersToPixels * B.W;
+
 		Entry->Basis = B;
 		Entry->Vertices = Vertices;
 		Entry->UV = UV;
 		Entry->Colors = Colors;
 		Entry->VertexCount = VertexCount;
+
 		Entry->Texture = Texture;
 	}
 }

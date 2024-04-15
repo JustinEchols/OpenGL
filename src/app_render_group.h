@@ -4,7 +4,6 @@
 // above where this header file is included?
 
 
-
 struct loaded_bitmap
 {
 	void *Memory;
@@ -81,11 +80,13 @@ struct render_entry_model
 	v3f *Vertices;
 	v2f *UV;
 	v3f *Normals;
+	v4f *Colors;
 	
 	u32 VertexCount;
 	u32 UVCount;
 	u32 NormalCount;
 	u32 IndicesCount;
+	u32 ColorCount;
 
 	loaded_bitmap *Texture;
 };

@@ -137,8 +137,8 @@ OpenGLRenderGroupToOutput(render_group *RenderGroup, app_offscreen_buffer *Outpu
 {
 	glViewport(0, 0, OutputTarget->Width, OutputTarget->Height);
 
-	//glEnable(GL_DEPTH_TEST);
-	//glDepthFunc(GL_GEQUAL);
+	glEnable(GL_DEPTH_TEST);
+	glDepthFunc(GL_LESS);
 
 	glClearColor(1.0f, 0.0f, 1.0f, 1.0f);
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -226,7 +226,11 @@ OpenGLRenderGroupToOutput(render_group *RenderGroup, app_offscreen_buffer *Outpu
 
 				basis *Basis = &Entry->Basis;
 
-				glBegin(GL_TRIANGLES);
+				glDisable(GL_TEXTURE_2D);
+				glBegin(GL_QUADS);
+				//glBegin(GL_TRIANGLES);
+
+				v4f C = Entry->Colors[0];
 				for(u32 Index = 0; Index < Entry->IndicesCount; Index += 3)
 				{
 					v3f V = Entry->Vertices[Entry->Indices[Index]];
@@ -238,11 +242,13 @@ OpenGLRenderGroupToOutput(render_group *RenderGroup, app_offscreen_buffer *Outpu
 					v2f T = Entry->UV[Entry->Indices[Index] + 1];
 					v3f N = Entry->Normals[Entry->Indices[Index] + 2];
 
-					glColor3f(1.0f, 1.0f, 1.0f);
-					glVertex3f(VInB.x, VInB.y, VInB.z);
+					glColor4fv(C.e);
+					glVertex3fv(VInB.e);
+
 				}
 
 				glEnd();
+				glEnable(GL_TEXTURE_2D);
 				BaseAddress += sizeof(*Entry);
 
 			} break;

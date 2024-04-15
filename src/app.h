@@ -71,6 +71,17 @@ MemoryArenaCheck(memory_arena *MemoryArena)
 	Assert(MemoryArena->TempCount == 0);
 }
 
+#define ARRAY_COPY(Count, Src, Dest) MemoryCopy((Count)*sizeof(*(Src)), (Src), (Dest))
+internal void *
+MemoryCopy(memory_index Size, void *SrcInit, void *DestInit)
+{
+	u8 *Src = (u8 *)SrcInit;
+	u8 *Dest = (u8 *)DestInit;
+	while(Size--) {*Dest++ = *Src++;}
+
+	return(DestInit);
+}
+
 #define ZeroStruct(Instance) ZeroSize(&(Instance), sizeof(Instance))
 inline void
 ZeroSize(void *Ptr, memory_index Size)
@@ -134,10 +145,6 @@ struct camera
 	f32 Pitch;
 };
 
-struct world
-{
-};
-
 struct triangle
 {
 	v4f Vertices[3];
@@ -176,10 +183,6 @@ enum entity_type
 	ENTITY_QUAD,
 };
 
-
-
-
-
 // NOTE(Justin): Should we consider being able to store basis vectors as an
 // array of floats and 3 v3fs? That way we can just use matrix multiplication to
 // calculate the new basis after a transformation is applied.
@@ -208,7 +211,8 @@ struct entity
 
 	mesh Mesh;
 
-	mat4 Transform;
+	mat4 Translate;
+	mat4 Scale;
 
 	// TODO(Justin): Having all the different shapes is no good. The entity
 	// should just have a mesh and a flag telling us what kind of shape/mesh it
@@ -229,16 +233,26 @@ struct edge
 	s32 YEnd;
 };
 
+struct tile_map
+{
+	u32 *Tiles;
+	u32 TileCountX;
+	u32 TileCountZ;
+	f32 TileSideInMeters;
+};
+
 
 struct app_state
 {
 	memory_arena WorldArena;
-	world *World;
 
-	quad Ground;
 	f32 MetersToPixels;
 
-	loaded_bitmap Test;
+	tile_map TileMap;
+
+	loaded_bitmap Ground;
+	loaded_bitmap Gray;
+	loaded_bitmap White;
 
 	loaded_obj Cube;
 	loaded_obj Suzanne;
@@ -252,8 +266,6 @@ struct app_state
 	mat4 MapToCamera;
 	mat4 MapToPersp;
 	mat4 MapToScreenSpace;
-
-	triangle Triangle;
 
 	entity Entities[256];
 	u32 EntityCount;

@@ -63,15 +63,16 @@ RectangleAdd(app_state *AppState, v4f Min, v4f Max)
 
 
 internal entity *
-ModelAdd(app_state *AppState, loaded_obj Model, mat4 Transform = Mat4Identity(), loaded_bitmap *Texture = 0)
+ModelAdd(app_state *AppState, mesh *Mesh, mat4 Translate, mat4 Scale, loaded_bitmap *Texture = 0)
 {
 	entity *Entity = EntityAdd(AppState, ENTITY_MODEL);
 
 	// TODO(Justin): Init AABB of the model
 
-	Entity->Mesh = Model.Mesh;
+	Entity->Mesh = *Mesh;
 	Entity->Basis = BasisStandard();
-	Entity->Transform = Transform;
+	Entity->Translate = Translate;
+	Entity->Scale = Scale;
 
 	// TODO(Justin): Texture with loaded model
 
@@ -79,23 +80,28 @@ ModelAdd(app_state *AppState, loaded_obj Model, mat4 Transform = Mat4Identity(),
 }
 
 internal entity *
-QuadAdd(app_state *AppState, mesh *Mesh)
+QuadAdd(app_state *AppState, mesh *Mesh, mat4 Translate, mat4 Scale)
 {
 	entity *Entity = EntityAdd(AppState, ENTITY_QUAD);
 
 	Entity->Basis = BasisStandard();
 	Entity->Mesh = *Mesh;
+	Entity->Translate = Translate;
+	Entity->Scale = Scale;
 	
 	return(Entity);
 }
 
 
 internal entity *
-PlayerAdd(app_state *AppState, loaded_obj Model)
+PlayerAdd(app_state *AppState, mesh *Mesh, mat4 Translate, mat4 Scale)
 {
 	entity *Entity = EntityAdd(AppState, ENTITY_PLAYER);
-	Entity->Mesh = Model.Mesh;
+
 	Entity->Basis = BasisStandard();
+	Entity->Mesh = *Mesh;
+	Entity->Translate = Translate;
+	Entity->Scale = Scale;
 
 	return(Entity);
 }
@@ -104,6 +110,7 @@ PlayerAdd(app_state *AppState, loaded_obj Model)
 internal void
 EntityMove(app_state *AppState, entity *Entity, v3f ddP, f32 dt)
 { 
+	tile_map *TileMap = &AppState->TileMap;
 
 	if(V3FNotZero(ddP))
 	{
@@ -112,12 +119,23 @@ EntityMove(app_state *AppState, entity *Entity, v3f ddP, f32 dt)
 
 	f32 PlayerSpeed = 10.0f;
 	ddP *= PlayerSpeed;
-	ddP += -8.0f * Entity->dP;
+	ddP += -3.0f * Entity->dP;
 
 	v3f PlayerDelta = 0.5f * ddP * Square(dt) + Entity->dP * dt;
+	v3f NewP = Entity->Basis.O + PlayerDelta;
 
-	Entity->Basis.O += PlayerDelta;
-	Entity->dP = Entity->dP + ddP * dt;
+
+	s32 TileX = 8 + F32FloorToS32(Entity->Basis.O.x / TileMap->TileSideInMeters);
+	s32 TileZ = 4 + F32FloorToS32(Entity->Basis.O.z / TileMap->TileSideInMeters);
+
+	u32 TileValue = TileMap->Tiles[TileZ * TileMap->TileCountX + TileX];
+	if(TileValue != 1)
+	{
+		Entity->Basis.O += PlayerDelta;
+		Entity->dP = Entity->dP + ddP * dt;
+	}
+
+
 }
 
 inline f32
@@ -305,6 +323,10 @@ DEBUGObjReadEntireFile(thread_context *Thread, char *FileName, memory_arena *Are
 		Mesh->Normals = PushArray(Arena, Mesh->NormalCount, v3f);
 		Mesh->Indices = PushArray(Arena, Mesh->IndicesCount, u32);
 
+		// TODO(Justin): Find a better way to do this? Typically a color is
+		// associated to each vertex so this seems reasonable...
+		Mesh->Colors = PushArray(Arena, Mesh->VertexCount, v4f);
+
 		Content = Result.Memory;
 		Content += FirstVertexOffset;
 
@@ -439,12 +461,16 @@ DEBUGBitmapReadEntireFile(thread_context *Thread, char *Filename, debug_platform
 }
 
 internal void
-CameraInit(app_state *AppState)
+CameraInit(app_state *AppState, v3f P, f32 Yaw, f32 Pitch)
 {
 	camera *Camera = &AppState->Camera;
-	Camera->P = {0.0f, 10.0f, 0.0f};
-	Camera->Yaw = -90.0f;
-	Camera->Pitch = 0.0f;
+	//Camera->P = {0.0f, 5.0f, 0.0f};
+	//Camera->Yaw = -90.0f;
+	//Camera->Pitch = 0.0f;
+
+	Camera->P = P;
+	Camera->Yaw = Yaw;
+	Camera->Pitch = Pitch;
 	Camera->Direction.x = Cos(DegreeToRad(Camera->Yaw)) * Cos(DegreeToRad(Camera->Pitch));
 	Camera->Direction.y = Sin(DegreeToRad(Camera->Pitch));
 	Camera->Direction.z = Sin(DegreeToRad(Camera->Yaw)) * Cos(DegreeToRad(Camera->Pitch));
@@ -512,6 +538,7 @@ extern "C" APP_UPDATE_AND_RENDER(AppUpdateAndRender)
 	Assert(sizeof(app_state) <= Memory->PermanentStorageSize);
 	app_state *AppState = (app_state *)Memory->PermanentStorage;
 
+
 	if(!Memory->IsInitialized)
 	{
 		entity *EntityNull = EntityAdd(AppState, ENTITY_NULL);
@@ -520,15 +547,53 @@ extern "C" APP_UPDATE_AND_RENDER(AppUpdateAndRender)
 		ArenaInitialize(WorldArena, Memory->PermanentStorageSize - sizeof(app_state),
 				(u8 *)Memory->PermanentStorage + sizeof(app_state));
 
+
+		tile_map *TileMap = &AppState->TileMap;
+		TileMap->TileCountX = 17;
+		TileMap->TileCountZ = 9;
+		TileMap->Tiles = PushArray(WorldArena, TileMap->TileCountZ * TileMap->TileCountX, u32);
+		TileMap->TileSideInMeters = 1.0f;
+
+		for(u32 Z = 0; Z < TileMap->TileCountZ; ++Z)
+		{
+			for(u32 X = 0; X < TileMap->TileCountX; ++X)
+			{
+
+				if((X == 0) && (Z != TileMap->TileCountZ / 2))
+				{
+					TileMap->Tiles[Z * TileMap->TileCountX + X] = 1;
+				}
+
+				if((X == TileMap->TileCountX - 1) && (Z != TileMap->TileCountZ / 2))
+				{
+					TileMap->Tiles[Z * TileMap->TileCountX + X] = 1;
+				}
+
+				if((Z == 0) && (X != TileMap->TileCountX / 2))
+				{
+					TileMap->Tiles[Z * TileMap->TileCountX + X] = 1;
+				}
+
+				if((Z == TileMap->TileCountZ - 1) && (X != TileMap->TileCountX / 2))
+				{
+					TileMap->Tiles[Z * TileMap->TileCountX + X] = 1;
+				}
+			}
+		}
+
 		AppState->Cube = DEBUGObjReadEntireFile(Thread, "models/cube.obj", WorldArena, Platform.DEBUGPlatformReadEntireFile);
 		AppState->Dodecahedron = DEBUGObjReadEntireFile(Thread, "models/dodecahedron.obj", WorldArena, Platform.DEBUGPlatformReadEntireFile);
 		AppState->Pyramid = DEBUGObjReadEntireFile(Thread, "models/pyramid.obj", WorldArena, Platform.DEBUGPlatformReadEntireFile);
 		AppState->Suzanne = DEBUGObjReadEntireFile(Thread, "models/suzanne.obj", WorldArena, Platform.DEBUGPlatformReadEntireFile);
-		AppState->Test = DEBUGBitmapReadEntireFile(Thread, "textures/ground.bmp", Platform.DEBUGPlatformReadEntireFile);;
+		AppState->Ground = DEBUGBitmapReadEntireFile(Thread, "textures/ground.bmp", Platform.DEBUGPlatformReadEntireFile);;
+		AppState->Gray = DEBUGBitmapReadEntireFile(Thread, "gray.bmp", Platform.DEBUGPlatformReadEntireFile);;
+		AppState->White = DEBUGBitmapReadEntireFile(Thread, "white.bmp", Platform.DEBUGPlatformReadEntireFile);;
 
-		AppState->MetersToPixels = 5.0f;
+		AppState->MetersToPixels = 1.0f / TileMap->TileSideInMeters;
 
-		CameraInit(AppState);
+		// TODO(Justin): Why is the camera X of TileCountX the center of the
+		// grid and not 0.5 TileCountX?
+		CameraInit(AppState, V3F((f32)TileMap->TileCountX * TileMap->TileSideInMeters, 18.0f, 7.0f), -90.0f, -45.0f);
 
 		f32 FOV = DegreeToRad(45.0f);
 		f32 AspectRatio = (f32)BackBuffer->Width / (f32)BackBuffer->Height;
@@ -542,35 +607,72 @@ extern "C" APP_UPDATE_AND_RENDER(AppUpdateAndRender)
 
 		AppState->MapToWorld = Mat4WorldSpaceMap(V3F(0.0f, 0.0f, -1.0f));
 
-		mesh *QuadMesh = MeshAllocate(WorldArena, 4, 4, 4, 0, 4);
+		mesh SourceCube = AppState->Cube.Mesh;
 
-		QuadMesh->Vertices[0] = V3F(-100.0f, 0.0, -1.0f);
-		QuadMesh->Vertices[1] = V3F(100.0f, 0.0, -1.0f);
-		QuadMesh->Vertices[2] = V3F(100.0f, 0.0, -200.0f);
-		QuadMesh->Vertices[3] = V3F(-100.0f, 0.0, -200.0f);
+		mesh *WallCube = MeshAllocate(WorldArena, SourceCube.VertexCount,
+												  SourceCube.UVCount,
+												  SourceCube.NormalCount,
+												  SourceCube.IndicesCount,
+												  SourceCube.ColorCount);
 
-		QuadMesh->UV[0] = V2F(0.0f, 0.0);
-		QuadMesh->UV[1] = V2F(1.0f, 0.0);
-		QuadMesh->UV[2] = V2F(1.0f, 1.0);
-		QuadMesh->UV[3] = V2F(0.0f, 1.0);
+		WallCube->Vertices = (v3f *)ARRAY_COPY(SourceCube.VertexCount, SourceCube.Vertices, WallCube->Vertices);
+		WallCube->UV = (v2f *)ARRAY_COPY(SourceCube.UVCount, SourceCube.UV, WallCube->UV);
+		WallCube->Normals = (v3f *)ARRAY_COPY(SourceCube.NormalCount, SourceCube.Normals, WallCube->Normals);
+		WallCube->Colors = (v4f *)ARRAY_COPY(SourceCube.ColorCount, SourceCube.Colors, WallCube->Colors);
+		WallCube->Indices = (u32 *)ARRAY_COPY(SourceCube.IndicesCount, SourceCube.Indices, WallCube->Indices);
+		WallCube->Colors[0] = V4F(1.0f);
 
-		QuadMesh->Normals[0] = V3F(0.0f, 0.0, 1.0f);
-		QuadMesh->Normals[1] = V3F(0.0f, 0.0, 1.0f);
-		QuadMesh->Normals[2] = V3F(0.0f, 0.0, 1.0f);
-		QuadMesh->Normals[3] = V3F(0.0f, 0.0, 1.0f);
+		mesh *QuadGround = MeshAllocate(WorldArena, 4, 4, 4, 0, 4);
+		QuadGround->Vertices[0] = V3F(-0.5f, 0.0, 0.0f);
+		QuadGround->Vertices[1] = V3F(0.5f, 0.0, 0.0f);
+		QuadGround->Vertices[2] = V3F(0.5f, 0.0, -1.0f);
+		QuadGround->Vertices[3] = V3F(-0.5f, 0.0, -1.0f);
 
-		QuadMesh->Colors[0] = V4F(0.5f, 0.5f, 0.5f, 1.0f);
-		QuadMesh->Colors[1] = V4F(0.5f, 0.5f, 0.5f, 1.0f);
-		QuadMesh->Colors[2] = V4F(0.5f, 0.5f, 0.5f, 1.0f);
-		QuadMesh->Colors[3] = V4F(0.5f, 0.5f, 0.5f, 1.0f);
+		QuadGround->UV[0] = V2F(0.0f, 0.0);
+		QuadGround->UV[1] = V2F(1.0f, 0.0);
+		QuadGround->UV[2] = V2F(1.0f, 1.0);
+		QuadGround->UV[3] = V2F(0.0f, 1.0);
 
-		QuadMesh->Texture = &AppState->Test;
-		QuadAdd(AppState, QuadMesh);
+		QuadGround->Normals[0] = V3F(0.0f, 0.0, 1.0f);
+		QuadGround->Normals[1] = V3F(0.0f, 0.0, 1.0f);
+		QuadGround->Normals[2] = V3F(0.0f, 0.0, 1.0f);
+		QuadGround->Normals[3] = V3F(0.0f, 0.0, 1.0f);
 
+		v4f White = V4F(1.0f);
+		QuadGround->Colors[0] = White; 
+		QuadGround->Colors[1] = White;
+		QuadGround->Colors[2] = White;
+		QuadGround->Colors[3] = White;
 
-		//PlayerAdd(AppState, AppState->Cube);
-		//ModelAdd(AppState, AppState->Suzanne, Mat4Translation(10.0f, 0.0f, 0.0f));
-		//ModelAdd(AppState, AppState->Suzanne, Mat4Translation(-10.0f, 0.0f, 0.0f));
+		QuadGround->Texture = &AppState->Gray;
+
+		mat4 ScaleQuad = Mat4Identity();
+		mat4 ScaleCube = Mat4Scale(0.5f);
+		for(u32 Z = 0; Z < TileMap->TileCountZ; ++Z)
+		{
+			for(u32 X = 0; X < TileMap->TileCountX; ++X)
+			{
+				u32 TileValue = TileMap->Tiles[Z * TileMap->TileCountX + X];
+				mat4 Translate; 
+				if(TileValue == 0)
+				{
+					Translate = Mat4Translation(TileMap->TileSideInMeters * (f32)X, 0.0f, -TileMap->TileSideInMeters * (f32)Z);
+					QuadAdd(AppState, QuadGround, Translate, ScaleQuad);
+				}
+				else
+				{
+					Translate = Mat4Translation(TileMap->TileSideInMeters * (f32)X, 0.5f, -TileMap->TileSideInMeters * (f32)Z - 0.5f);
+					ModelAdd(AppState, WallCube, Translate, ScaleCube);
+				}
+			}
+		}
+
+		mat4 Translate = Mat4Translation((f32)(TileMap->TileCountX / 2), 0.5f, -1.0f * (f32)(TileMap->TileCountZ / 2));
+		ScaleCube = Mat4Scale(0.35f);
+
+		mesh PlayerCube = AppState->Cube.Mesh;
+		PlayerCube.Colors[0] = {1.0f, 1.0f, 0.0f, 1.0f};
+		PlayerAdd(AppState, &PlayerCube, Translate, ScaleCube);
 
 		Memory->IsInitialized = true;
 	}
@@ -593,7 +695,7 @@ extern "C" APP_UPDATE_AND_RENDER(AppUpdateAndRender)
 	app_controller_input *KeyBoardController = &Input->Controllers[0];
 
 	v3f ddP = {};
-#if 1
+#if 0
 	v3f Shift = {};
 
 	if(KeyBoardController->W.EndedDown)
@@ -656,7 +758,6 @@ extern "C" APP_UPDATE_AND_RENDER(AppUpdateAndRender)
 		}
 #endif
 
-
 	mat4 MapToCamera = AppState->MapToCamera;
 	mat4 MapToWorld = AppState->MapToWorld;
 	mat4 MapToPersp = AppState->MapToPersp;
@@ -665,7 +766,7 @@ extern "C" APP_UPDATE_AND_RENDER(AppUpdateAndRender)
 
 
 	temporary_memory RenderMemory = TemporaryMemoryBegin(&TransientState->TransientArena);
-	render_group *RenderGroup = RenderGroupAllocate(&TransientState->TransientArena, Megabytes(1),
+	render_group *RenderGroup = RenderGroupAllocate(&TransientState->TransientArena, Megabytes(2),
 													AppState->MetersToPixels,
 													MapToScreen,
 													MapToPersp,
@@ -687,8 +788,7 @@ extern "C" APP_UPDATE_AND_RENDER(AppUpdateAndRender)
 			{
 				EntityMove(AppState, Entity, ddP, dt);
 
-				mat4 Translate = Mat4Identity();
-				PushModel(RenderGroup, &Entity->Mesh, Entity->Basis, Translate); 
+				PushModel(RenderGroup, &Entity->Mesh, Entity->Basis, Entity->Translate, Entity->Scale); 
 			} break;
 			case ENTITY_TRIANGLE:
 			{
@@ -702,14 +802,14 @@ extern "C" APP_UPDATE_AND_RENDER(AppUpdateAndRender)
 			}
 			case ENTITY_MODEL:
 			{
-				PushModel(RenderGroup, &Entity->Mesh, Entity->Basis, Entity->Transform); 
+				PushModel(RenderGroup, &Entity->Mesh, Entity->Basis, Entity->Translate, Entity->Scale); 
 			} break;
 			case ENTITY_WALL:
 			{
 			} break;
 			case ENTITY_QUAD:
 			{
-				PushQuad(RenderGroup, Entity->Mesh.Texture, Entity->Basis,
+				PushQuad(RenderGroup, Entity->Mesh.Texture, Entity->Translate, Entity->Scale, Entity->Basis,
 						Entity->Mesh.Vertices, Entity->Mesh.UV, Entity->Mesh.Colors, QUAD_VERTEX_COUNT);
 			} break;
 
