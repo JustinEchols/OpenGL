@@ -1,9 +1,5 @@
 
 #include "app.h"
-
-#define STBI_ASSERT(X) Assert(X)
-#define STB_IMAGE_IMPLEMENTATION
-#include "stb_image.h"
 #include "app_render_group.cpp"
 
 internal entity *
@@ -523,13 +519,6 @@ MeshAllocate(memory_arena *Arena, u32 VertexCount, u32 UVCount,
 
 	return(Mesh);
 }
-
-struct loaded_jpeg
-{
-	void *Memory;
-	s32 Width;
-	s32 Height;
-};
 
 extern "C" APP_UPDATE_AND_RENDER(AppUpdateAndRender)
 {
