@@ -1,9 +1,5 @@
 #if !defined(APP_RENDER_GROUP_H)
 
-// TODO(Justin): Why cant I compile whenever these structs are declared just
-// above where this header file is included?
-
-
 struct loaded_bitmap
 {
 	void *Memory;
