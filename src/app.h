@@ -195,7 +195,7 @@ struct interval
 struct aabb
 {
 	v3f Center;
-	v3f Radius;
+	f32 Radius;
 };
 
 
@@ -213,6 +213,8 @@ struct entity
 
 	mat4 Translate;
 	mat4 Scale;
+
+	aabb AABB;
 
 	// TODO(Justin): Having all the different shapes is no good. The entity
 	// should just have a mesh and a flag telling us what kind of shape/mesh it
@@ -236,11 +238,22 @@ struct edge
 struct tile_map
 {
 	u32 *Tiles;
-	u32 TileCountX;
-	u32 TileCountZ;
-	f32 TileSideInMeters;
+
 };
 
+struct world
+{
+	s32 TileCountX;
+	s32 TileCountZ;
+
+	s32 TileMapCountX;
+	s32 TileMapCountZ;
+
+	f32 TileSideInMeters;
+
+	tile_map *TileMaps;
+
+};
 
 struct app_state
 {
@@ -248,7 +261,10 @@ struct app_state
 
 	f32 MetersToPixels;
 
-	tile_map TileMap;
+	world World;
+
+	s32 PlayerTileMapX;
+	s32 PlayerTileMapZ;
 
 	loaded_bitmap Ground;
 	loaded_bitmap Gray;
@@ -267,7 +283,7 @@ struct app_state
 	mat4 MapToPersp;
 	mat4 MapToScreenSpace;
 
-	entity Entities[256];
+	entity Entities[1024];
 	u32 EntityCount;
 
 	u32 PlayerIndex;

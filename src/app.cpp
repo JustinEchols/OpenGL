@@ -63,12 +63,18 @@ ModelAdd(app_state *AppState, mesh *Mesh, mat4 Translate, mat4 Scale, loaded_bit
 {
 	entity *Entity = EntityAdd(AppState, ENTITY_MODEL);
 
-	// TODO(Justin): Init AABB of the model
+
 
 	Entity->Mesh = *Mesh;
 	Entity->Basis = BasisStandard();
 	Entity->Translate = Translate;
 	Entity->Scale = Scale;
+
+
+	Entity->AABB.Center = Entity->Basis.O;
+	
+	// TODO(Justin): Parametrize this value or compute the AABB.
+	Entity->AABB.Radius = 0.5f;
 
 	// TODO(Justin): Texture with loaded model
 
@@ -99,14 +105,42 @@ PlayerAdd(app_state *AppState, mesh *Mesh, mat4 Translate, mat4 Scale)
 	Entity->Translate = Translate;
 	Entity->Scale = Scale;
 
+	Entity->AABB.Center = Entity->Basis.O;
+
+	// TODO(Justin): Parameterize this value
+	Entity->AABB.Radius = 0.35f;
+
+
+
 	return(Entity);
 }
 
+#if 1
+internal b32
+TileIsEmpty(world *World, s32 PlayerTileMapX, s32 PlayerTileMapZ, f32 X, f32 Z)
+{
+	b32 Result = false;
+
+	tile_map *TileMap = &World->TileMaps[PlayerTileMapZ * World->TileMapCountX + PlayerTileMapX];
+
+	s32 TileX = (World->TileCountX / 2) + F32FloorToS32(X / World->TileSideInMeters);
+	s32 TileZ = (World->TileCountZ / 2) + F32FloorToS32(-1.0f * Z / World->TileSideInMeters);
+
+	if((TileX >= 0) && (TileX < World->TileCountX) &&
+	   (TileZ >= 0) && (TileZ < World->TileCountZ))
+	{
+		u32 TileValue = TileMap->Tiles[TileZ * World->TileCountX + TileX];
+		Result = (TileValue == 0);
+	}
+
+	return(Result);
+}
+#endif
 
 internal void
 EntityMove(app_state *AppState, entity *Entity, v3f ddP, f32 dt)
 { 
-	tile_map *TileMap = &AppState->TileMap;
+	world *World = &AppState->World;
 
 	if(V3FNotZero(ddP))
 	{
@@ -120,18 +154,11 @@ EntityMove(app_state *AppState, entity *Entity, v3f ddP, f32 dt)
 	v3f PlayerDelta = 0.5f * ddP * Square(dt) + Entity->dP * dt;
 	v3f NewP = Entity->Basis.O + PlayerDelta;
 
-
-	s32 TileX = 8 + F32FloorToS32(Entity->Basis.O.x / TileMap->TileSideInMeters);
-	s32 TileZ = 4 + F32FloorToS32(Entity->Basis.O.z / TileMap->TileSideInMeters);
-
-	u32 TileValue = TileMap->Tiles[TileZ * TileMap->TileCountX + TileX];
-	if(TileValue != 1)
+	if(TileIsEmpty(World, AppState->PlayerTileMapX, AppState->PlayerTileMapZ, NewP.x, NewP.z))
 	{
 		Entity->Basis.O += PlayerDelta;
 		Entity->dP = Entity->dP + ddP * dt;
 	}
-
-
 }
 
 inline f32
@@ -460,9 +487,6 @@ internal void
 CameraInit(app_state *AppState, v3f P, f32 Yaw, f32 Pitch)
 {
 	camera *Camera = &AppState->Camera;
-	//Camera->P = {0.0f, 5.0f, 0.0f};
-	//Camera->Yaw = -90.0f;
-	//Camera->Pitch = 0.0f;
 
 	Camera->P = P;
 	Camera->Yaw = Yaw;
@@ -537,35 +561,46 @@ extern "C" APP_UPDATE_AND_RENDER(AppUpdateAndRender)
 				(u8 *)Memory->PermanentStorage + sizeof(app_state));
 
 
-		tile_map *TileMap = &AppState->TileMap;
-		TileMap->TileCountX = 17;
-		TileMap->TileCountZ = 9;
-		TileMap->Tiles = PushArray(WorldArena, TileMap->TileCountZ * TileMap->TileCountX, u32);
-		TileMap->TileSideInMeters = 1.0f;
+		world *World = &AppState->World;
+		
+		World->TileCountX = 17;
+		World->TileCountZ = 9;
+		World->TileMapCountX = 2;
+		World->TileMapCountZ = 2;
+		World->TileSideInMeters = 1.0f;
 
-		for(u32 Z = 0; Z < TileMap->TileCountZ; ++Z)
+		World->TileMaps = PushArray(WorldArena, 4, tile_map);
+		for(s32 MapZ = 0; MapZ < World->TileMapCountZ; ++MapZ)
 		{
-			for(u32 X = 0; X < TileMap->TileCountX; ++X)
+			for(s32 MapX = 0; MapX < World->TileMapCountX; ++MapX)
 			{
+				tile_map *TileMap = &World->TileMaps[MapZ * World->TileMapCountZ + MapX];
+				TileMap->Tiles = PushArray(WorldArena, World->TileCountZ * World->TileCountX, u32);
 
-				if((X == 0) && (Z != TileMap->TileCountZ / 2))
+				for(s32 Z = 0; Z < World->TileCountZ; ++Z)
 				{
-					TileMap->Tiles[Z * TileMap->TileCountX + X] = 1;
-				}
+					for(s32 X = 0; X < World->TileCountX; ++X)
+					{
+						if((X == 0) && (Z != World->TileCountZ / 2))
+						{
+							TileMap->Tiles[Z * World->TileCountX + X] = 1;
+						}
 
-				if((X == TileMap->TileCountX - 1) && (Z != TileMap->TileCountZ / 2))
-				{
-					TileMap->Tiles[Z * TileMap->TileCountX + X] = 1;
-				}
+						if((X == World->TileCountX - 1) && (Z != World->TileCountZ / 2))
+						{
+							TileMap->Tiles[Z * World->TileCountX + X] = 1;
+						}
 
-				if((Z == 0) && (X != TileMap->TileCountX / 2))
-				{
-					TileMap->Tiles[Z * TileMap->TileCountX + X] = 1;
-				}
+						if((Z == 0) && (X != World->TileCountX / 2))
+						{
+							TileMap->Tiles[Z * World->TileCountX + X] = 1;
+						}
 
-				if((Z == TileMap->TileCountZ - 1) && (X != TileMap->TileCountX / 2))
-				{
-					TileMap->Tiles[Z * TileMap->TileCountX + X] = 1;
+						if((Z == World->TileCountZ - 1) && (X != World->TileCountX / 2))
+						{
+							TileMap->Tiles[Z * World->TileCountX + X] = 1;
+						}
+					}
 				}
 			}
 		}
@@ -578,11 +613,11 @@ extern "C" APP_UPDATE_AND_RENDER(AppUpdateAndRender)
 		AppState->Gray = DEBUGBitmapReadEntireFile(Thread, "gray.bmp", Platform.DEBUGPlatformReadEntireFile);;
 		AppState->White = DEBUGBitmapReadEntireFile(Thread, "white.bmp", Platform.DEBUGPlatformReadEntireFile);;
 
-		AppState->MetersToPixels = 1.0f / TileMap->TileSideInMeters;
+		AppState->MetersToPixels = 1.0f / World->TileSideInMeters;
 
 		// TODO(Justin): Why is the camera X of TileCountX the center of the
 		// grid and not 0.5 TileCountX?
-		CameraInit(AppState, V3F((f32)TileMap->TileCountX * TileMap->TileSideInMeters, 18.0f, 7.0f), -90.0f, -45.0f);
+		CameraInit(AppState, V3F((f32)World->TileCountX * World->TileSideInMeters, 18.0f, 7.0f), -90.0f, -45.0f);
 
 		f32 FOV = DegreeToRad(45.0f);
 		f32 AspectRatio = (f32)BackBuffer->Width / (f32)BackBuffer->Height;
@@ -637,31 +672,47 @@ extern "C" APP_UPDATE_AND_RENDER(AppUpdateAndRender)
 
 		mat4 ScaleQuad = Mat4Identity();
 		mat4 ScaleCube = Mat4Scale(0.5f);
-		for(u32 Z = 0; Z < TileMap->TileCountZ; ++Z)
+
+		for(s32 MapZ = 0; MapZ < World->TileMapCountZ; ++MapZ)
 		{
-			for(u32 X = 0; X < TileMap->TileCountX; ++X)
+			for(s32 MapX = 0; MapX < World->TileMapCountX; ++MapX)
 			{
-				u32 TileValue = TileMap->Tiles[Z * TileMap->TileCountX + X];
-				mat4 Translate; 
-				if(TileValue == 0)
+
+				tile_map *TileMap = &World->TileMaps[MapZ * World->TileMapCountZ + MapX];
+				for(s32 Z = 0; Z < World->TileCountZ; ++Z)
 				{
-					Translate = Mat4Translation(TileMap->TileSideInMeters * (f32)X, 0.0f, -TileMap->TileSideInMeters * (f32)Z);
-					QuadAdd(AppState, QuadGround, Translate, ScaleQuad);
-				}
-				else
-				{
-					Translate = Mat4Translation(TileMap->TileSideInMeters * (f32)X, 0.5f, -TileMap->TileSideInMeters * (f32)Z - 0.5f);
-					ModelAdd(AppState, WallCube, Translate, ScaleCube);
+					for(s32 X = 0; X < World->TileCountX; ++X)
+					{
+						u32 TileValue = TileMap->Tiles[Z * World->TileCountX + X];
+
+						f32 XOffset = (f32)MapX * (World->TileCountX * World->TileSideInMeters) + World->TileSideInMeters * (f32)X;
+						f32 ZOffset = -1.0f * (f32)MapZ * (World->TileCountZ * World->TileSideInMeters) - World->TileSideInMeters * (f32)Z;
+
+						mat4 Translate; 
+						if(TileValue == 0)
+						{
+							Translate = Mat4Translation(XOffset, 0.0f, ZOffset);
+							QuadAdd(AppState, QuadGround, Translate, ScaleQuad);
+						}
+						else
+						{
+							Translate = Mat4Translation(XOffset, 0.5f, ZOffset - 0.5f);
+							ModelAdd(AppState, WallCube, Translate, ScaleCube);
+						}
+					}
 				}
 			}
 		}
 
-		mat4 Translate = Mat4Translation((f32)(TileMap->TileCountX / 2), 0.5f, -1.0f * (f32)(TileMap->TileCountZ / 2));
+
+#if 0
+		mat4 Translate = Mat4Translation((f32)(TileMap->TileCountX / 2), 0.35f, -1.0f * (f32)(TileMap->TileCountZ / 2));
 		ScaleCube = Mat4Scale(0.35f);
 
 		mesh PlayerCube = AppState->Cube.Mesh;
 		PlayerCube.Colors[0] = {1.0f, 1.0f, 0.0f, 1.0f};
 		PlayerAdd(AppState, &PlayerCube, Translate, ScaleCube);
+#endif
 
 		Memory->IsInitialized = true;
 	}
@@ -684,7 +735,9 @@ extern "C" APP_UPDATE_AND_RENDER(AppUpdateAndRender)
 	app_controller_input *KeyBoardController = &Input->Controllers[0];
 
 	v3f ddP = {};
-#if 0
+
+	// NOTE(Justin): Set to 1 for free orbiting camera
+#if 1
 	v3f Shift = {};
 
 	if(KeyBoardController->W.EndedDown)
@@ -729,22 +782,22 @@ extern "C" APP_UPDATE_AND_RENDER(AppUpdateAndRender)
 
 #else
 
-		if(KeyBoardController->W.EndedDown)
-		{
-			ddP += -1.0f * ZAxis();
-		}
-		if(KeyBoardController->S.EndedDown)
-		{
-			ddP += 1.0f * ZAxis();
-		}
-		if(KeyBoardController->A.EndedDown)
-		{
-			ddP += -1.0f * XAxis();
-		}
-		if(KeyBoardController->D.EndedDown) 
-		{
-			ddP += 1.0f * XAxis();
-		}
+	if(KeyBoardController->W.EndedDown)
+	{
+		ddP += -1.0f * ZAxis();
+	}
+	if(KeyBoardController->S.EndedDown)
+	{
+		ddP += 1.0f * ZAxis();
+	}
+	if(KeyBoardController->A.EndedDown)
+	{
+		ddP += -1.0f * XAxis();
+	}
+	if(KeyBoardController->D.EndedDown) 
+	{
+		ddP += 1.0f * XAxis();
+	}
 #endif
 
 	mat4 MapToCamera = AppState->MapToCamera;
@@ -752,7 +805,6 @@ extern "C" APP_UPDATE_AND_RENDER(AppUpdateAndRender)
 	mat4 MapToPersp = AppState->MapToPersp;
 	mat4 Mat4MVP = MapToPersp * MapToCamera * MapToWorld;
 	mat4 MapToScreen = Mat4ScreenSpaceMap(BackBuffer->Width, BackBuffer->Height);
-
 
 	temporary_memory RenderMemory = TemporaryMemoryBegin(&TransientState->TransientArena);
 	render_group *RenderGroup = RenderGroupAllocate(&TransientState->TransientArena, Megabytes(2),
@@ -769,7 +821,6 @@ extern "C" APP_UPDATE_AND_RENDER(AppUpdateAndRender)
 
 		render_basis *Basis = PushStruct(&TransientState->TransientArena, render_basis);
 		RenderGroup->DefaultBasis = Basis;
-
 
 		switch(Entity->Type)
 		{
@@ -804,9 +855,6 @@ extern "C" APP_UPDATE_AND_RENDER(AppUpdateAndRender)
 
 			INVALID_DEFAULT_CASE;
 		}
-
-
-
 	}
 
 	RenderToOutput(RenderGroup, BackBuffer);
