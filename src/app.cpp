@@ -115,23 +115,84 @@ PlayerAdd(app_state *AppState, mesh *Mesh, mat4 Translate, mat4 Scale)
 	return(Entity);
 }
 
-#if 1
+internal tile_map *
+TileMapGet(world *World, s32 TileMapX, s32 TileMapZ)
+{
+	tile_map *TileMap = 0;
+
+	if((TileMapX >= 0) && (TileMapX < World->TileMapCountX) &&
+	   (TileMapZ >= 0) && (TileMapZ < World->TileMapCountZ))
+	{
+		TileMap = &World->TileMaps[TileMapZ * World->TileMapCountX + TileMapX];
+	}
+	
+	return(TileMap);
+}
+
+internal u32
+TileValueGet(world *World, tile_map *TileMap, s32 TileX, s32 TileZ)
+{
+	Assert(TileMap);
+	Assert((TileX >= 0) && (TileX < World->TileCountX) &&
+		   (TileZ >= 0) && (TileZ < World->TileCountZ));
+
+	u32 TileValue = TileMap->Tiles[TileZ * World->TileCountX + TileX];
+	return(TileValue);
+}
+
 internal b32
-TileIsEmpty(world *World, s32 PlayerTileMapX, s32 PlayerTileMapZ, f32 X, f32 Z)
+TileIsEmpty(world *World, s32 TileMapX, s32 TileMapZ, s32 TileX, s32 TileZ)
 {
 	b32 Result = false;
 
-	tile_map *TileMap = &World->TileMaps[PlayerTileMapZ * World->TileMapCountX + PlayerTileMapX];
+	tile_map *TileMap = TileMapGet(World, TileMapX, TileMapZ);
+	u32 TileValue = TileValueGet(World, TileMap, TileX, TileZ);
 
-	s32 TileX = (World->TileCountX / 2) + F32FloorToS32(X / World->TileSideInMeters);
-	s32 TileZ = (World->TileCountZ / 2) + F32FloorToS32(-1.0f * Z / World->TileSideInMeters);
+	Result = (TileValue == 0);
 
-	if((TileX >= 0) && (TileX < World->TileCountX) &&
-	   (TileZ >= 0) && (TileZ < World->TileCountZ))
+	return(Result);
+}
+
+#if 1
+internal b32
+PlayerPosReCompute(world *World, s32 *PlayerTileMapX, s32 *PlayerTileMapZ, f32 *X, f32 *Z)
+{
+	b32 Result = false;
+
+	s32 TileX = (World->TileCountX / 2) + F32FloorToS32(*X / World->TileSideInMeters);
+	s32 TileZ = (World->TileCountZ / 2) + F32FloorToS32(-1.0f * (*Z) / World->TileSideInMeters);
+
+	if(TileX < 0)
 	{
-		u32 TileValue = TileMap->Tiles[TileZ * World->TileCountX + TileX];
-		Result = (TileValue == 0);
+		*X += World->TileCountX * World->TileSideInMeters;
+		*PlayerTileMapX -= 1;
 	}
+
+	if(TileX >= World->TileCountX)
+	{
+		*X -= World->TileCountX * World->TileSideInMeters;
+		*PlayerTileMapX += 1;
+	}
+
+	if(TileZ < 0)
+	{
+		// NOTE(Justin): Player moved down a tile map which means the player got
+		// closed so we increase z!
+		*Z -= World->TileCountZ * World->TileSideInMeters;
+		*PlayerTileMapZ -= 1;
+	}
+
+	if(TileZ >= World->TileCountZ)
+	{
+
+		*Z += World->TileCountZ * World->TileSideInMeters;
+		*PlayerTileMapZ += 1;
+	}
+
+	Assert(*PlayerTileMapX >= 0);
+	Assert(*PlayerTileMapX < World->TileMapCountZ);
+	Assert(*PlayerTileMapZ >= 0);
+	Assert(*PlayerTileMapZ < World->TileMapCountZ);
 
 	return(Result);
 }
@@ -154,9 +215,21 @@ EntityMove(app_state *AppState, entity *Entity, v3f ddP, f32 dt)
 	v3f PlayerDelta = 0.5f * ddP * Square(dt) + Entity->dP * dt;
 	v3f NewP = Entity->Basis.O + PlayerDelta;
 
-	if(TileIsEmpty(World, AppState->PlayerTileMapX, AppState->PlayerTileMapZ, NewP.x, NewP.z))
+	s32 *PlayerTileMapX = &AppState->PlayerTileMapX;
+	s32 *PlayerTileMapZ = &AppState->PlayerTileMapZ;
+	PlayerPosReCompute(World, PlayerTileMapX, PlayerTileMapZ, &NewP.x, &NewP.z);
+
+	s32 TileX = (World->TileCountX / 2) + F32FloorToS32(NewP.x / World->TileSideInMeters);
+	s32 TileZ = (World->TileCountZ / 2) + F32FloorToS32(-1.0f * NewP.z / World->TileSideInMeters);
+
+	// TODO(Justin): Do we want the player to have a basis and offset within the
+	// the tile map? Do we want the player to 
+	if(TileIsEmpty(World, *PlayerTileMapX, *PlayerTileMapZ, TileX, TileZ))
 	{
-		Entity->Basis.O += PlayerDelta;
+		Entity->Basis.O =
+			World->TileSideInMeters * V3F((f32)(*PlayerTileMapX * World->TileMapCountX) , 0.0f,
+										  -1.0f * (f32)(*PlayerTileMapZ * World->TileMapCountZ)) + NewP;
+
 		Entity->dP = Entity->dP + ddP * dt;
 	}
 }
@@ -704,15 +777,12 @@ extern "C" APP_UPDATE_AND_RENDER(AppUpdateAndRender)
 			}
 		}
 
-
-#if 0
-		mat4 Translate = Mat4Translation((f32)(TileMap->TileCountX / 2), 0.35f, -1.0f * (f32)(TileMap->TileCountZ / 2));
+		mat4 Translate = Mat4Translation((f32)(World->TileCountX / 2), 0.35f, -1.0f * (f32)(World->TileCountZ / 2));
 		ScaleCube = Mat4Scale(0.35f);
 
 		mesh PlayerCube = AppState->Cube.Mesh;
 		PlayerCube.Colors[0] = {1.0f, 1.0f, 0.0f, 1.0f};
 		PlayerAdd(AppState, &PlayerCube, Translate, ScaleCube);
-#endif
 
 		Memory->IsInitialized = true;
 	}
@@ -737,7 +807,7 @@ extern "C" APP_UPDATE_AND_RENDER(AppUpdateAndRender)
 	v3f ddP = {};
 
 	// NOTE(Justin): Set to 1 for free orbiting camera
-#if 1
+#if 0
 	v3f Shift = {};
 
 	if(KeyBoardController->W.EndedDown)
