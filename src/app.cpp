@@ -17,6 +17,19 @@ EntityAdd(app_state *AppState, entity_type Type)
 	return(Entity);
 }
 
+internal entity *
+EntityGet(app_state *AppState, u32 Index)
+{
+	entity *Result = 0;
+
+	if((Index >= 0) && (Index < ArrayCount(AppState->Entities)))
+	{
+		Result = AppState->Entities + Index;
+	}
+
+	return(Result);
+}
+
 internal basis
 BasisStandard(void)
 {
@@ -56,14 +69,10 @@ RectangleAdd(app_state *AppState, v4f Min, v4f Max)
 	return(Entity);
 }
 
-
-
 internal entity *
 ModelAdd(app_state *AppState, mesh *Mesh, mat4 Translate, mat4 Scale, loaded_bitmap *Texture = 0)
 {
 	entity *Entity = EntityAdd(AppState, ENTITY_MODEL);
-
-
 
 	Entity->Mesh = *Mesh;
 	Entity->Basis = BasisStandard();
@@ -74,6 +83,10 @@ ModelAdd(app_state *AppState, mesh *Mesh, mat4 Translate, mat4 Scale, loaded_bit
 	Entity->AABB.Center = Entity->Basis.O;
 	
 	// TODO(Justin): Parametrize this value or compute the AABB.
+	// If the vertices of the model are already on the convex hull then we can
+	// loop through the vertices and project the vertex onto 6 coordinate axes.
+	// The max proj (coordinate) is the vertex furhters away the min proj
+	// (coordinate) is the fursthers away in the opposite directon.
 	Entity->AABB.Radius = 0.5f;
 
 	// TODO(Justin): Texture with loaded model
@@ -99,6 +112,7 @@ internal entity *
 PlayerAdd(app_state *AppState, mesh *Mesh, mat4 Translate, mat4 Scale)
 {
 	entity *Entity = EntityAdd(AppState, ENTITY_PLAYER);
+	AppState->PlayerEntityIndex = Entity->Index;
 
 	Entity->Basis = BasisStandard();
 	Entity->Mesh = *Mesh;
@@ -109,8 +123,6 @@ PlayerAdd(app_state *AppState, mesh *Mesh, mat4 Translate, mat4 Scale)
 
 	// TODO(Justin): Parameterize this value
 	Entity->AABB.Radius = 0.35f;
-
-
 
 	return(Entity);
 }
@@ -153,7 +165,72 @@ TileIsEmpty(world *World, s32 TileMapX, s32 TileMapZ, s32 TileX, s32 TileZ)
 	return(Result);
 }
 
-#if 1
+struct canoncial_position
+{
+	s32 TileMapX;
+	s32 TileMapZ;
+	s32 TileX;
+	s32 TileZ;
+
+	f32 X;
+	f32 Z;
+};
+
+internal canoncial_position
+PlayerPosReCompute(world *World, s32 TileMapX, s32 TileMapZ, f32 X, f32 Z)
+{
+	canoncial_position Result;
+
+	Result.TileMapX = TileMapX;
+	Result.TileMapZ = TileMapZ;
+
+	Result.TileX = (World->TileCountX / 2) + F32FloorToS32(X / World->TileSideInMeters);
+	Result.TileZ = (World->TileCountZ / 2) + F32FloorToS32(-1 * Z / World->TileSideInMeters);
+
+	Result.X = X;
+	Result.Z = Z;
+
+	//Result.TileX = (World->TileCountX / 2) + F32FloorToS32(TileMapRelX / World->TileSideInMeters);
+	//Result.TileZ = (World->TileCountZ / 2) + F32FloorToS32(-1.0f * TileMapRelZ / World->TileSideInMeters);
+
+	//Assert(*PlayerTileMapX >= 0);
+	//Assert(*PlayerTileMapX < World->TileMapCountZ);
+	//Assert(*PlayerTileMapZ >= 0);
+	//Assert(*PlayerTileMapZ < World->TileMapCountZ);
+
+	if(Result.TileX < 0)
+	{
+		Result.X += World->TileCountX * World->TileSideInMeters;
+		Result.TileX += World->TileCountX;
+		Result.TileMapX -= 1;
+	}
+
+	if(Result.TileX >= World->TileCountX)
+	{
+		Result.X -= World->TileCountX * World->TileSideInMeters;
+		Result.TileX -= World->TileCountX;
+		Result.TileMapX += 1;
+	}
+
+	if(Result.TileZ < 0)
+	{
+		Result.Z -= World->TileCountZ * World->TileSideInMeters;
+		Result.TileZ -= World->TileCountZ;
+		Result.TileMapZ -= 1;
+	}
+
+	if(Result.TileZ >= World->TileCountZ)
+	{
+		Result.TileMapZ += 1;
+		Result.TileZ -= World->TileCountZ;
+		Result.Z += World->TileCountZ * World->TileSideInMeters;
+	}
+
+	return(Result);
+}
+
+
+#if 0
 internal b32
 PlayerPosReCompute(world *World, s32 *PlayerTileMapX, s32 *PlayerTileMapZ, f32 *X, f32 *Z)
 {
@@ -176,8 +253,6 @@ PlayerPosReCompute(world *World, s32 *PlayerTileMapX, s32 *PlayerTileMapZ, f32 *
 
 	if(TileZ < 0)
 	{
-		// NOTE(Justin): Player moved down a tile map which means the player got
-		// closed so we increase z!
 		*Z -= World->TileCountZ * World->TileSideInMeters;
 		*PlayerTileMapZ -= 1;
 	}
@@ -198,6 +273,9 @@ PlayerPosReCompute(world *World, s32 *PlayerTileMapX, s32 *PlayerTileMapZ, f32 *
 }
 #endif
 
+
+
+
 internal void
 EntityMove(app_state *AppState, entity *Entity, v3f ddP, f32 dt)
 { 
@@ -215,21 +293,26 @@ EntityMove(app_state *AppState, entity *Entity, v3f ddP, f32 dt)
 	v3f PlayerDelta = 0.5f * ddP * Square(dt) + Entity->dP * dt;
 	v3f NewP = Entity->Basis.O + PlayerDelta;
 
-	s32 *PlayerTileMapX = &AppState->PlayerTileMapX;
-	s32 *PlayerTileMapZ = &AppState->PlayerTileMapZ;
-	PlayerPosReCompute(World, PlayerTileMapX, PlayerTileMapZ, &NewP.x, &NewP.z);
+	s32 PlayerTileMapX = AppState->PlayerTileMapX;
+	s32 PlayerTileMapZ = AppState->PlayerTileMapZ;
 
-	s32 TileX = (World->TileCountX / 2) + F32FloorToS32(NewP.x / World->TileSideInMeters);
-	s32 TileZ = (World->TileCountZ / 2) + F32FloorToS32(-1.0f * NewP.z / World->TileSideInMeters);
+	canoncial_position P = PlayerPosReCompute(World, PlayerTileMapX, PlayerTileMapZ, NewP.x, NewP.z);
 
-	// TODO(Justin): Do we want the player to have a basis and offset within the
-	// the tile map? Do we want the player to 
-	if(TileIsEmpty(World, *PlayerTileMapX, *PlayerTileMapZ, TileX, TileZ))
+	AppState->PlayerTileMapX = P.TileMapX;
+	AppState->PlayerTileMapZ = P.TileMapZ;
+	if(TileIsEmpty(World, P.TileMapX, P.TileMapZ, P.TileX, P.TileZ))
 	{
-		Entity->Basis.O =
-			World->TileSideInMeters * V3F((f32)(*PlayerTileMapX * World->TileMapCountX) , 0.0f,
-										  -1.0f * (f32)(*PlayerTileMapZ * World->TileMapCountZ)) + NewP;
+		// NOTE(Justin): The basis origin is always relative to the center of
+		// any tile map
+		Entity->Basis.O = {P.X, 0.0f, P.Z};
 
+		f32 XOffset = (f32)(P.TileMapX * World->TileCountX * World->TileSideInMeters) + (World->TileCountX / 2) * World->TileSideInMeters;
+		f32 ZOffset = (f32)(P.TileMapZ * World->TileCountZ * World->TileSideInMeters) + (World->TileCountZ / 2) * World->TileSideInMeters;
+
+		// NOTE(Justin): Compute the translation matrix that translates the
+		// basis to the center of the current tile map the player is standing
+		// on.
+		Entity->Translate = Mat4Translation(XOffset, 0.35f, -ZOffset);
 		Entity->dP = Entity->dP + ddP * dt;
 	}
 }
@@ -572,7 +655,7 @@ CameraInit(app_state *AppState, v3f P, f32 Yaw, f32 Pitch)
 }
 
 internal void
-CameraUpdate(app_state *AppState, app_offscreen_buffer *BackBuffer, camera *Camera, f32 dMouseX, f32 dMouseY, f32 dt)
+CameraUpdate(app_state *AppState, camera *Camera, f32 dMouseX, f32 dMouseY, f32 dt)
 {
 
 	f32 Sensitivity = 0.5f;
@@ -617,6 +700,19 @@ MeshAllocate(memory_arena *Arena, u32 VertexCount, u32 UVCount,
 	return(Mesh);
 }
 
+internal void
+MeshCopy(mesh *Src, mesh *Dest)
+{
+	Assert(Src);
+	Assert(Dest);
+
+	Dest->Vertices = (v3f *)ARRAY_COPY(Src->VertexCount, Src->Vertices, Dest->Vertices);
+	Dest->UV = (v2f *)ARRAY_COPY(Src->UVCount, Src->UV, Dest->UV);
+	Dest->Normals = (v3f *)ARRAY_COPY(Src->NormalCount, Src->Normals, Dest->Normals);
+	Dest->Colors = (v4f *)ARRAY_COPY(Src->ColorCount, Src->Colors, Dest->Colors);
+	Dest->Indices = (u32 *)ARRAY_COPY(Src->IndicesCount, Src->Indices, Dest->Indices);
+}
+
 extern "C" APP_UPDATE_AND_RENDER(AppUpdateAndRender)
 {
 	Platform = Memory->PlatformAPI;
@@ -632,7 +728,6 @@ extern "C" APP_UPDATE_AND_RENDER(AppUpdateAndRender)
 		memory_arena *WorldArena = &AppState->WorldArena;
 		ArenaInitialize(WorldArena, Memory->PermanentStorageSize - sizeof(app_state),
 				(u8 *)Memory->PermanentStorage + sizeof(app_state));
-
 
 		world *World = &AppState->World;
 		
@@ -683,14 +778,15 @@ extern "C" APP_UPDATE_AND_RENDER(AppUpdateAndRender)
 		AppState->Pyramid = DEBUGObjReadEntireFile(Thread, "models/pyramid.obj", WorldArena, Platform.DEBUGPlatformReadEntireFile);
 		AppState->Suzanne = DEBUGObjReadEntireFile(Thread, "models/suzanne.obj", WorldArena, Platform.DEBUGPlatformReadEntireFile);
 		AppState->Ground = DEBUGBitmapReadEntireFile(Thread, "textures/ground.bmp", Platform.DEBUGPlatformReadEntireFile);;
-		AppState->Gray = DEBUGBitmapReadEntireFile(Thread, "gray.bmp", Platform.DEBUGPlatformReadEntireFile);;
+		AppState->Gray = DEBUGBitmapReadEntireFile(Thread, "gray_with_boundary.bmp", Platform.DEBUGPlatformReadEntireFile);;
 		AppState->White = DEBUGBitmapReadEntireFile(Thread, "white.bmp", Platform.DEBUGPlatformReadEntireFile);;
 
 		AppState->MetersToPixels = 1.0f / World->TileSideInMeters;
 
 		// TODO(Justin): Why is the camera X of TileCountX the center of the
 		// grid and not 0.5 TileCountX?
-		CameraInit(AppState, V3F((f32)World->TileCountX * World->TileSideInMeters, 18.0f, 7.0f), -90.0f, -45.0f);
+		CameraInit(AppState, V3F(0.0f/*(f32)World->TileCountX * World->TileSideInMeters*/, 20.0f, 7.0f), -90.0f, -45.0f);
+		AppState->CameraIsFree = false;
 
 		f32 FOV = DegreeToRad(45.0f);
 		f32 AspectRatio = (f32)BackBuffer->Width / (f32)BackBuffer->Height;
@@ -712,18 +808,15 @@ extern "C" APP_UPDATE_AND_RENDER(AppUpdateAndRender)
 												  SourceCube.IndicesCount,
 												  SourceCube.ColorCount);
 
-		WallCube->Vertices = (v3f *)ARRAY_COPY(SourceCube.VertexCount, SourceCube.Vertices, WallCube->Vertices);
-		WallCube->UV = (v2f *)ARRAY_COPY(SourceCube.UVCount, SourceCube.UV, WallCube->UV);
-		WallCube->Normals = (v3f *)ARRAY_COPY(SourceCube.NormalCount, SourceCube.Normals, WallCube->Normals);
-		WallCube->Colors = (v4f *)ARRAY_COPY(SourceCube.ColorCount, SourceCube.Colors, WallCube->Colors);
-		WallCube->Indices = (u32 *)ARRAY_COPY(SourceCube.IndicesCount, SourceCube.Indices, WallCube->Indices);
+		MeshCopy(&SourceCube, WallCube);
 		WallCube->Colors[0] = V4F(1.0f);
 
 		mesh *QuadGround = MeshAllocate(WorldArena, 4, 4, 4, 0, 4);
-		QuadGround->Vertices[0] = V3F(-0.5f, 0.0, 0.0f);
-		QuadGround->Vertices[1] = V3F(0.5f, 0.0, 0.0f);
-		QuadGround->Vertices[2] = V3F(0.5f, 0.0, -1.0f);
-		QuadGround->Vertices[3] = V3F(-0.5f, 0.0, -1.0f);
+
+		QuadGround->Vertices[0] = V3F(-0.5f, 0.0, 0.5f);
+		QuadGround->Vertices[1] = V3F(0.5f, 0.0, 0.5f);
+		QuadGround->Vertices[2] = V3F(0.5f, 0.0, -0.5f);
+		QuadGround->Vertices[3] = V3F(-0.5f, 0.0, -0.5f);
 
 		QuadGround->UV[0] = V2F(0.0f, 0.0);
 		QuadGround->UV[1] = V2F(1.0f, 0.0);
@@ -750,13 +843,12 @@ extern "C" APP_UPDATE_AND_RENDER(AppUpdateAndRender)
 		{
 			for(s32 MapX = 0; MapX < World->TileMapCountX; ++MapX)
 			{
-
-				tile_map *TileMap = &World->TileMaps[MapZ * World->TileMapCountZ + MapX];
+				tile_map *TileMap = TileMapGet(World, MapX, MapZ);
 				for(s32 Z = 0; Z < World->TileCountZ; ++Z)
 				{
 					for(s32 X = 0; X < World->TileCountX; ++X)
 					{
-						u32 TileValue = TileMap->Tiles[Z * World->TileCountX + X];
+						u32 TileValue = TileValueGet(World, TileMap, X, Z);
 
 						f32 XOffset = (f32)MapX * (World->TileCountX * World->TileSideInMeters) + World->TileSideInMeters * (f32)X;
 						f32 ZOffset = -1.0f * (f32)MapZ * (World->TileCountZ * World->TileSideInMeters) - World->TileSideInMeters * (f32)Z;
@@ -769,7 +861,7 @@ extern "C" APP_UPDATE_AND_RENDER(AppUpdateAndRender)
 						}
 						else
 						{
-							Translate = Mat4Translation(XOffset, 0.5f, ZOffset - 0.5f);
+							Translate = Mat4Translation(XOffset, 0.5f, ZOffset);
 							ModelAdd(AppState, WallCube, Translate, ScaleCube);
 						}
 					}
@@ -782,7 +874,31 @@ extern "C" APP_UPDATE_AND_RENDER(AppUpdateAndRender)
 
 		mesh PlayerCube = AppState->Cube.Mesh;
 		PlayerCube.Colors[0] = {1.0f, 1.0f, 0.0f, 1.0f};
-		PlayerAdd(AppState, &PlayerCube, Translate, ScaleCube);
+
+		// NOTE(Justin): Since the player has a basiss and a translate matrix
+		// the following is true:
+		//
+		// The players origin in terms of its basis is (0,0,0)
+		//
+		// The translation matrix translates the origin of the basis to the
+		// center of a tilemap
+		//
+		// Therefore we can think of the player's position in two parts
+		// The players position in terms of the basis alone is relative to the
+		// center of the tilmap so:
+		//
+		// (0,0) center
+		// (-8,0) left 
+		// (8,0) right
+		// (0,-4) top
+		// (0, 4) bottom 
+		// 
+		// When the player moves across a tile map boundary we can therefore re
+		// compute the basis to be relative to the center of a tile map and
+		// update the translation matrix such that it will translate the basis
+		// to the current tile map the player is standing on.
+
+		entity *Player = PlayerAdd(AppState, &PlayerCube, Translate, ScaleCube);
 
 		Memory->IsInitialized = true;
 	}
@@ -804,71 +920,92 @@ extern "C" APP_UPDATE_AND_RENDER(AppUpdateAndRender)
 	camera *Camera = &AppState->Camera;
 	app_controller_input *KeyBoardController = &Input->Controllers[0];
 
-	v3f ddP = {};
+	world *World = &AppState->World;
 
-	// NOTE(Justin): Set to 1 for free orbiting camera
-#if 0
+	// NOTE(Justin): C toggles fixed/free camera
+	// TODO(Justin): Make the toggling between camera modes more robust.
+	if(KeyBoardController->C.EndedDown)
+	{
+		AppState->CameraIsFree = !AppState->CameraIsFree;
+	}
+
+	v3f ddP = {};
 	v3f Shift = {};
 
-	if(KeyBoardController->W.EndedDown)
+	if(AppState->CameraIsFree)
 	{
-		Shift += Camera->Direction;
-	}
-	if(KeyBoardController->S.EndedDown)
-	{
-		Shift += -1.0f * Camera->Direction;
-	}
-	if(KeyBoardController->A.EndedDown)
-	{
-		// NOTE(Justin): Translating the WORLD POSITION of the camera should
-		// is NOT an INVERSE operation. Since the position of the camera is in
-		// world space then when the camera moves to the right find the right
-		// vector of the camera and add some scalar multiple of it to the
-		// position.
+		if(KeyBoardController->W.EndedDown)
+		{
+			Shift += Camera->Direction;
+		}
+		if(KeyBoardController->S.EndedDown)
+		{
+			Shift += -1.0f * Camera->Direction;
+		}
+		if(KeyBoardController->A.EndedDown)
+		{
+			// NOTE(Justin): Translating the WORLD POSITION of the camera should
+			// is NOT an INVERSE operation. Since the position of the camera is in
+			// world space then when the camera moves to the right find the right
+			// vector of the camera and add some scalar multiple of it to the
+			// position.
 
-		Shift += -1.0f * Cross(YAxis(), -1.0f *Camera->Direction);
+			Shift += -1.0f * Cross(YAxis(), -1.0f *Camera->Direction);
+		}
+		if(KeyBoardController->D.EndedDown) 
+		{
+			Shift += Cross(YAxis(), -1.0f * Camera->Direction);
+		}
+
+		if(V3FNotZero(Shift))
+		{
+			Shift = Normalize(Shift);
+		}
+
+		f32 CameraSpeed = 8.0f;
+		Shift = dt * CameraSpeed * Shift;
+
+		Camera->P += Shift;
 	}
-	if(KeyBoardController->D.EndedDown) 
+	else
 	{
-		Shift += Cross(YAxis(), -1.0f * Camera->Direction);
+		if(KeyBoardController->W.EndedDown)
+		{
+			ddP += -1.0f * ZAxis();
+		}
+		if(KeyBoardController->S.EndedDown)
+		{
+			ddP += 1.0f * ZAxis();
+		}
+		if(KeyBoardController->A.EndedDown)
+		{
+			ddP += -1.0f * XAxis();
+		}
+		if(KeyBoardController->D.EndedDown) 
+		{
+			ddP += 1.0f * XAxis();
+		}
+
+		// TODO(Justin): Better way to clear the camera input.
+		Input->dMouseX = 0;
+		Input->dMouseY = 0;
+
+		entity *Player = EntityGet(AppState, AppState->PlayerEntityIndex);
+		//Camera->P = Player->Translate * Camera->P;
+		Camera->P.x = World->TileSideInMeters * (AppState->PlayerTileMapX * World->TileCountX + World->TileCountX);
+		//Camera->P.z = -1.0f * World->TileSideInMeters * (AppState->PlayerTileMapZ * World->TileCountZ + World->TileCountZ);
+		CameraUpdate(AppState, Camera, Input->dMouseX, Input->dMouseY, dt);
 	}
 
-	if(V3FNotZero(Shift))
-	{
-		Shift = Normalize(Shift);
-	}
 
-	f32 CameraSpeed = 8.0f;
-	Shift = dt * CameraSpeed * Shift;
 
-	Camera->P += Shift;
 
 	//
 	// NOTE(Justin): Render
 	//
 
-	CameraUpdate(AppState, BackBuffer, Camera, Input->dMouseX, Input->dMouseY, dt);
+
 	AppState->MapToCamera = Mat4CameraMap(Camera->P, Camera->P + Camera->Direction);
-
-#else
-
-	if(KeyBoardController->W.EndedDown)
-	{
-		ddP += -1.0f * ZAxis();
-	}
-	if(KeyBoardController->S.EndedDown)
-	{
-		ddP += 1.0f * ZAxis();
-	}
-	if(KeyBoardController->A.EndedDown)
-	{
-		ddP += -1.0f * XAxis();
-	}
-	if(KeyBoardController->D.EndedDown) 
-	{
-		ddP += 1.0f * XAxis();
-	}
-#endif
 
 	mat4 MapToCamera = AppState->MapToCamera;
 	mat4 MapToWorld = AppState->MapToWorld;
