@@ -207,7 +207,7 @@ PlayerPosReCompute(world *World, s32 TileMapX, s32 TileMapZ, f32 X, f32 Z)
 	if(Result.TileZ < 0)
 	{
 		Result.Z -= World->TileCountZ * World->TileSideInMeters;
-		Result.TileZ -= World->TileCountZ;
+		Result.TileZ += World->TileCountZ;
 		Result.TileMapZ -= 1;
 	}
 
@@ -730,7 +730,8 @@ extern "C" APP_UPDATE_AND_RENDER(AppUpdateAndRender)
 
 		// TODO(Justin): Why is the camera X of TileCountX the center of the
 		// grid and not 0.5 TileCountX?
-		CameraInit(AppState, V3F(0.0f/*(f32)World->TileCountX * World->TileSideInMeters*/, 20.0f, 7.0f), -90.0f, -45.0f);
+		//CameraInit(AppState, V3F(0.0f/*(f32)World->TileCountX * World->TileSideInMeters*/, 20.0f, 7.0f), -90.0f, -45.0f);
+		CameraInit(AppState, V3F(0.0f, 20.0f, 0.0f), -90.0f, -45.0f);
 		AppState->CameraIsFree = false;
 
 		f32 FOV = DegreeToRad(45.0f);
@@ -911,6 +912,7 @@ extern "C" APP_UPDATE_AND_RENDER(AppUpdateAndRender)
 		Shift = dt * CameraSpeed * Shift;
 
 		Camera->P += Shift;
+		CameraUpdate(AppState, Camera, Input->dMouseX, Input->dMouseY, dt);
 	}
 	else
 	{
@@ -937,7 +939,7 @@ extern "C" APP_UPDATE_AND_RENDER(AppUpdateAndRender)
 
 		entity *Player = EntityGet(AppState, AppState->PlayerEntityIndex);
 		Camera->P.x = World->TileSideInMeters * (AppState->PlayerTileMapX * World->TileCountX + World->TileCountX);
-		//Camera->P.z = -1.0f * World->TileSideInMeters * (AppState->PlayerTileMapZ * World->TileCountZ + World->TileCountZ);
+		Camera->P.z = -1.0f * World->TileSideInMeters * (AppState->PlayerTileMapZ * World->TileCountZ);// + World->TileCountZ);
 		CameraUpdate(AppState, Camera, Input->dMouseX, Input->dMouseY, dt);
 	}
 
