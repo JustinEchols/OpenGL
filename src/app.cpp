@@ -190,14 +190,6 @@ PlayerPosReCompute(world *World, s32 TileMapX, s32 TileMapZ, f32 X, f32 Z)
 	Result.X = X;
 	Result.Z = Z;
 
-	//Result.TileX = (World->TileCountX / 2) + F32FloorToS32(TileMapRelX / World->TileSideInMeters);
-	//Result.TileZ = (World->TileCountZ / 2) + F32FloorToS32(-1.0f * TileMapRelZ / World->TileSideInMeters);
-
-	//Assert(*PlayerTileMapX >= 0);
-	//Assert(*PlayerTileMapX < World->TileMapCountZ);
-	//Assert(*PlayerTileMapZ >= 0);
-	//Assert(*PlayerTileMapZ < World->TileMapCountZ);
-
 	if(Result.TileX < 0)
 	{
 		Result.X += World->TileCountX * World->TileSideInMeters;
@@ -228,53 +220,6 @@ PlayerPosReCompute(world *World, s32 TileMapX, s32 TileMapZ, f32 X, f32 Z)
 
 	return(Result);
 }
-
-
-#if 0
-internal b32
-PlayerPosReCompute(world *World, s32 *PlayerTileMapX, s32 *PlayerTileMapZ, f32 *X, f32 *Z)
-{
-	b32 Result = false;
-
-	s32 TileX = (World->TileCountX / 2) + F32FloorToS32(*X / World->TileSideInMeters);
-	s32 TileZ = (World->TileCountZ / 2) + F32FloorToS32(-1.0f * (*Z) / World->TileSideInMeters);
-
-	if(TileX < 0)
-	{
-		*X += World->TileCountX * World->TileSideInMeters;
-		*PlayerTileMapX -= 1;
-	}
-
-	if(TileX >= World->TileCountX)
-	{
-		*X -= World->TileCountX * World->TileSideInMeters;
-		*PlayerTileMapX += 1;
-	}
-
-	if(TileZ < 0)
-	{
-		*Z -= World->TileCountZ * World->TileSideInMeters;
-		*PlayerTileMapZ -= 1;
-	}
-
-	if(TileZ >= World->TileCountZ)
-	{
-
-		*Z += World->TileCountZ * World->TileSideInMeters;
-		*PlayerTileMapZ += 1;
-	}
-
-	Assert(*PlayerTileMapX >= 0);
-	Assert(*PlayerTileMapX < World->TileMapCountZ);
-	Assert(*PlayerTileMapZ >= 0);
-	Assert(*PlayerTileMapZ < World->TileMapCountZ);
-
-	return(Result);
-}
-#endif
-
-
-
 
 internal void
 EntityMove(app_state *AppState, entity *Entity, v3f ddP, f32 dt)
@@ -991,7 +936,6 @@ extern "C" APP_UPDATE_AND_RENDER(AppUpdateAndRender)
 		Input->dMouseY = 0;
 
 		entity *Player = EntityGet(AppState, AppState->PlayerEntityIndex);
-		//Camera->P = Player->Translate * Camera->P;
 		Camera->P.x = World->TileSideInMeters * (AppState->PlayerTileMapX * World->TileCountX + World->TileCountX);
 		//Camera->P.z = -1.0f * World->TileSideInMeters * (AppState->PlayerTileMapZ * World->TileCountZ + World->TileCountZ);
 		CameraUpdate(AppState, Camera, Input->dMouseX, Input->dMouseY, dt);
