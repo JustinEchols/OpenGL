@@ -695,22 +695,37 @@ extern "C" APP_UPDATE_AND_RENDER(AppUpdateAndRender)
 				{
 					for(s32 X = 0; X < World->TileCountX; ++X)
 					{
-						if((X == 0) && (Z != World->TileCountZ / 2))
+						if((X == 0) && (MapX == 0))
+						{
+							TileMap->Tiles[Z * World->TileCountX + X] = 1;
+						}
+						if((X == World->TileCountX - 1) && (MapX == 1))
+						{
+							TileMap->Tiles[Z * World->TileCountX + X] = 1;
+						}
+						if((X == World->TileCountX - 1) && (MapX == 0) && (Z != World->TileCountZ / 2))
+						{
+							TileMap->Tiles[Z * World->TileCountX + X] = 1;
+						}
+						if((X == 0) && (MapX == 1) && (Z != World->TileCountZ / 2))
 						{
 							TileMap->Tiles[Z * World->TileCountX + X] = 1;
 						}
 
-						if((X == World->TileCountX - 1) && (Z != World->TileCountZ / 2))
+
+						if((Z == 0) && (MapZ == 0))
 						{
 							TileMap->Tiles[Z * World->TileCountX + X] = 1;
 						}
-
-						if((Z == 0) && (X != World->TileCountX / 2))
+						if((Z == World->TileCountZ - 1) && (MapZ == 0) && (X != World->TileCountX / 2))
 						{
 							TileMap->Tiles[Z * World->TileCountX + X] = 1;
 						}
-
-						if((Z == World->TileCountZ - 1) && (X != World->TileCountX / 2))
+						if((Z == 0) && (MapZ == 1) && (X != World->TileCountX / 2))
+						{
+							TileMap->Tiles[Z * World->TileCountX + X] = 1;
+						}
+						if((Z == World->TileCountZ - 1) && (MapZ == 1))
 						{
 							TileMap->Tiles[Z * World->TileCountX + X] = 1;
 						}
@@ -726,8 +741,6 @@ extern "C" APP_UPDATE_AND_RENDER(AppUpdateAndRender)
 		AppState->Ground = DEBUGBitmapReadEntireFile(Thread, "textures/ground.bmp", Platform.DEBUGPlatformReadEntireFile);;
 		AppState->Gray = DEBUGBitmapReadEntireFile(Thread, "gray_with_boundary.bmp", Platform.DEBUGPlatformReadEntireFile);;
 		AppState->White = DEBUGBitmapReadEntireFile(Thread, "white.bmp", Platform.DEBUGPlatformReadEntireFile);;
-
-
 
 		// TODO(Justin): Why is the camera X of TileCountX the center of the
 		// grid and not 0.5 TileCountX?
@@ -816,19 +829,7 @@ extern "C" APP_UPDATE_AND_RENDER(AppUpdateAndRender)
 			}
 		}
 
-
-		mat4 Translate = Mat4Translation(-1.0f, 0.0f, 0.0f);
-		QuadAdd(AppState, QuadGround, Translate, ScaleQuad);
-
-		Translate = Mat4Translation(-2.0f, 0.0f, 0.0f);
-		QuadAdd(AppState, QuadGround, Translate, ScaleQuad);
-
-		v3f V0 = Translate * QuadGround->Vertices[0];
-		v3f V1 = Translate * QuadGround->Vertices[1];
-		v3f V2 = Translate * QuadGround->Vertices[2];
-		v3f V3 = Translate * QuadGround->Vertices[3];
-
-		Translate = Mat4Translation((f32)(World->TileCountX / 2), 0.35f, -1.0f * (f32)(World->TileCountZ / 2));
+		mat4 Translate = Mat4Translation((f32)(World->TileCountX / 2), 0.35f, -1.0f * (f32)(World->TileCountZ / 2));
 		ScaleCube = Mat4Scale(0.35f);
 
 		mesh PlayerCube = AppState->Cube.Mesh;
@@ -949,6 +950,9 @@ extern "C" APP_UPDATE_AND_RENDER(AppUpdateAndRender)
 		Input->dMouseY = 0;
 
 		entity *Player = EntityGet(AppState, AppState->PlayerEntityIndex);
+
+		// NOTE(Justin): Center camera x in tile map. Set camera z to bottom of
+		// tile map.
 		Camera->P.x = World->TileSideInMeters * (AppState->PlayerTileMapX * World->TileCountX + (World->TileCountX / 2));
 		Camera->P.z = -1.0f * World->TileSideInMeters * (AppState->PlayerTileMapZ * World->TileCountZ) + World->TileCountZ / 2;
 		CameraUpdate(AppState, Camera, Input->dMouseX, Input->dMouseY, dt);
