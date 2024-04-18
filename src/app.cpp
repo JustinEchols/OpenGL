@@ -681,8 +681,9 @@ extern "C" APP_UPDATE_AND_RENDER(AppUpdateAndRender)
 		World->TileMapCountX = 2;
 		World->TileMapCountZ = 2;
 		World->TileSideInMeters = 1.0f;
+		AppState->MetersToPixels = 1.0f / World->TileSideInMeters;
 
-		World->TileMaps = PushArray(WorldArena, 4, tile_map);
+		World->TileMaps = PushArray(WorldArena, World->TileMapCountX * World->TileMapCountZ, tile_map);
 		for(s32 MapZ = 0; MapZ < World->TileMapCountZ; ++MapZ)
 		{
 			for(s32 MapX = 0; MapX < World->TileMapCountX; ++MapX)
@@ -726,12 +727,12 @@ extern "C" APP_UPDATE_AND_RENDER(AppUpdateAndRender)
 		AppState->Gray = DEBUGBitmapReadEntireFile(Thread, "gray_with_boundary.bmp", Platform.DEBUGPlatformReadEntireFile);;
 		AppState->White = DEBUGBitmapReadEntireFile(Thread, "white.bmp", Platform.DEBUGPlatformReadEntireFile);;
 
-		AppState->MetersToPixels = 1.0f / World->TileSideInMeters;
+
 
 		// TODO(Justin): Why is the camera X of TileCountX the center of the
 		// grid and not 0.5 TileCountX?
-		//CameraInit(AppState, V3F(0.0f/*(f32)World->TileCountX * World->TileSideInMeters*/, 20.0f, 7.0f), -90.0f, -45.0f);
-		CameraInit(AppState, V3F(0.0f, 20.0f, 0.0f), -90.0f, -45.0f);
+		//CameraInit(AppState, V3F((f32)(World->TileCountX / 2), 20.0f, (f32)(World->TileCountZ / 2)), -90.0f, -45.0f);
+		CameraInit(AppState, V3F((f32)(World->TileCountX / 2), 10.0f, (f32)(World->TileCountZ / 2)), -90.0f, -45.0f);
 		AppState->CameraIsFree = false;
 
 		f32 FOV = DegreeToRad(45.0f);
@@ -744,7 +745,7 @@ extern "C" APP_UPDATE_AND_RENDER(AppUpdateAndRender)
 		AppState->MapToScreenSpace = 
 			Mat4ScreenSpaceMap(BackBuffer->Width, BackBuffer->Height);
 
-		AppState->MapToWorld = Mat4WorldSpaceMap(V3F(0.0f, 0.0f, -1.0f));
+		AppState->MapToWorld = Mat4WorldSpaceMap(V3F(0.0f, 0.0f, 0.0f));
 
 		mesh SourceCube = AppState->Cube.Mesh;
 
@@ -815,7 +816,19 @@ extern "C" APP_UPDATE_AND_RENDER(AppUpdateAndRender)
 			}
 		}
 
-		mat4 Translate = Mat4Translation((f32)(World->TileCountX / 2), 0.35f, -1.0f * (f32)(World->TileCountZ / 2));
+
+		mat4 Translate = Mat4Translation(-1.0f, 0.0f, 0.0f);
+		QuadAdd(AppState, QuadGround, Translate, ScaleQuad);
+
+		Translate = Mat4Translation(-2.0f, 0.0f, 0.0f);
+		QuadAdd(AppState, QuadGround, Translate, ScaleQuad);
+
+		v3f V0 = Translate * QuadGround->Vertices[0];
+		v3f V1 = Translate * QuadGround->Vertices[1];
+		v3f V2 = Translate * QuadGround->Vertices[2];
+		v3f V3 = Translate * QuadGround->Vertices[3];
+
+		Translate = Mat4Translation((f32)(World->TileCountX / 2), 0.35f, -1.0f * (f32)(World->TileCountZ / 2));
 		ScaleCube = Mat4Scale(0.35f);
 
 		mesh PlayerCube = AppState->Cube.Mesh;
@@ -845,7 +858,6 @@ extern "C" APP_UPDATE_AND_RENDER(AppUpdateAndRender)
 		// to the current tile map the player is standing on.
 
 		entity *Player = PlayerAdd(AppState, &PlayerCube, Translate, ScaleCube);
-
 		Memory->IsInitialized = true;
 	}
 
@@ -859,7 +871,6 @@ extern "C" APP_UPDATE_AND_RENDER(AppUpdateAndRender)
 
 		TransientState->IsInitialized = true;
 	}
-	AppState->MetersToPixels = 2.0f;
 
 	f32 dt = Input->dtForFrame;
 
@@ -938,8 +949,8 @@ extern "C" APP_UPDATE_AND_RENDER(AppUpdateAndRender)
 		Input->dMouseY = 0;
 
 		entity *Player = EntityGet(AppState, AppState->PlayerEntityIndex);
-		Camera->P.x = World->TileSideInMeters * (AppState->PlayerTileMapX * World->TileCountX + World->TileCountX);
-		Camera->P.z = -1.0f * World->TileSideInMeters * (AppState->PlayerTileMapZ * World->TileCountZ);// + World->TileCountZ);
+		Camera->P.x = World->TileSideInMeters * (AppState->PlayerTileMapX * World->TileCountX + (World->TileCountX / 2));
+		Camera->P.z = -1.0f * World->TileSideInMeters * (AppState->PlayerTileMapZ * World->TileCountZ) + World->TileCountZ / 2;
 		CameraUpdate(AppState, Camera, Input->dMouseX, Input->dMouseY, dt);
 	}
 
