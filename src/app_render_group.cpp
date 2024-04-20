@@ -286,18 +286,14 @@ PushRenderElement_(render_group *RenderGroup, u32 Size, render_group_entry_type 
 }
 
 inline void
-PushRectangle(render_group *RenderGroup, v3f Offset, v2f Dim, v4f Color = V4F(1.0f))
+PushRectangle(render_group *RenderGroup, basis B, v3f Dim, v4f Color = V4F(1.0f))
 {
 	render_entry_rectangle *Entry = PushRenderElement(RenderGroup, render_entry_rectangle);
 	if(Entry)
 	{
-		mat4 M = RenderGroupGetViewingTransformation(RenderGroup);
-		f32 MetersToPixels = RenderGroup->MetersToPixels;
-
-		Entry->EntityBasis.Basis = RenderGroup->DefaultBasis;
-		Entry->EntityBasis.Offset = MetersToPixels * (Offset - V3F(0.5f * Dim, 0));
+		Entry->Basis = B;
+		Entry->Dim = Dim;
 		Entry->Color = Color;
-		Entry->Dim = MetersToPixels * Dim;
 	}
 }
 

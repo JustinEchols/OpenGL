@@ -53,8 +53,11 @@ struct render_entry_bitmap
 struct render_entry_rectangle
 {
 	render_entity_basis EntityBasis;
+
+	basis Basis;
+	v3f Dim;
 	v4f Color;
-	v2f Dim;
+
 };
 
 struct render_entry_triangle
