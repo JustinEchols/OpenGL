@@ -84,14 +84,14 @@ QuadAdd(app_state *AppState, mesh *Mesh, mat4 Translate, mat4 Scale)
 }
 
 internal mat4
-TranslationToChunk(world *World, s32 PackedX, s32 PackedZ, f32 HeightInChunk)
+TranslationToChunk(world *World, s32 PackedX, s32 PackedY, s32 PackedZ, f32 HeightInChunk)
 {
 	// NOTE(Justin): Translation matrix such that a basis is translated to the
 	// center of the chunk.
 
 	mat4 Result = Mat4Identity();
 
-	chunk_tile_position ChunkP = ChunkPosGet(World, PackedX, PackedZ);
+	chunk_tile_position ChunkP = ChunkPosGet(World, PackedX, PackedY, PackedZ);
 
 	f32 XOffset = ChunkP.ChunkX * World->ChunkDim * World->TileSideInMeters
 		+ ChunkP.TileX * World->TileSideInMeters;
@@ -113,10 +113,10 @@ PlayerAdd(app_state *AppState)
 	world *World = &AppState->World;
 
 	Entity->PackedX = 8;
-	Entity->PackedZ = 5;
+	Entity->PackedZ = 4;
 	Entity->Basis = BasisStandard();
 
-	Entity->Translate = TranslationToChunk(World, Entity->PackedX, Entity->PackedZ, 0.35f);
+	Entity->Translate = TranslationToChunk(World, Entity->PackedX, Entity->PackedY, Entity->PackedZ, 0.35f);
 	Entity->Scale = Mat4Scale(0.35f);
 
 	Entity->Mesh[0] = AppState->Cube.Mesh;
@@ -148,15 +148,15 @@ EntityMove(app_state *AppState, entity *Entity, v3f ddP, f32 dt)
 	v3f PlayerDelta = 0.5f * ddP * Square(dt) + Entity->dP * dt;
 	v3f NewP = Entity->Basis.O + PlayerDelta;
 
-	PlayerPosReCompute(World, &Entity->PackedX, &Entity->PackedZ, &NewP.x, &NewP.z);
+	PlayerPosReCompute(World, &Entity->PackedX, &Entity->PackedY, &Entity->PackedZ, &NewP.x, &NewP.y, &NewP.z);
 
-	if(WorldTileIsEmpty(World, Entity->PackedX, Entity->PackedZ))
+	if(WorldTileIsEmpty(World, Entity->PackedX, Entity->PackedY, Entity->PackedZ))
 	{
 		// NOTE(Justin): The basis origin is always relative to the center of
 		// any tile map
 		Entity->Basis.O = {NewP.x, 0.0f, NewP.z};
 
-		Entity->Translate = TranslationToChunk(World, Entity->PackedX, Entity->PackedZ, 0.35f);
+		Entity->Translate = TranslationToChunk(World, Entity->PackedX, Entity->PackedY, Entity->PackedZ, 0.35f);
 		Entity->dP = Entity->dP + ddP * dt;
 	}
 }
@@ -576,10 +576,10 @@ extern "C" APP_UPDATE_AND_RENDER(AppUpdateAndRender)
 
 
 		AppState->Cube = DEBUGObjReadEntireFile(Thread, "models/cube.obj", WorldArena, Platform.DEBUGPlatformReadEntireFile);
-		AppState->Ground = DEBUGBitmapReadEntireFile(Thread, "textures/ground.bmp", Platform.DEBUGPlatformReadEntireFile);;
-		AppState->Gray = DEBUGBitmapReadEntireFile(Thread, "gray_with_boundary.bmp", Platform.DEBUGPlatformReadEntireFile);;
-		AppState->White = DEBUGBitmapReadEntireFile(Thread, "white.bmp", Platform.DEBUGPlatformReadEntireFile);;
-		AppState->Black = DEBUGBitmapReadEntireFile(Thread, "black.bmp", Platform.DEBUGPlatformReadEntireFile);;
+		AppState->Ground = DEBUGBitmapReadEntireFile(Thread, "textures/ground.bmp", Platform.DEBUGPlatformReadEntireFile);
+		AppState->Gray = DEBUGBitmapReadEntireFile(Thread, "gray_with_boundary.bmp", Platform.DEBUGPlatformReadEntireFile);
+		AppState->White = DEBUGBitmapReadEntireFile(Thread, "white.bmp", Platform.DEBUGPlatformReadEntireFile);
+		AppState->Black = DEBUGBitmapReadEntireFile(Thread, "black.bmp", Platform.DEBUGPlatformReadEntireFile);
 
 		CameraInit(AppState, V3F(0.0f, 12.0f, 0.0f), -90.0f, -50.0f);
 		AppState->CameraIsFree = false;
@@ -641,15 +641,18 @@ extern "C" APP_UPDATE_AND_RENDER(AppUpdateAndRender)
 		World->ChunkShift = 4;
 		World->ChunkMask = (1 << World->ChunkShift) - 1;
 		World->ChunkDim = (1 << World->ChunkShift);
-		World->ChunkCountX = 5;
-		World->ChunkCountZ = 5;
+		World->ChunkCountX = 11;
+		World->ChunkCountY = 1;
+		World->ChunkCountZ = 11;
 
 		World->TileSideInMeters = 1.0f;
 		World->ChunkDimInMeters = 16.0f * World->TileSideInMeters;
 
 		AppState->MetersToPixels = 1.0f / World->TileSideInMeters;
 
-		World->TileChunks = PushArray(WorldArena, World->ChunkCountX * World->ChunkCountZ, tile_chunk);
+		World->TileChunks = PushArray(WorldArena, World->ChunkCountX *
+												  World->ChunkCountY *
+												  World->ChunkCountZ, tile_chunk);
 
 		s32 TilesInXPerScreen = 17;
 		s32 TilesInZPerScreen = 9;
@@ -658,39 +661,65 @@ extern "C" APP_UPDATE_AND_RENDER(AppUpdateAndRender)
 		u32 RandomNumberIndex = 0;
 		for(s32 ScreenIndex = 0; ScreenIndex < 10; ++ScreenIndex)
 		{
-			for(s32 TileZ = 0; TileZ < TilesInZPerScreen; ++TileZ)
+			for(s32 TileY = 0; TileY < 1; ++TileY)
 			{
-				for(s32 TileX = 0; TileX < TilesInXPerScreen; ++TileX)
+				for(s32 TileZ = 0; TileZ < TilesInZPerScreen; ++TileZ)
 				{
-					s32 PackedX = ScreenX * TilesInXPerScreen + TileX;
-					s32 PackedZ = ScreenZ * TilesInZPerScreen + TileZ;
-
-					u32 TileValue = 1;
-					if((TileX == 0) || (TileX == (TilesInXPerScreen - 1)))
+					for(s32 TileX = 0; TileX < TilesInXPerScreen; ++TileX)
 					{
-						if(TileZ == (TilesInZPerScreen / 2))
+						s32 PackedX = ScreenX * TilesInXPerScreen + TileX;
+						s32 PackedY = TileY;
+						s32 PackedZ = ScreenZ * TilesInZPerScreen + TileZ;
+
+						u32 TileValue = 1;
+						if(TileY == 0)
 						{
-							TileValue = 1;
+							if((TileX == 0) || (TileX == (TilesInXPerScreen - 1)))
+							{
+								if(TileZ == (TilesInZPerScreen / 2))
+								{
+									TileValue = 1;
+								}
+								else
+								{
+									TileValue = 2;
+								}
+
+							}
+							if((TileZ == 0) || (TileZ == (TilesInZPerScreen - 1)))
+							{
+								if(TileX == (TilesInXPerScreen / 2))
+								{
+									TileValue = 1;
+								}
+								else
+								{
+									TileValue = 2;
+								}
+							}
 						}
 						else
 						{
-							TileValue = 2;
+							TileValue = 0;
+							if((TileX == 0) || (TileX == (TilesInXPerScreen - 1)))
+							{
+								if(TileZ != (TilesInZPerScreen / 2))
+								{
+									TileValue = 2;
+								}
+
+							}
+							if((TileZ == 0) || (TileZ == (TilesInZPerScreen - 1)))
+							{
+								if(TileX != (TilesInXPerScreen / 2))
+								{
+									TileValue = 2;
+								}
+							}
 						}
 
+						TileValueSet(WorldArena, World, PackedX, PackedY, PackedZ, TileValue);
 					}
-					if((TileZ == 0) || (TileZ == (TilesInZPerScreen - 1)))
-					{
-						if(TileX == (TilesInXPerScreen / 2))
-						{
-							TileValue = 1;
-						}
-						else
-						{
-							TileValue = 2;
-						}
-					}
-
-					TileValueSet(WorldArena, World, PackedX, PackedZ, TileValue);
 				}
 			}
 
@@ -706,33 +735,40 @@ extern "C" APP_UPDATE_AND_RENDER(AppUpdateAndRender)
 		}
 
 		// NOTE(Justin): Add ground and wall entities for allocated tiles only
-		for(s32 ChunkZ = 0; ChunkZ < World->ChunkCountZ; ++ChunkZ)
+		for(s32 ChunkY = 0; ChunkY < World->ChunkCountY; ++ChunkY)
 		{
-			for(s32 ChunkX = 0; ChunkX < World->ChunkCountX; ++ChunkX)
+			for(s32 ChunkZ = 0; ChunkZ < World->ChunkCountZ; ++ChunkZ)
 			{
-				tile_chunk *TileChunk = TileChunkGet(World, ChunkX, ChunkZ);
-				if(TileChunk && TileChunk->Tiles)
+				for(s32 ChunkX = 0; ChunkX < World->ChunkCountX; ++ChunkX)
 				{
-					for(s32 Z = 0; Z < World->ChunkDim ; ++Z)
+					tile_chunk *TileChunk = TileChunkGet(World, ChunkX, ChunkY, ChunkZ);
+					if(TileChunk && TileChunk->Tiles)
 					{
-						for(s32 X = 0; X < World->ChunkDim; ++X)
+						for(s32 Y = 0; Y < 1; ++Y)
 						{
-							u32 TileValue = TileValueGet(World, TileChunk, X, Z);
-
-							f32 XOffset = (f32)ChunkX * (World->ChunkDim * World->TileSideInMeters) + World->TileSideInMeters * (f32)X;
-							f32 ZOffset = -1.0f * (f32)ChunkZ * (World->ChunkDim * World->TileSideInMeters) - World->TileSideInMeters * (f32)Z;
-
-							mat4 Translate; 
-
-							if(TileValue == 1)
+							for(s32 Z = 0; Z < World->ChunkDim ; ++Z)
 							{
-								Translate = Mat4Translation(XOffset, 0.0f, ZOffset);
-								QuadAdd(AppState, QuadGround, Translate, ScaleQuad);
-							}
-							else if(TileValue == 2)
-							{
-								Translate = Mat4Translation(XOffset, 0.5f, ZOffset);
-								ModelAdd(AppState, WallCube, Translate, ScaleCube);
+								for(s32 X = 0; X < World->ChunkDim; ++X)
+								{
+									u32 TileValue = TileValueGet(World, TileChunk, X, Y, Z);
+
+									f32 XOffset = (f32)ChunkX * (World->ChunkDim * World->TileSideInMeters) + World->TileSideInMeters * (f32)X;
+									f32 YOffset = (f32)Y * World->TileSideInMeters;
+									f32 ZOffset = -1.0f * (f32)ChunkZ * (World->ChunkDim * World->TileSideInMeters) - World->TileSideInMeters * (f32)Z;
+
+									mat4 Translate; 
+
+									if(TileValue == 1)
+									{
+										Translate = Mat4Translation(XOffset, YOffset, ZOffset);
+										QuadAdd(AppState, QuadGround, Translate, ScaleQuad);
+									}
+									else if(TileValue == 2)
+									{
+										Translate = Mat4Translation(XOffset, YOffset + 0.5f, ZOffset);
+										ModelAdd(AppState, WallCube, Translate, ScaleCube);
+									}
+								}
 							}
 						}
 					}
@@ -827,9 +863,7 @@ extern "C" APP_UPDATE_AND_RENDER(AppUpdateAndRender)
 
 		entity *Player = EntityGet(AppState, AppState->PlayerEntityIndex);
 
-		chunk_tile_position ChunkP = ChunkPosGet(World, Player->PackedX, Player->PackedZ);
-		// NOTE(Justin): Center camera x in tile map. Set camera z to bottom of
-		// tile map.
+		chunk_tile_position ChunkP = ChunkPosGet(World, Player->PackedX, Player->PackedY, Player->PackedZ);
 		
 		// TODO(Justin): Parameterize these constants;
 		Camera->P.x = World->TileSideInMeters * (ChunkP.ChunkX * 17 + (17 / 2));
@@ -874,7 +908,7 @@ extern "C" APP_UPDATE_AND_RENDER(AppUpdateAndRender)
 
 				PushModel(RenderGroup, &Entity->Mesh[0], Entity->Basis, Entity->Translate, Entity->Scale); 
 
-				chunk_tile_position ChunkP = ChunkPosGet(World, Entity->PackedX, Entity->PackedZ);
+				chunk_tile_position ChunkP = ChunkPosGet(World, Entity->PackedX, Entity->PackedY, Entity->PackedZ);
 
 				basis B = Entity->Basis;
 

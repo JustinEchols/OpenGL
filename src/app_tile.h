@@ -13,6 +13,7 @@ struct world
 	s32 ChunkDim;
 
 	s32 ChunkCountX;
+	s32 ChunkCountY;
 	s32 ChunkCountZ;
 
 	f32 TileSideInMeters;
@@ -24,9 +25,12 @@ struct world
 struct chunk_tile_position
 {
 	s32 ChunkX;
+	s32 ChunkY;
 	s32 ChunkZ;
 
+
 	s32 TileX;
+	s32 TileY;
 	s32 TileZ;
 };
 
