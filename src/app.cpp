@@ -1,5 +1,7 @@
 
 #include "app.h"
+#include "app_tile.cpp"
+#include "app_random.h"
 #include "app_render_group.cpp"
 
 internal entity *
@@ -44,37 +46,11 @@ BasisStandard(void)
 }
 
 internal entity *
-TriangleAdd(app_state *AppState, v4f Vertices[], v3f Colors[])
-{
-	entity *Entity = EntityAdd(AppState, ENTITY_TRIANGLE);
-
-	Entity->Triangle.Vertices[0] = Vertices[0]; 
-	Entity->Triangle.Vertices[1] = Vertices[1]; 
-	Entity->Triangle.Vertices[2] = Vertices[2]; 
-	Entity->Triangle.Colors[0] = Colors[0]; 
-	Entity->Triangle.Colors[1] = Colors[1]; 
-	Entity->Triangle.Colors[2] = Colors[2]; 
-
-	return(Entity);
-}
-
-internal entity *
-RectangleAdd(app_state *AppState, v4f Min, v4f Max)
-{
-	entity *Entity = EntityAdd(AppState, ENTITY_RECTANGLE);
-
-	Entity->Rectangle.Min = Min;
-	Entity->Rectangle.Max = Max;
-
-	return(Entity);
-}
-
-internal entity *
 ModelAdd(app_state *AppState, mesh *Mesh, mat4 Translate, mat4 Scale, loaded_bitmap *Texture = 0)
 {
 	entity *Entity = EntityAdd(AppState, ENTITY_MODEL);
 
-	Entity->Mesh = *Mesh;
+	Entity->Mesh[0] = *Mesh;
 	Entity->Basis = BasisStandard();
 	Entity->Translate = Translate;
 	Entity->Scale = Scale;
@@ -100,24 +76,51 @@ QuadAdd(app_state *AppState, mesh *Mesh, mat4 Translate, mat4 Scale)
 	entity *Entity = EntityAdd(AppState, ENTITY_QUAD);
 
 	Entity->Basis = BasisStandard();
-	Entity->Mesh = *Mesh;
+	Entity->Mesh[0] = *Mesh;
 	Entity->Translate = Translate;
 	Entity->Scale = Scale;
 	
 	return(Entity);
 }
 
+internal mat4
+TranslationToChunk(world *World, s32 PackedX, s32 PackedZ, f32 HeightInChunk)
+{
+	// NOTE(Justin): Translation matrix such that a basis is translated to the
+	// center of the chunk.
+
+	mat4 Result = Mat4Identity();
+
+	chunk_tile_position ChunkP = ChunkPosGet(World, PackedX, PackedZ);
+
+	f32 XOffset = ChunkP.ChunkX * World->ChunkDim * World->TileSideInMeters
+		+ ChunkP.TileX * World->TileSideInMeters;
+
+	f32 ZOffset = ChunkP.ChunkZ * World->ChunkDim * World->TileSideInMeters
+		+ ChunkP.TileZ * World->TileSideInMeters;
+
+	Result = Mat4Translation(XOffset, HeightInChunk, -ZOffset);
+
+	return(Result);
+}
 
 internal entity *
-PlayerAdd(app_state *AppState, mesh *Mesh, mat4 Translate, mat4 Scale)
+PlayerAdd(app_state *AppState)
 {
 	entity *Entity = EntityAdd(AppState, ENTITY_PLAYER);
 	AppState->PlayerEntityIndex = Entity->Index;
 
+	world *World = &AppState->World;
+
+	Entity->PackedX = 8;
+	Entity->PackedZ = 5;
 	Entity->Basis = BasisStandard();
-	Entity->Mesh = *Mesh;
-	Entity->Translate = Translate;
-	Entity->Scale = Scale;
+
+	Entity->Translate = TranslationToChunk(World, Entity->PackedX, Entity->PackedZ, 0.35f);
+	Entity->Scale = Mat4Scale(0.35f);
+
+	Entity->Mesh[0] = AppState->Cube.Mesh;
+	Entity->Mesh[0].Colors[0] = {1.0f, 1.0f, 0.0f, 1.0f};
 
 	Entity->AABB.Center = Entity->Basis.O;
 
@@ -127,100 +130,7 @@ PlayerAdd(app_state *AppState, mesh *Mesh, mat4 Translate, mat4 Scale)
 	return(Entity);
 }
 
-internal tile_map *
-TileMapGet(world *World, s32 TileMapX, s32 TileMapZ)
-{
-	tile_map *TileMap = 0;
-
-	if((TileMapX >= 0) && (TileMapX < World->TileMapCountX) &&
-	   (TileMapZ >= 0) && (TileMapZ < World->TileMapCountZ))
-	{
-		TileMap = &World->TileMaps[TileMapZ * World->TileMapCountX + TileMapX];
-	}
-	
-	return(TileMap);
-}
-
-internal u32
-TileValueGet(world *World, tile_map *TileMap, s32 TileX, s32 TileZ)
-{
-	Assert(TileMap);
-	Assert((TileX >= 0) && (TileX < World->TileCountX) &&
-		   (TileZ >= 0) && (TileZ < World->TileCountZ));
-
-	u32 TileValue = TileMap->Tiles[TileZ * World->TileCountX + TileX];
-	return(TileValue);
-}
-
-internal b32
-TileIsEmpty(world *World, s32 TileMapX, s32 TileMapZ, s32 TileX, s32 TileZ)
-{
-	b32 Result = false;
-
-	tile_map *TileMap = TileMapGet(World, TileMapX, TileMapZ);
-	u32 TileValue = TileValueGet(World, TileMap, TileX, TileZ);
-
-	Result = (TileValue == 0);
-
-	return(Result);
-}
-
-struct canoncial_position
-{
-	s32 TileMapX;
-	s32 TileMapZ;
-	s32 TileX;
-	s32 TileZ;
-
-	f32 X;
-	f32 Z;
-};
-
-internal canoncial_position
-PlayerPosReCompute(world *World, s32 TileMapX, s32 TileMapZ, f32 X, f32 Z)
-{
-	canoncial_position Result;
-
-	Result.TileMapX = TileMapX;
-	Result.TileMapZ = TileMapZ;
-
-	Result.TileX = (World->TileCountX / 2) + F32FloorToS32(X / World->TileSideInMeters);
-	Result.TileZ = (World->TileCountZ / 2) + F32FloorToS32(-1 * Z / World->TileSideInMeters);
-
-	Result.X = X;
-	Result.Z = Z;
-
-	if(Result.TileX < 0)
-	{
-		Result.X += World->TileCountX * World->TileSideInMeters;
-		Result.TileX += World->TileCountX;
-		Result.TileMapX -= 1;
-	}
-
-	if(Result.TileX >= World->TileCountX)
-	{
-		Result.X -= World->TileCountX * World->TileSideInMeters;
-		Result.TileX -= World->TileCountX;
-		Result.TileMapX += 1;
-	}
-
-	if(Result.TileZ < 0)
-	{
-		Result.Z -= World->TileCountZ * World->TileSideInMeters;
-		Result.TileZ += World->TileCountZ;
-		Result.TileMapZ -= 1;
-	}
-
-	if(Result.TileZ >= World->TileCountZ)
-	{
-		Result.TileMapZ += 1;
-		Result.TileZ -= World->TileCountZ;
-		Result.Z += World->TileCountZ * World->TileSideInMeters;
-	}
-
-	return(Result);
-}
-
+#if 1
 internal void
 EntityMove(app_state *AppState, entity *Entity, v3f ddP, f32 dt)
 { 
@@ -238,29 +148,20 @@ EntityMove(app_state *AppState, entity *Entity, v3f ddP, f32 dt)
 	v3f PlayerDelta = 0.5f * ddP * Square(dt) + Entity->dP * dt;
 	v3f NewP = Entity->Basis.O + PlayerDelta;
 
-	s32 PlayerTileMapX = AppState->PlayerTileMapX;
-	s32 PlayerTileMapZ = AppState->PlayerTileMapZ;
+	PlayerPosReCompute(World, &Entity->PackedX, &Entity->PackedZ, &NewP.x, &NewP.z);
 
-	canoncial_position P = PlayerPosReCompute(World, PlayerTileMapX, PlayerTileMapZ, NewP.x, NewP.z);
-
-	AppState->PlayerTileMapX = P.TileMapX;
-	AppState->PlayerTileMapZ = P.TileMapZ;
-	if(TileIsEmpty(World, P.TileMapX, P.TileMapZ, P.TileX, P.TileZ))
+	if(WorldTileIsEmpty(World, Entity->PackedX, Entity->PackedZ))
 	{
 		// NOTE(Justin): The basis origin is always relative to the center of
 		// any tile map
-		Entity->Basis.O = {P.X, 0.0f, P.Z};
+		Entity->Basis.O = {NewP.x, 0.0f, NewP.z};
 
-		f32 XOffset = (f32)(P.TileMapX * World->TileCountX * World->TileSideInMeters) + (World->TileCountX / 2) * World->TileSideInMeters;
-		f32 ZOffset = (f32)(P.TileMapZ * World->TileCountZ * World->TileSideInMeters) + (World->TileCountZ / 2) * World->TileSideInMeters;
-
-		// NOTE(Justin): Compute the translation matrix that translates the
-		// basis to the center of the current tile map the player is standing
-		// on.
-		Entity->Translate = Mat4Translation(XOffset, 0.35f, -ZOffset);
+		Entity->Translate = TranslationToChunk(World, Entity->PackedX, Entity->PackedZ, 0.35f);
 		Entity->dP = Entity->dP + ddP * dt;
 	}
 }
+
+#endif
 
 inline f32
 StringToFloat(char *String)
@@ -602,7 +503,6 @@ CameraInit(app_state *AppState, v3f P, f32 Yaw, f32 Pitch)
 internal void
 CameraUpdate(app_state *AppState, camera *Camera, f32 dMouseX, f32 dMouseY, f32 dt)
 {
-
 	f32 Sensitivity = 0.5f;
 
 	f32 dX = dMouseX * dt * Sensitivity;
@@ -674,78 +574,14 @@ extern "C" APP_UPDATE_AND_RENDER(AppUpdateAndRender)
 		ArenaInitialize(WorldArena, Memory->PermanentStorageSize - sizeof(app_state),
 				(u8 *)Memory->PermanentStorage + sizeof(app_state));
 
-		world *World = &AppState->World;
-		
-		World->TileCountX = 17;
-		World->TileCountZ = 9;
-		World->TileMapCountX = 2;
-		World->TileMapCountZ = 2;
-		World->TileSideInMeters = 1.0f;
-		AppState->MetersToPixels = 1.0f / World->TileSideInMeters;
-
-		World->TileMaps = PushArray(WorldArena, World->TileMapCountX * World->TileMapCountZ, tile_map);
-		for(s32 MapZ = 0; MapZ < World->TileMapCountZ; ++MapZ)
-		{
-			for(s32 MapX = 0; MapX < World->TileMapCountX; ++MapX)
-			{
-				tile_map *TileMap = &World->TileMaps[MapZ * World->TileMapCountZ + MapX];
-				TileMap->Tiles = PushArray(WorldArena, World->TileCountZ * World->TileCountX, u32);
-
-				for(s32 Z = 0; Z < World->TileCountZ; ++Z)
-				{
-					for(s32 X = 0; X < World->TileCountX; ++X)
-					{
-						if((X == 0) && (MapX == 0))
-						{
-							TileMap->Tiles[Z * World->TileCountX + X] = 1;
-						}
-						if((X == World->TileCountX - 1) && (MapX == 1))
-						{
-							TileMap->Tiles[Z * World->TileCountX + X] = 1;
-						}
-						if((X == World->TileCountX - 1) && (MapX == 0) && (Z != World->TileCountZ / 2))
-						{
-							TileMap->Tiles[Z * World->TileCountX + X] = 1;
-						}
-						if((X == 0) && (MapX == 1) && (Z != World->TileCountZ / 2))
-						{
-							TileMap->Tiles[Z * World->TileCountX + X] = 1;
-						}
-
-
-						if((Z == 0) && (MapZ == 0))
-						{
-							TileMap->Tiles[Z * World->TileCountX + X] = 1;
-						}
-						if((Z == World->TileCountZ - 1) && (MapZ == 0) && (X != World->TileCountX / 2))
-						{
-							TileMap->Tiles[Z * World->TileCountX + X] = 1;
-						}
-						if((Z == 0) && (MapZ == 1) && (X != World->TileCountX / 2))
-						{
-							TileMap->Tiles[Z * World->TileCountX + X] = 1;
-						}
-						if((Z == World->TileCountZ - 1) && (MapZ == 1))
-						{
-							TileMap->Tiles[Z * World->TileCountX + X] = 1;
-						}
-					}
-				}
-			}
-		}
 
 		AppState->Cube = DEBUGObjReadEntireFile(Thread, "models/cube.obj", WorldArena, Platform.DEBUGPlatformReadEntireFile);
-		AppState->Dodecahedron = DEBUGObjReadEntireFile(Thread, "models/dodecahedron.obj", WorldArena, Platform.DEBUGPlatformReadEntireFile);
-		AppState->Pyramid = DEBUGObjReadEntireFile(Thread, "models/pyramid.obj", WorldArena, Platform.DEBUGPlatformReadEntireFile);
-		AppState->Suzanne = DEBUGObjReadEntireFile(Thread, "models/suzanne.obj", WorldArena, Platform.DEBUGPlatformReadEntireFile);
 		AppState->Ground = DEBUGBitmapReadEntireFile(Thread, "textures/ground.bmp", Platform.DEBUGPlatformReadEntireFile);;
 		AppState->Gray = DEBUGBitmapReadEntireFile(Thread, "gray_with_boundary.bmp", Platform.DEBUGPlatformReadEntireFile);;
 		AppState->White = DEBUGBitmapReadEntireFile(Thread, "white.bmp", Platform.DEBUGPlatformReadEntireFile);;
+		AppState->Black = DEBUGBitmapReadEntireFile(Thread, "black.bmp", Platform.DEBUGPlatformReadEntireFile);;
 
-		// TODO(Justin): Why is the camera X of TileCountX the center of the
-		// grid and not 0.5 TileCountX?
-		//CameraInit(AppState, V3F((f32)(World->TileCountX / 2), 20.0f, (f32)(World->TileCountZ / 2)), -90.0f, -45.0f);
-		CameraInit(AppState, V3F((f32)(World->TileCountX / 2), 10.0f, (f32)(World->TileCountZ / 2)), -90.0f, -45.0f);
+		CameraInit(AppState, V3F(0.0f, 12.0f, 0.0f), -90.0f, -50.0f);
 		AppState->CameraIsFree = false;
 
 		f32 FOV = DegreeToRad(45.0f);
@@ -794,71 +630,117 @@ extern "C" APP_UPDATE_AND_RENDER(AppUpdateAndRender)
 		QuadGround->Colors[2] = White;
 		QuadGround->Colors[3] = White;
 
+		// TODO(Justin): Texture array and ids.
 		QuadGround->Texture = &AppState->Gray;
 
 		mat4 ScaleQuad = Mat4Identity();
 		mat4 ScaleCube = Mat4Scale(0.5f);
 
-		for(s32 MapZ = 0; MapZ < World->TileMapCountZ; ++MapZ)
+		world *World = &AppState->World;
+		
+		World->ChunkShift = 4;
+		World->ChunkMask = (1 << World->ChunkShift) - 1;
+		World->ChunkDim = (1 << World->ChunkShift);
+		World->ChunkCountX = 5;
+		World->ChunkCountZ = 5;
+
+		World->TileSideInMeters = 1.0f;
+		World->ChunkDimInMeters = 16.0f * World->TileSideInMeters;
+
+		AppState->MetersToPixels = 1.0f / World->TileSideInMeters;
+
+		World->TileChunks = PushArray(WorldArena, World->ChunkCountX * World->ChunkCountZ, tile_chunk);
+
+		s32 TilesInXPerScreen = 17;
+		s32 TilesInZPerScreen = 9;
+		s32 ScreenX = 0;
+		s32 ScreenZ = 0;
+		u32 RandomNumberIndex = 0;
+		for(s32 ScreenIndex = 0; ScreenIndex < 10; ++ScreenIndex)
 		{
-			for(s32 MapX = 0; MapX < World->TileMapCountX; ++MapX)
+			for(s32 TileZ = 0; TileZ < TilesInZPerScreen; ++TileZ)
 			{
-				tile_map *TileMap = TileMapGet(World, MapX, MapZ);
-				for(s32 Z = 0; Z < World->TileCountZ; ++Z)
+				for(s32 TileX = 0; TileX < TilesInXPerScreen; ++TileX)
 				{
-					for(s32 X = 0; X < World->TileCountX; ++X)
+					s32 PackedX = ScreenX * TilesInXPerScreen + TileX;
+					s32 PackedZ = ScreenZ * TilesInZPerScreen + TileZ;
+
+					u32 TileValue = 1;
+					if((TileX == 0) || (TileX == (TilesInXPerScreen - 1)))
 					{
-						u32 TileValue = TileValueGet(World, TileMap, X, Z);
-
-						f32 XOffset = (f32)MapX * (World->TileCountX * World->TileSideInMeters) + World->TileSideInMeters * (f32)X;
-						f32 ZOffset = -1.0f * (f32)MapZ * (World->TileCountZ * World->TileSideInMeters) - World->TileSideInMeters * (f32)Z;
-
-						mat4 Translate; 
-						if(TileValue == 0)
+						if(TileZ == (TilesInZPerScreen / 2))
 						{
-							Translate = Mat4Translation(XOffset, 0.0f, ZOffset);
-							QuadAdd(AppState, QuadGround, Translate, ScaleQuad);
+							TileValue = 1;
 						}
 						else
 						{
-							Translate = Mat4Translation(XOffset, 0.5f, ZOffset);
-							ModelAdd(AppState, WallCube, Translate, ScaleCube);
+							TileValue = 2;
+						}
+
+					}
+					if((TileZ == 0) || (TileZ == (TilesInZPerScreen - 1)))
+					{
+						if(TileX == (TilesInXPerScreen / 2))
+						{
+							TileValue = 1;
+						}
+						else
+						{
+							TileValue = 2;
+						}
+					}
+
+					TileValueSet(WorldArena, World, PackedX, PackedZ, TileValue);
+				}
+			}
+
+			u32 RandomChoice = RandomNumberTable[RandomNumberIndex++] % 2;
+			if(RandomChoice == 0)
+			{
+				ScreenX++;
+			}
+			else
+			{
+				ScreenZ++;
+			}
+		}
+
+		// NOTE(Justin): Add ground and wall entities for allocated tiles only
+		for(s32 ChunkZ = 0; ChunkZ < World->ChunkCountZ; ++ChunkZ)
+		{
+			for(s32 ChunkX = 0; ChunkX < World->ChunkCountX; ++ChunkX)
+			{
+				tile_chunk *TileChunk = TileChunkGet(World, ChunkX, ChunkZ);
+				if(TileChunk && TileChunk->Tiles)
+				{
+					for(s32 Z = 0; Z < World->ChunkDim ; ++Z)
+					{
+						for(s32 X = 0; X < World->ChunkDim; ++X)
+						{
+							u32 TileValue = TileValueGet(World, TileChunk, X, Z);
+
+							f32 XOffset = (f32)ChunkX * (World->ChunkDim * World->TileSideInMeters) + World->TileSideInMeters * (f32)X;
+							f32 ZOffset = -1.0f * (f32)ChunkZ * (World->ChunkDim * World->TileSideInMeters) - World->TileSideInMeters * (f32)Z;
+
+							mat4 Translate; 
+
+							if(TileValue == 1)
+							{
+								Translate = Mat4Translation(XOffset, 0.0f, ZOffset);
+								QuadAdd(AppState, QuadGround, Translate, ScaleQuad);
+							}
+							else if(TileValue == 2)
+							{
+								Translate = Mat4Translation(XOffset, 0.5f, ZOffset);
+								ModelAdd(AppState, WallCube, Translate, ScaleCube);
+							}
 						}
 					}
 				}
 			}
 		}
 
-		mat4 Translate = Mat4Translation((f32)(World->TileCountX / 2), 0.35f, -1.0f * (f32)(World->TileCountZ / 2));
-		ScaleCube = Mat4Scale(0.35f);
-
-		mesh PlayerCube = AppState->Cube.Mesh;
-		PlayerCube.Colors[0] = {1.0f, 1.0f, 0.0f, 1.0f};
-
-		// NOTE(Justin): Since the player has a basiss and a translate matrix
-		// the following is true:
-		//
-		// The players origin in terms of its basis is (0,0,0)
-		//
-		// The translation matrix translates the origin of the basis to the
-		// center of a tilemap
-		//
-		// Therefore we can think of the player's position in two parts
-		// The players position in terms of the basis alone is relative to the
-		// center of the tilmap so:
-		//
-		// (0,0) center
-		// (-8,0) left 
-		// (8,0) right
-		// (0,-4) top
-		// (0, 4) bottom 
-		// 
-		// When the player moves across a tile map boundary we can therefore re
-		// compute the basis to be relative to the center of a tile map and
-		// update the translation matrix such that it will translate the basis
-		// to the current tile map the player is standing on.
-
-		entity *Player = PlayerAdd(AppState, &PlayerCube, Translate, ScaleCube);
+		entity *Player = PlayerAdd(AppState);
 		Memory->IsInitialized = true;
 	}
 
@@ -902,12 +784,6 @@ extern "C" APP_UPDATE_AND_RENDER(AppUpdateAndRender)
 		}
 		if(KeyBoardController->A.EndedDown)
 		{
-			// NOTE(Justin): Translating the WORLD POSITION of the camera should
-			// is NOT an INVERSE operation. Since the position of the camera is in
-			// world space then when the camera moves to the right find the right
-			// vector of the camera and add some scalar multiple of it to the
-			// position.
-
 			Shift += -1.0f * Cross(YAxis(), -1.0f *Camera->Direction);
 		}
 		if(KeyBoardController->D.EndedDown) 
@@ -951,15 +827,15 @@ extern "C" APP_UPDATE_AND_RENDER(AppUpdateAndRender)
 
 		entity *Player = EntityGet(AppState, AppState->PlayerEntityIndex);
 
+		chunk_tile_position ChunkP = ChunkPosGet(World, Player->PackedX, Player->PackedZ);
 		// NOTE(Justin): Center camera x in tile map. Set camera z to bottom of
 		// tile map.
-		Camera->P.x = World->TileSideInMeters * (AppState->PlayerTileMapX * World->TileCountX + (World->TileCountX / 2));
-		Camera->P.z = -1.0f * World->TileSideInMeters * (AppState->PlayerTileMapZ * World->TileCountZ) + World->TileCountZ / 2;
+		
+		// TODO(Justin): Parameterize these constants;
+		Camera->P.x = World->TileSideInMeters * (ChunkP.ChunkX * 17 + (17 / 2));
+		Camera->P.z = -1.0f * World->TileSideInMeters * (ChunkP.ChunkZ * 9) + (9 / 2);
 		CameraUpdate(AppState, Camera, Input->dMouseX, Input->dMouseY, dt);
 	}
-
-
-
 
 	//
 	// NOTE(Justin): Render
@@ -975,7 +851,7 @@ extern "C" APP_UPDATE_AND_RENDER(AppUpdateAndRender)
 	mat4 MapToScreen = Mat4ScreenSpaceMap(BackBuffer->Width, BackBuffer->Height);
 
 	temporary_memory RenderMemory = TemporaryMemoryBegin(&TransientState->TransientArena);
-	render_group *RenderGroup = RenderGroupAllocate(&TransientState->TransientArena, Megabytes(2),
+	render_group *RenderGroup = RenderGroupAllocate(&TransientState->TransientArena, Gigabytes(2),
 													AppState->MetersToPixels,
 													MapToScreen,
 													MapToPersp,
@@ -996,29 +872,37 @@ extern "C" APP_UPDATE_AND_RENDER(AppUpdateAndRender)
 			{
 				EntityMove(AppState, Entity, ddP, dt);
 
-				PushModel(RenderGroup, &Entity->Mesh, Entity->Basis, Entity->Translate, Entity->Scale); 
+				PushModel(RenderGroup, &Entity->Mesh[0], Entity->Basis, Entity->Translate, Entity->Scale); 
+
+				chunk_tile_position ChunkP = ChunkPosGet(World, Entity->PackedX, Entity->PackedZ);
+
+				basis B = Entity->Basis;
+
+
+				B.O = {(f32)ChunkP.TileX, 0.0f, -(f32)ChunkP.TileZ};
+				v3f Dim = {1.0f, 0.0f, 1.0f};
+				v4f Color = {1.0f, 0.0f, 1.0f, 1.0f};
+				PushRectangle(RenderGroup, B, Dim, Color);
+				
 			} break;
 			case ENTITY_TRIANGLE:
 			{
-				v4f *Vertices = (v4f *)Entity->Triangle.Vertices;
-				v3f *Colors = (v3f *)Entity->Triangle.Colors;
-				PushTriangle(RenderGroup, Vertices, V3F(0.0f, 0.0f, 0.0f), Colors);
 			} break;
 			case ENTITY_RECTANGLE:
 			{
-				PushRectangle(RenderGroup, V3F(0.0f), V2F(10.0f));
 			}
 			case ENTITY_MODEL:
 			{
-				PushModel(RenderGroup, &Entity->Mesh, Entity->Basis, Entity->Translate, Entity->Scale); 
+				PushModel(RenderGroup, &Entity->Mesh[0], Entity->Basis, Entity->Translate, Entity->Scale); 
 			} break;
 			case ENTITY_WALL:
 			{
 			} break;
 			case ENTITY_QUAD:
 			{
-				PushQuad(RenderGroup, Entity->Mesh.Texture, Entity->Translate, Entity->Scale, Entity->Basis,
-						Entity->Mesh.Vertices, Entity->Mesh.UV, Entity->Mesh.Colors, QUAD_VERTEX_COUNT);
+				mesh *Mesh = &Entity->Mesh[0];
+				PushQuad(RenderGroup, Mesh->Texture, Entity->Translate, Entity->Scale, Entity->Basis,
+						Mesh->Vertices, Mesh->UV, Mesh->Colors, QUAD_VERTEX_COUNT);
 			} break;
 
 			INVALID_DEFAULT_CASE;
