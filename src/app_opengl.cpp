@@ -2,30 +2,59 @@
 #include "app_render_group.h"
 
 inline void
-OpenGLRectangle(v2f MinP, v2f MaxP, v4f Color)
+OpenGLGroundRectangle(v3f MinP, v3f MaxP, v4f Color)
 {
 	glBegin(GL_TRIANGLES);
 
-	Color = {1,1,1,1};
-	glColor4f(Color.r, Color.g, Color.b, Color.a);
+	glColor4fv(Color.e);
 
 	glTexCoord2f(0.0f, 0.0f);
-	glVertex2f(MinP.x, MinP.y);
+	glVertex3f(MinP.x, 0.01f, MinP.z);
 
 	glTexCoord2f(1.0f, 0.0f);
-	glVertex2f(MaxP.x, MinP.y);
+	glVertex3f(MaxP.x, 0.01f, MinP.z);
 
 	glTexCoord2f(1.0f, 1.0f);
-	glVertex2f(MaxP.x, MaxP.y);
+	glVertex3f(MaxP.x, 0.01f, MaxP.z);
 
 	glTexCoord2f(0.0f, 0.0f);
-	glVertex2f(MinP.x, MinP.y);
+	glVertex3f(MinP.x, 0.01f, MinP.z);
 
 	glTexCoord2f(1.0f, 1.0f);
-	glVertex2f(MaxP.x, MaxP.y);
+	glVertex3f(MaxP.x, 0.01f, MaxP.z);
 
 	glTexCoord2f(0.0f, 1.0f);
-	glVertex2f(MinP.x, MaxP.y);
+	glVertex3f(MinP.x, 0.01f, MaxP.z);
+
+	glEnd();
+}
+
+inline void
+OpenGLRectangleTest()
+{
+	glBegin(GL_TRIANGLES);
+
+	v4f C = {1.0f, 0.0f, 1.0f, 1.0f};
+	glColor4fv(C.e);
+
+
+	glTexCoord2f(0.0f, 0.0f);
+	glVertex3f(0.0f, 2.0f, 0.0f);
+
+	glTexCoord2f(1.0f, 0.0f);
+	glVertex3f(5.0f, 2.0f, 0.0f);
+
+	glTexCoord2f(1.0f, 1.0f);
+	glVertex3f(5.0f, 2.0f, -5.0f);
+
+	glTexCoord2f(0.0f, 0.0f);
+	glVertex3f(0.0f, 2.0f, 0.0f);
+
+	glTexCoord2f(1.0f, 1.0f);
+	glVertex3f(5.0f, 2.0f, -5.0f);
+
+	glTexCoord2f(0.0f, 1.0f);
+	glVertex3f(0.0f, 2.0f, -5.0f);
 
 	glEnd();
 }
@@ -131,7 +160,6 @@ OpenGLQuadDraw(v3f V0, v2f T0, v4f C0,
 
 }
 
-
 internal void
 OpenGLRenderGroupToOutput(render_group *RenderGroup, app_offscreen_buffer *OutputTarget)
 {
@@ -147,6 +175,7 @@ OpenGLRenderGroupToOutput(render_group *RenderGroup, app_offscreen_buffer *Outpu
 	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
 	glEnable(GL_LINE_SMOOTH);
+	glEnable(GL_POLYGON_SMOOTH);
 	
 	glFrontFace(GL_CCW);
 	glEnable(GL_CULL_FACE);
@@ -192,10 +221,19 @@ OpenGLRenderGroupToOutput(render_group *RenderGroup, app_offscreen_buffer *Outpu
 			{
 				render_entry_rectangle *Entry = (render_entry_rectangle *)Data;
 
-				v3f P = Entry->EntityBasis.Basis->P;
+				v3f Center = Entry->Basis.O;
+				v3f HalfDim = 0.5f * Entry->Dim;
+
+				v3f MinP = Center;
+				MinP.x -= HalfDim.x;
+				MinP.z += HalfDim.z;
+
+				v3f MaxP = Center;
+				MaxP.x += HalfDim.x;
+				MaxP.z -= HalfDim.z;
 
 				glDisable(GL_TEXTURE_2D);
-				OpenGLRectangle(P.xy, P.xy + Entry->Dim, Entry->Color);
+				OpenGLGroundRectangle(MinP, MaxP, Entry->Color);
 				glEnable(GL_TEXTURE_2D);
 
 				BaseAddress += sizeof(*Entry);
@@ -228,9 +266,8 @@ OpenGLRenderGroupToOutput(render_group *RenderGroup, app_offscreen_buffer *Outpu
 
 				glDisable(GL_TEXTURE_2D);
 				glBegin(GL_QUADS);
-				//glBegin(GL_TRIANGLES);
-
 				v4f C = Entry->Colors[0];
+
 				for(u32 Index = 0; Index < Entry->IndicesCount; Index += 3)
 				{
 					v3f V = Entry->Vertices[Entry->Indices[Index]];
@@ -248,6 +285,7 @@ OpenGLRenderGroupToOutput(render_group *RenderGroup, app_offscreen_buffer *Outpu
 				}
 
 				glEnd();
+
 				glEnable(GL_TEXTURE_2D);
 				BaseAddress += sizeof(*Entry);
 
