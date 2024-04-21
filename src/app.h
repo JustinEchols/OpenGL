@@ -1,3 +1,10 @@
+/*
+ TODO(Justin):
+
+ Texture array
+ Texture indices
+
+*/
 #if !defined(APP_H)
 
 #include "app_platform.h"
@@ -95,6 +102,7 @@ ZeroSize(void *Ptr, memory_index Size)
 
 #include "app_intrinsics.h"
 #include "app_math.h"
+#include "app_tile.h"
 #include "app_render_group.h"
 
 struct mesh
@@ -198,7 +206,6 @@ struct aabb
 	f32 Radius;
 };
 
-
 struct entity
 {
 	u32 Index;
@@ -206,25 +213,19 @@ struct entity
 	entity_type Type;
 	u32 Flags;
 
+	s32 PackedX;
+	s32 PackedY;
+	s32 PackedZ;
+
 	basis Basis;
 	v3f dP;
-
-	mesh Mesh;
 
 	mat4 Translate;
 	mat4 Scale;
 
+	mesh Mesh[2];
+
 	aabb AABB;
-
-	// TODO(Justin): Having all the different shapes is no good. The entity
-	// should just have a mesh and a flag telling us what kind of shape/mesh it
-	// is.
-	triangle Triangle;
-	rectangle Rectangle;
-	quad Quad;
-
-	plane Wall;
-
 };
 
 struct edge
@@ -235,26 +236,6 @@ struct edge
 	s32 YEnd;
 };
 
-struct tile_map
-{
-	u32 *Tiles;
-
-};
-
-struct world
-{
-	s32 TileCountX;
-	s32 TileCountZ;
-
-	s32 TileMapCountX;
-	s32 TileMapCountZ;
-
-	f32 TileSideInMeters;
-
-	tile_map *TileMaps;
-
-};
-
 struct app_state
 {
 	memory_arena WorldArena;
@@ -263,30 +244,27 @@ struct app_state
 
 	world World;
 
-	s32 PlayerTileMapX;
-	s32 PlayerTileMapZ;
-
 	loaded_bitmap Ground;
 	loaded_bitmap Gray;
 	loaded_bitmap White;
+	loaded_bitmap Black;
 
 	loaded_obj Cube;
-	loaded_obj Suzanne;
-	loaded_obj Dodecahedron;
-	loaded_obj Pyramid;
-	loaded_obj CameraModel;
 
 	camera Camera;
+	s32 CameraPackedX;
+	s32 CameraPackedY;
+	s32 CameraPackedZ;
+	b32 CameraIsFree;
 
 	mat4 MapToWorld;
 	mat4 MapToCamera;
 	mat4 MapToPersp;
 	mat4 MapToScreenSpace;
 
-	entity Entities[1024];
+	entity Entities[40000];
 	u32 EntityCount;
-
-	u32 PlayerIndex;
+	u32 PlayerEntityIndex;
 
 	f32 Time;
 };
