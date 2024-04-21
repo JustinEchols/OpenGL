@@ -150,12 +150,10 @@ EntityMove(app_state *AppState, entity *Entity, v3f ddP, f32 dt)
 
 	PlayerPosReCompute(World, &Entity->PackedX, &Entity->PackedY, &Entity->PackedZ, &NewP.x, &NewP.y, &NewP.z);
 
+	b32 Collided = false;
 	if(WorldTileIsEmpty(World, Entity->PackedX, Entity->PackedY, Entity->PackedZ))
 	{
-		// NOTE(Justin): The basis origin is always relative to the center of
-		// any tile map
 		Entity->Basis.O = {NewP.x, 0.0f, NewP.z};
-
 		Entity->Translate = TranslationToChunk(World, Entity->PackedX, Entity->PackedY, Entity->PackedZ, 0.35f);
 		Entity->dP = Entity->dP + ddP * dt;
 	}
@@ -497,6 +495,12 @@ CameraInit(app_state *AppState, v3f P, f32 Yaw, f32 Pitch)
 	Camera->Direction.y = Sin(DegreeToRad(Camera->Pitch));
 	Camera->Direction.z = Sin(DegreeToRad(Camera->Yaw)) * Cos(DegreeToRad(Camera->Pitch));
 
+	AppState->CameraPackedX = 17/2;
+	AppState->CameraPackedY = 0;
+//	AppState->CameraPackedZ = -9/2;
+	AppState->CameraPackedZ = 0;
+
+
 	AppState->MapToCamera = Mat4CameraMap(Camera->P, Camera->P + Camera->Direction);
 }
 
@@ -574,14 +578,13 @@ extern "C" APP_UPDATE_AND_RENDER(AppUpdateAndRender)
 		ArenaInitialize(WorldArena, Memory->PermanentStorageSize - sizeof(app_state),
 				(u8 *)Memory->PermanentStorage + sizeof(app_state));
 
-
 		AppState->Cube = DEBUGObjReadEntireFile(Thread, "models/cube.obj", WorldArena, Platform.DEBUGPlatformReadEntireFile);
 		AppState->Ground = DEBUGBitmapReadEntireFile(Thread, "textures/ground.bmp", Platform.DEBUGPlatformReadEntireFile);
 		AppState->Gray = DEBUGBitmapReadEntireFile(Thread, "gray_with_boundary.bmp", Platform.DEBUGPlatformReadEntireFile);
 		AppState->White = DEBUGBitmapReadEntireFile(Thread, "white.bmp", Platform.DEBUGPlatformReadEntireFile);
 		AppState->Black = DEBUGBitmapReadEntireFile(Thread, "black.bmp", Platform.DEBUGPlatformReadEntireFile);
 
-		CameraInit(AppState, V3F(0.0f, 12.0f, 0.0f), -90.0f, -50.0f);
+		CameraInit(AppState, V3F(0.0f, 12.0f, 0.0f), -90.0f, -70.0f);
 		AppState->CameraIsFree = false;
 
 		f32 FOV = DegreeToRad(45.0f);
@@ -590,14 +593,10 @@ extern "C" APP_UPDATE_AND_RENDER(AppUpdateAndRender)
 		f32 ZFar = 100.0f;
 
 		AppState->MapToPersp = Mat4PerspectiveGL(FOV, AspectRatio, ZNear, ZFar);
-
-		AppState->MapToScreenSpace = 
-			Mat4ScreenSpaceMap(BackBuffer->Width, BackBuffer->Height);
-
+		AppState->MapToScreenSpace = Mat4ScreenSpaceMap(BackBuffer->Width, BackBuffer->Height);
 		AppState->MapToWorld = Mat4WorldSpaceMap(V3F(0.0f, 0.0f, 0.0f));
 
 		mesh SourceCube = AppState->Cube.Mesh;
-
 		mesh *WallCube = MeshAllocate(WorldArena, SourceCube.VertexCount,
 												  SourceCube.UVCount,
 												  SourceCube.NormalCount,
@@ -863,11 +862,33 @@ extern "C" APP_UPDATE_AND_RENDER(AppUpdateAndRender)
 
 		entity *Player = EntityGet(AppState, AppState->PlayerEntityIndex);
 
-		chunk_tile_position ChunkP = ChunkPosGet(World, Player->PackedX, Player->PackedY, Player->PackedZ);
+		s32 dTileX = Player->PackedX - AppState->CameraPackedX;
+		s32 dTileY = Player->PackedY - AppState->CameraPackedY;
+		s32 dTileZ = Player->PackedZ - AppState->CameraPackedZ;
+
+		if(dTileX > 17/2)
+		{
+			AppState->CameraPackedX += 17;
+		}
+		if(dTileX < -17/2)
+		{
+			AppState->CameraPackedX -= 17;
+		}
+		if(dTileZ > 9)
+		{
+			AppState->CameraPackedZ += 9;
+		}
+		if(dTileZ < 0)
+		{
+			AppState->CameraPackedZ -= 9;
+		}
+
 		
-		// TODO(Justin): Parameterize these constants;
-		Camera->P.x = World->TileSideInMeters * (ChunkP.ChunkX * 17 + (17 / 2));
-		Camera->P.z = -1.0f * World->TileSideInMeters * (ChunkP.ChunkZ * 9) + (9 / 2);
+		Camera->P.x = (f32)AppState->CameraPackedX + 0.5f;
+		Camera->P.y = (f32)AppState->CameraPackedY + 12.0f;
+		Camera->P.z = -(f32)AppState->CameraPackedZ;
+		//Camera->P.x = World->TileSideInMeters * (ChunkP.ChunkX * 17 + (17 / 2));
+		//Camera->P.z = -1.0f * World->TileSideInMeters * (ChunkP.ChunkZ * 9) + (9 / 2);
 		CameraUpdate(AppState, Camera, Input->dMouseX, Input->dMouseY, dt);
 	}
 
@@ -913,7 +934,8 @@ extern "C" APP_UPDATE_AND_RENDER(AppUpdateAndRender)
 				basis B = Entity->Basis;
 
 
-				B.O = {(f32)ChunkP.TileX, 0.0f, -(f32)ChunkP.TileZ};
+				B.O = {(f32)Entity->PackedX, 0.0f, -(f32)Entity->PackedZ};
+				//B.O = {(f32)ChunkP.TileX, 0.0f, -(f32)ChunkP.TileZ};
 				v3f Dim = {1.0f, 0.0f, 1.0f};
 				v4f Color = {1.0f, 0.0f, 1.0f, 1.0f};
 				PushRectangle(RenderGroup, B, Dim, Color);
