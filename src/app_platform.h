@@ -159,6 +159,7 @@ typedef struct app_controller_input
 			app_button_state D;
 
 			app_button_state R;
+			app_button_state C;
 
 			app_button_state Up;
 			app_button_state Down;
