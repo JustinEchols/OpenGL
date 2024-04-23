@@ -132,6 +132,7 @@ PlayerPosReCompute(world *World, s32 *PackedX, s32 *PackedY, s32 *PackedZ, f32 *
 	// directlt up and crosses a tile boundary z < -0.5f and the tile offset is
 	// -1 but the player moved up and we therefore need to ADD 1 to the PackedZ
 	// value so we do -(-1)
+
 	s32 TileXOffset = F32RoundToS32(*X  /  World->TileSideInMeters);
 	s32 TileYOffset = F32RoundToS32(*Y  /  World->TileSideInMeters);
 	s32 TileZOffset = F32RoundToS32(*Z / World->TileSideInMeters);
@@ -144,3 +145,19 @@ PlayerPosReCompute(world *World, s32 *PackedX, s32 *PackedY, s32 *PackedZ, f32 *
 	*Y -= TileYOffset * World->TileSideInMeters;
 	*Z -= TileZOffset * World->TileSideInMeters;
 }
+
+internal v3f
+WorldPosDifference(world *World, world_position *A, world_position *B)
+{
+	v3f Result;
+
+	v3f dTileXYZ = {(f32)A->PackedX - B->PackedX,
+				    (f32)A->PackedY - B->PackedY,
+					(f32)A->PackedZ - B->PackedZ};
+
+	Result = World->TileSideInMeters * dTileXYZ + (A->OffsetFromTileCenter_ - B->OffsetFromTileCenter_);
+
+	// TODO(Justin): Should we flip the z component here?
+	return(Result);
+}
+
