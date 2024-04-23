@@ -859,22 +859,6 @@ extern "C" APP_UPDATE_AND_RENDER(AppUpdateAndRender)
 								{
 									u32 TileValue = TileValueGet(World, TileChunk, TileX, TileY, TileZ);
 
-
-
-									//f32 XOffset = World->TileSideInMeters * (f32)TileX - 0.5f * World->ChunkDimInMeters;
-									//f32 YOffset = World->TileSideInMeters * (f32)TileY;
-									//f32 ZOffset = World->TileSideInMeters * (f32)TileZ - 0.5f * World->ChunkDimInMeters;
-
-									// NOTE(Justin): The offset and packed
-									// values below are correct whenver the
-									// offset is used as a translation vector to
-									// offset the entities basis to the correct
-									// position in the world.
-
-									//f32 XOffset = ChunkX * World->ChunkDimInMeters + World->TileSideInMeters * (f32)TileX; 
-									//f32 YOffset = ChunkY * World->ChunkDimInMeters + World->TileSideInMeters * (f32)TileY;
-									//f32 ZOffset = ChunkZ * World->ChunkDimInMeters + World->TileSideInMeters * (f32)TileZ; 
-
 									s32 PackedX = ChunkX * World->ChunkDim + TileX;
 									s32 PackedY = ChunkY * World->ChunkDim + TileY;
 									s32 PackedZ = ChunkZ * World->ChunkDim + TileZ;
