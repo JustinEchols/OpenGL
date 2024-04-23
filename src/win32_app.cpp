@@ -335,6 +335,10 @@ Win32ProcessPendingMessages(app_controller_input *KeyboardController)
 					{
 						Win32ProcessKeyboardMessage(&KeyboardController->D, IsDown);
 					}
+					else if(VKCode == 'C')
+					{
+						Win32ProcessKeyboardMessage(&KeyboardController->C, IsDown);
+					}
 					else if(VKCode == VK_UP)
 					{
 						Win32ProcessKeyboardMessage(&KeyboardController->Up, IsDown);
