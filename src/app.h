@@ -180,15 +180,10 @@ struct plane
 
 enum entity_type
 {
-	ENTITY_NULL,
-	ENTITY_PLAYER,
-	ENTITY_PRIMITIVE,
-	ENTITY_CIRCLE,
-	ENTITY_RECTANGLE,
-	ENTITY_TRIANGLE,
-	ENTITY_MODEL,
-	ENTITY_WALL,
-	ENTITY_QUAD,
+	EntityType_Null,
+	EntityType_Player,
+	EntityType_Wall,
+	EntityType_Quad, // Ground
 };
 
 // NOTE(Justin): Should we consider being able to store basis vectors as an
@@ -200,34 +195,6 @@ struct interval
 	f32 Min, Max;
 };
 
-struct aabb
-{
-	v3f Center;
-	f32 Radius;
-};
-
-struct entity
-{
-	u32 Index;
-
-	entity_type Type;
-	u32 Flags;
-
-	s32 PackedX;
-	s32 PackedY;
-	s32 PackedZ;
-
-	basis Basis;
-	v3f dP;
-
-	mat4 Translate;
-	mat4 Scale;
-
-	mesh Mesh[2];
-
-	aabb AABB;
-};
-
 struct edge
 {
 	f32 X;
@@ -235,6 +202,63 @@ struct edge
 	s32 YStart;
 	s32 YEnd;
 };
+
+struct aabb_min_max
+{
+	v3f Min;
+	v3f Max;
+};
+
+
+
+enum entity_residence
+{
+	EntityResidence_NonExistant,
+	EntityResidence_Dormant,
+	EntityResidence_Low,
+	EntityResidence_High,
+};
+
+struct dormant_entity
+{
+	entity_type Type;
+
+	// TODO(Justin): Change to world position
+	//s32 PackedX;
+	//s32 PackedY;
+	//s32 PackedZ;
+	world_position P;
+	f32 Width, Height, Depth;
+};
+
+struct low_entity 
+{
+};
+
+// NOTE(Justin): Maybe pull this out to entity.
+struct high_entity 
+{
+	basis Basis;
+	v3f dP;
+
+	mesh Mesh[2];
+	aabb_min_max AABBMinMax;
+
+	mat4 Translate;
+	mat4 Scale;
+};
+
+struct entity
+{
+	u32 Index;
+	u32 Flags;
+
+	u32 Residence;
+	dormant_entity *Dormant;
+	low_entity *Low;
+	high_entity *High;
+};
+
 
 struct app_state
 {
@@ -252,9 +276,8 @@ struct app_state
 	loaded_obj Cube;
 
 	camera Camera;
-	s32 CameraPackedX;
-	s32 CameraPackedY;
-	s32 CameraPackedZ;
+	world_position CameraP;
+
 	b32 CameraIsFree;
 
 	mat4 MapToWorld;
@@ -262,9 +285,14 @@ struct app_state
 	mat4 MapToPersp;
 	mat4 MapToScreenSpace;
 
-	entity Entities[40000];
 	u32 EntityCount;
+	entity_residence EntityResidence[2048];
+	dormant_entity EntitiesDormant[2048];
+	low_entity EntitiesLow[2048];
+	high_entity EntitiesHigh[2048];
+
 	u32 PlayerEntityIndex;
+	u32 CameraEntityFollowingIndex;
 
 	f32 Time;
 };
