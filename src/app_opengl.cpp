@@ -180,6 +180,16 @@ OpenGLRenderGroupToOutput(render_group *RenderGroup, app_offscreen_buffer *Outpu
 	glFrontFace(GL_CCW);
 	glEnable(GL_CULL_FACE);
 
+	GLuint TextureHandle = 0;
+	GLuint TextureHandle2 = 0;
+	static b32 Init = false;
+	if(!Init)
+	{
+		glGenTextures(1, &TextureHandle);
+		glGenTextures(1, &TextureHandle2);
+		Init = true;
+	}
+
 	glMatrixMode(GL_TEXTURE);
 	glLoadIdentity();
 
@@ -252,6 +262,7 @@ OpenGLRenderGroupToOutput(render_group *RenderGroup, app_offscreen_buffer *Outpu
 			{
 				render_entry_model *Entry = (render_entry_model *)Data;
 
+
 				// NOTE(Justin): If the model being rendered is the cube, then
 				// must use GL_QUADS, if the model being rendered is the suzanne
 				// model then use GL_TRIANGLES. How to we determine this
@@ -263,7 +274,6 @@ OpenGLRenderGroupToOutput(render_group *RenderGroup, app_offscreen_buffer *Outpu
 				// Scaling the basis axes scales the model as expected
 
 				basis *Basis = &Entry->Basis;
-
 				glDisable(GL_TEXTURE_2D);
 				glBegin(GL_QUADS);
 				v4f C = Entry->Colors[0];
@@ -280,27 +290,21 @@ OpenGLRenderGroupToOutput(render_group *RenderGroup, app_offscreen_buffer *Outpu
 					v3f N = Entry->Normals[Entry->Indices[Index] + 2];
 
 					glColor4fv(C.e);
+					//glTexCoord2fv(T.e);
 					glVertex3fv(VInB.e);
 
 				}
 
-				glEnd();
 
+				glEnd();
 				glEnable(GL_TEXTURE_2D);
+
 				BaseAddress += sizeof(*Entry);
 
 			} break;
 			case RENDER_GROUP_ENTRY_TYPE_render_entry_quad:
 			{
 				render_entry_quad *Entry = (render_entry_quad *)Data;
-
-				GLuint TextureHandle = 0;
-				static b32 Init = false;
-				if(!Init)
-				{
-					glGenTextures(1, &TextureHandle);
-					Init = true;
-				}
 
 				glDisable(GL_BLEND);
 				glBindTexture(GL_TEXTURE_2D, TextureHandle);
@@ -345,7 +349,6 @@ OpenGLRenderGroupToOutput(render_group *RenderGroup, app_offscreen_buffer *Outpu
 							   V3InB, UV3, C3);
 
 				glEnd();
-
 				glBindTexture(GL_TEXTURE_2D, 0);
 				glEnable(GL_BLEND);
 				BaseAddress += sizeof(*Entry);
