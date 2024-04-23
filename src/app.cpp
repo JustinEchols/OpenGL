@@ -102,8 +102,6 @@ TranslationToChunk(world *World, s32 PackedX, s32 PackedY, s32 PackedZ, f32 Heig
 	return(Result);
 }
 
-
-
 internal void
 PlayerAdd(app_state *AppState, aabb_min_max AABBMinMax)
 {
@@ -224,7 +222,6 @@ QuadAdd(app_state *AppState, mesh *Mesh, s32 PackedX, s32 PackedY, s32 PackedZ, 
 	EntityResidenceChange(AppState, EntityResidence_High, EntityIndex);
 }
 
-#if 1
 internal void
 EntityMove(app_state *AppState, entity Entity, v3f ddP, f32 dt)
 { 
@@ -259,10 +256,8 @@ EntityMove(app_state *AppState, entity Entity, v3f ddP, f32 dt)
 	}
 #endif
 
-
 }
 
-#endif
 
 inline f32
 StringToFloat(char *String)
@@ -333,9 +328,7 @@ ParseV2VertexAttribute(u8 *Data, v2f *AttributeArray, u32 Count, u32 FloatCount)
 		}
 
 		v2f Attribute = {Floats[0], Floats[1]};
-
 		AttributeArray[Index] = Attribute;
-
 	}
 }
 
@@ -432,7 +425,6 @@ DEBUGObjReadEntireFile(thread_context *Thread, char *FileName, memory_arena *Are
 							FaceCols++; 
 						}
 					}
-
 				}
 
 				FaceRows++;
