@@ -32,14 +32,13 @@ EntityResidenceChange(app_state *AppState, entity_residence Residence, u32 Entit
 			high_entity *EntityHigh = AppState->EntitiesHigh + EntityIndex;
 			dormant_entity *EntityDormant = AppState->EntitiesDormant + EntityIndex;
 
+			// NOTE(Justin): The entities basis is going to be the camera's
+			// position. The translation matrix translates the entities position
+			// from the camera position to the world.
+
 			v3f Translate = WorldPosDifference(&AppState->World, &EntityDormant->P, &AppState->CameraP);
 			v3f CameraP = {(f32)AppState->CameraP.PackedX, (f32)AppState->CameraP.PackedY, (f32)AppState->CameraP.PackedZ};
-			Translate += CameraP;
-
-			// TODO(Justin): Why do we need to multiply z by -1? Does any offset
-			// vector have to flip the z component? I think so...
-
-			Translate.z *= -1;
+			EntityHigh->Basis.O = CameraP;
 			EntityHigh->Translate = Mat4Translation(Translate);
 		}
 	}
@@ -237,14 +236,12 @@ EntityMove(app_state *AppState, entity Entity, v3f ddP, f32 dt)
 	ddP += -3.0f * Entity.High->dP;
 
 	v3f PlayerDelta = 0.5f * ddP * Square(dt) + Entity.High->dP * dt;
-	v3f NewP = Entity.High->Basis.O + PlayerDelta;
-
-	//PlayerPosReCompute(World, &Entity.Dormant->P.PackedX,
-	//						  &Entity.Dormant->P.PackedY,
-	//						  &Entity.Dormant->P.PackedZ, &NewP.x, &NewP.y, &NewP.z);
-
-	Entity.High->Basis.O = NewP;
+	v3f PlayerOffset = Mat4Column(Entity.High->Translate, 3).xyz;
+	v3f NewP = PlayerOffset + PlayerDelta;
+	Entity.High->Translate = Mat4Translation(NewP);
 	Entity.High->dP = Entity.High->dP + ddP * dt;
+
+	Entity.Dormant->P = PlayerPosReCompute(World, AppState->CameraP, Entity.High);
 
 #if 0
 	b32 Collided = false;
@@ -954,25 +951,23 @@ extern "C" APP_UPDATE_AND_RENDER(AppUpdateAndRender)
 		Input->dMouseX = 0;
 		Input->dMouseY = 0;
 
-		entity Player = EntityGet(AppState, EntityResidence_High, AppState->PlayerEntityIndex);
 
-		s32 dTileX = Player.Dormant->P.PackedX - AppState->CameraP.PackedX;
-		s32 dTileY = Player.Dormant->P.PackedY - AppState->CameraP.PackedY;
-		s32 dTileZ = Player.Dormant->P.PackedZ - AppState->CameraP.PackedZ;
+		entity CameraFollowingEntity= EntityGet(AppState, EntityResidence_High, AppState->CameraEntityFollowingIndex);
+		v3f DeltaP = WorldPosDifference(World, &CameraFollowingEntity.Dormant->P, &AppState->CameraP);
 
-		if(dTileX > 17/2)
+		if(DeltaP.x > (9.0f * World->TileSideInMeters))
 		{
 			AppState->CameraP.PackedX += 17;
 		}
-		if(dTileX < -17/2)
+		if(DeltaP.x < (-9.0f * World->TileSideInMeters))
 		{
 			AppState->CameraP.PackedX -= 17;
 		}
-		if(dTileZ > 9)
+		if(DeltaP.z > (5.0f * World->TileSideInMeters))
 		{
 			AppState->CameraP.PackedZ += 9;
 		}
-		if(dTileZ < 0)
+		if(DeltaP.z < (-5.0f * World->TileSideInMeters))
 		{
 			AppState->CameraP.PackedZ -= 9;
 		}

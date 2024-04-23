@@ -122,30 +122,6 @@ WorldTileIsEmpty(world *World, s32 PackedX, s32 PackedY, s32 PackedZ)
 	return(Result);
 }
 
-
-internal void
-PlayerPosReCompute(world *World, s32 *PackedX, s32 *PackedY, s32 *PackedZ, f32 *X, f32 *Y, f32 *Z)
-{
-	// NOTE(Justin): Because the tile side in meters is 1 and the 
-	// (X, Z) is an offset from the center of a tile when X >= 0.5f it rounds up
-	// to 1 so the tile offset is 1 when X is >= 0.5f. When the player moves
-	// directlt up and crosses a tile boundary z < -0.5f and the tile offset is
-	// -1 but the player moved up and we therefore need to ADD 1 to the PackedZ
-	// value so we do -(-1)
-
-	s32 TileXOffset = F32RoundToS32(*X  /  World->TileSideInMeters);
-	s32 TileYOffset = F32RoundToS32(*Y  /  World->TileSideInMeters);
-	s32 TileZOffset = F32RoundToS32(*Z / World->TileSideInMeters);
-
-	*PackedX += TileXOffset;
-	*PackedY += TileYOffset;
-	*PackedZ -= TileZOffset;
-
-	*X -= TileXOffset * World->TileSideInMeters;
-	*Y -= TileYOffset * World->TileSideInMeters;
-	*Z -= TileZOffset * World->TileSideInMeters;
-}
-
 internal v3f
 WorldPosDifference(world *World, world_position *A, world_position *B)
 {
@@ -157,7 +133,46 @@ WorldPosDifference(world *World, world_position *A, world_position *B)
 
 	Result = World->TileSideInMeters * dTileXYZ + (A->OffsetFromTileCenter_ - B->OffsetFromTileCenter_);
 
-	// TODO(Justin): Should we flip the z component here?
+	// TODO(Justin): Why do we need to multiply z by -1? Does any offset
+	// vector have to flip the z component? I think so...
+	Result.z *= -1;
+
 	return(Result);
 }
+
+
+internal world_position 
+PlayerPosReCompute(world *World, world_position P,  high_entity *EntityHigh)
+{
+	world_position Result = P;
+
+	v3f OffsetFromCamera = Mat4Column(EntityHigh->Translate, 3).xyz;
+	Result.OffsetFromTileCenter_ += OffsetFromCamera;
+
+	// NOTE(Justin): Because the tile side in meters is 1 and the 
+	// (X, Z) is an offset from the center of a tile when X >= 0.5f it rounds up
+	// to 1 so the tile offset is 1 when X is >= 0.5f. When the player moves
+	// directlt up and crosses a tile boundary z < -0.5f and the tile offset is
+	// -1 but the player moved up and we therefore need to ADD 1 to the PackedZ
+	// value so we do -(-1)
+
+	// Get the tile offset
+	s32 TileXOffset = F32RoundToS32(Result.OffsetFromTileCenter_.x / World->TileSideInMeters);
+	s32 TileYOffset = F32RoundToS32(Result.OffsetFromTileCenter_.y / World->TileSideInMeters);
+	s32 TileZOffset = F32RoundToS32(Result.OffsetFromTileCenter_.z / World->TileSideInMeters);
+
+	// Add the tile offset to the packed coordinates
+	Result.PackedX += TileXOffset;
+	Result.PackedY += TileYOffset;
+	Result.PackedZ -= TileZOffset;
+
+	// Recompute the offset from tile center
+	Result.OffsetFromTileCenter_.x -= TileXOffset * World->TileSideInMeters;
+	Result.OffsetFromTileCenter_.y -= TileYOffset * World->TileSideInMeters;
+	Result.OffsetFromTileCenter_.z -= TileZOffset * World->TileSideInMeters;
+
+	return(Result);
+}
+
+
 
