@@ -126,7 +126,7 @@ PlayerAdd(app_state *AppState, aabb_min_max AABBMinMax)
 	Entity.High->Scale = Mat4Scale(Entity.Dormant->Height);
 
 	EntityResidenceChange(AppState, EntityResidence_High, EntityIndex);
-	if(EntityGet(AppState, EntityResidence_Dormant, AppState->CameraEntityFollowingIndex).Residence == EntityResidence_NonExistant)
+	if(EntityGet(AppState, EntityResidence_Dormant, AppState->CameraEntityFollowingIndex).Residence == EntityResidence_Dormant)
 	{
 		AppState->CameraEntityFollowingIndex = EntityIndex;
 	}
@@ -575,12 +575,30 @@ DEBUGBitmapReadEntireFile(thread_context *Thread, char *Filename, debug_platform
 	return(Result);
 }
 
+
+inline v3f
+V3FFromWorldPos(world *World, world_position P)
+{
+	v3f Result;
+
+	Result.x = World->ChunkDimInMeters * P.PackedX + P.OffsetFromTileCenter_.x;
+	Result.y = World->ChunkDimInMeters * P.PackedX + P.OffsetFromTileCenter_.y;
+	Result.z = -1.0f * World->ChunkDimInMeters * P.PackedX - P.OffsetFromTileCenter_.z;
+
+	return(Result);
+}
+
 internal void
 CameraInit(app_state *AppState, v3f P, f32 Yaw, f32 Pitch)
 {
 	camera *Camera = &AppState->Camera;
 
+	// TODO(Justin): Should the camera's position be a WORLD position?
 	Camera->P = P;
+	AppState->CameraP.PackedX = 17/2;
+	AppState->CameraP.PackedY = 12;
+	AppState->CameraP.PackedZ = 0;
+
 	Camera->Yaw = Yaw;
 	Camera->Pitch = Pitch;
 	Camera->Direction.x = Cos(DegreeToRad(Camera->Yaw)) * Cos(DegreeToRad(Camera->Pitch));
@@ -589,9 +607,6 @@ CameraInit(app_state *AppState, v3f P, f32 Yaw, f32 Pitch)
 
 	// NOTE(Justin): These packed values are the center of a "Screen", NOT a
 	// chunk.
-	AppState->CameraP.PackedX = 17/2;
-	AppState->CameraP.PackedY = 12;
-	AppState->CameraP.PackedZ = 0;
 
 	AppState->MapToCamera = Mat4CameraMap(Camera->P, Camera->P + Camera->Direction);
 }
@@ -737,9 +752,9 @@ extern "C" APP_UPDATE_AND_RENDER(AppUpdateAndRender)
 		World->ChunkShift = 4;
 		World->ChunkMask = (1 << World->ChunkShift) - 1;
 		World->ChunkDim = (1 << World->ChunkShift);
-		World->ChunkCountX = 3;
+		World->ChunkCountX = 5;
 		World->ChunkCountY = 1;
-		World->ChunkCountZ = 3;
+		World->ChunkCountZ = 5;
 
 		World->TileSideInMeters = 1.0f;
 		World->ChunkDimInMeters = World->ChunkDim * World->TileSideInMeters;
@@ -755,7 +770,7 @@ extern "C" APP_UPDATE_AND_RENDER(AppUpdateAndRender)
 		s32 ScreenX = 0;
 		s32 ScreenZ = 0;
 		u32 RandomNumberIndex = 0;
-		for(s32 ScreenIndex = 0; ScreenIndex < 2; ++ScreenIndex)
+		for(s32 ScreenIndex = 0; ScreenIndex < 3; ++ScreenIndex)
 		{
 			for(s32 TileY = 0; TileY < 1; ++TileY)
 			{
@@ -822,15 +837,18 @@ extern "C" APP_UPDATE_AND_RENDER(AppUpdateAndRender)
 			u32 RandomChoice = RandomNumberTable[RandomNumberIndex++] % 2;
 			if(RandomChoice == 0)
 			{
-				ScreenX++;
+
+				ScreenZ++;
 			}
 			else
 			{
-				ScreenZ++;
+				ScreenX++;
 			}
 		}
 
 		// NOTE(Justin): Add ground and wall entities for allocated tiles only
+
+		PlayerAdd(AppState, BBox);
 		for(s32 ChunkY = 0; ChunkY < World->ChunkCountY; ++ChunkY)
 		{
 			for(s32 ChunkZ = 0; ChunkZ < World->ChunkCountZ; ++ChunkZ)
@@ -867,7 +885,7 @@ extern "C" APP_UPDATE_AND_RENDER(AppUpdateAndRender)
 			}
 		}
 
-		PlayerAdd(AppState, BBox);
+
 		Memory->IsInitialized = true;
 	}
 
@@ -898,6 +916,7 @@ extern "C" APP_UPDATE_AND_RENDER(AppUpdateAndRender)
 
 	v3f ddP = {};
 	v3f Shift = {};
+	v3f EntityOffsetForFrame = {};
 	if(AppState->CameraIsFree)
 	{
 		if(KeyBoardController->W.EndedDown)
@@ -925,6 +944,7 @@ extern "C" APP_UPDATE_AND_RENDER(AppUpdateAndRender)
 		f32 CameraSpeed = 8.0f;
 		Shift = dt * CameraSpeed * Shift;
 
+		// TODO(Justin): Update the camera's world position.
 		Camera->P += Shift;
 		CameraUpdate(AppState, Camera, Input->dMouseX, Input->dMouseY, dt);
 	}
@@ -952,46 +972,45 @@ extern "C" APP_UPDATE_AND_RENDER(AppUpdateAndRender)
 		Input->dMouseY = 0;
 
 
-		entity CameraFollowingEntity= EntityGet(AppState, EntityResidence_High, AppState->CameraEntityFollowingIndex);
-		v3f DeltaP = WorldPosDifference(World, &CameraFollowingEntity.Dormant->P, &AppState->CameraP);
-
-		if(DeltaP.x > (9.0f * World->TileSideInMeters))
+		entity CameraFollowingEntity = EntityGet(AppState, EntityResidence_High, AppState->CameraEntityFollowingIndex);
+		if(CameraFollowingEntity.Residence != EntityResidence_NonExistant)
 		{
-			AppState->CameraP.PackedX += 17;
+			v3f EntityOffsetFromCamera = Mat4Column(CameraFollowingEntity.High->Translate, 3).xyz;
+
+			world_position OldCameraP = AppState->CameraP;
+
+			if(EntityOffsetFromCamera.x > (9.0f * World->TileSideInMeters))
+			{
+				AppState->CameraP.PackedX += 17;
+			}
+			if(EntityOffsetFromCamera.x < (-9.0f * World->TileSideInMeters))
+			{
+				AppState->CameraP.PackedX -= 17;
+			}
+
+			if(EntityOffsetFromCamera.z < (-9.0f * World->TileSideInMeters))
+			{
+				AppState->CameraP.PackedZ += 9;
+			}
+			if(EntityOffsetFromCamera.z > (0.0f * World->TileSideInMeters))
+			{
+				AppState->CameraP.PackedZ -= 9;
+			}
+
+			Camera->P.x = (f32)AppState->CameraP.PackedX;
+			Camera->P.y = (f32)AppState->CameraP.PackedY;
+			Camera->P.z = -(f32)AppState->CameraP.PackedZ;
+
+			v3f CameraDelta = WorldPosDifference(World, &AppState->CameraP, &OldCameraP);
+			EntityOffsetForFrame = -1.0f * CameraDelta;
+
+			CameraUpdate(AppState, Camera, Input->dMouseX, Input->dMouseY, dt);
 		}
-		if(DeltaP.x < (-9.0f * World->TileSideInMeters))
-		{
-			AppState->CameraP.PackedX -= 17;
-		}
-		if(DeltaP.z > (5.0f * World->TileSideInMeters))
-		{
-			AppState->CameraP.PackedZ += 9;
-		}
-		if(DeltaP.z < (-5.0f * World->TileSideInMeters))
-		{
-			AppState->CameraP.PackedZ -= 9;
-		}
-
-		AppState->CameraP.PackedX = 17/2;
-
-		Camera->P.x = (f32)AppState->CameraP.PackedX;
-		Camera->P.y = (f32)AppState->CameraP.PackedY;
-		Camera->P.z = (f32)AppState->CameraP.PackedZ;
-
-
-		//Camera->P.x = 0.5f * World->ChunkDimInMeters + AppState->CameraOffset.x;
-		//Camera->P.y = AppState->CameraOffset.y;
-		//Camera->P.z = 0.5f * World->ChunkDimInMeters + AppState->CameraOffset.z;
-
-		CameraUpdate(AppState, Camera, Input->dMouseX, Input->dMouseY, dt);
 	}
 
 	//
 	// NOTE(Justin): Render
 	//
-
-
-	AppState->MapToCamera = Mat4CameraMap(Camera->P, Camera->P + Camera->Direction);
 
 	mat4 MapToCamera = AppState->MapToCamera;
 	mat4 MapToWorld = AppState->MapToWorld;
@@ -1014,6 +1033,15 @@ extern "C" APP_UPDATE_AND_RENDER(AppUpdateAndRender)
 		{
 			// TODO(Justin): Remove this. This is a test.
 			entity Entity = EntityGet(AppState, EntityResidence_High, EntityIndex);
+
+			if(V3FNotZero(EntityOffsetForFrame))
+			{
+				// NOTE(Justin): The camera moved to follow the player. Update
+				// the entities basis and the translation matrix. The offset is
+				// the opposite translation that the camera moved.
+				Entity.High->Basis.O -= EntityOffsetForFrame;
+				Entity.High->Translate = Mat4Translation(EntityOffsetForFrame) * Entity.High->Translate;
+			}
 
 			render_basis *Basis = PushStruct(&TransientState->TransientArena, render_basis);
 			RenderGroup->DefaultBasis = Basis;
