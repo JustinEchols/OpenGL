@@ -146,6 +146,7 @@ struct loaded_obj
 struct camera
 {
 	v3f P;
+	//world_position P;
 	v3f Direction;
 	v3f Up;
 
@@ -186,10 +187,6 @@ enum entity_type
 	EntityType_Quad, // Ground
 };
 
-// NOTE(Justin): Should we consider being able to store basis vectors as an
-// array of floats and 3 v3fs? That way we can just use matrix multiplication to
-// calculate the new basis after a transformation is applied.
-
 struct interval
 {
 	f32 Min, Max;
@@ -222,11 +219,8 @@ enum entity_residence
 struct dormant_entity
 {
 	entity_type Type;
+	b32 Collides;
 
-	// TODO(Justin): Change to world position
-	//s32 PackedX;
-	//s32 PackedY;
-	//s32 PackedZ;
 	world_position P;
 	f32 Width, Height, Depth;
 };
@@ -276,9 +270,9 @@ struct app_state
 	loaded_obj Cube;
 
 	camera Camera;
+	b32 CameraIsFree;
 	world_position CameraP;
 
-	b32 CameraIsFree;
 
 	mat4 MapToWorld;
 	mat4 MapToCamera;
