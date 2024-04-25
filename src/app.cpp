@@ -7,16 +7,15 @@
 internal u32
 EntityAdd(app_state *AppState, entity_type Type)
 {
-	Assert(AppState->EntityCount < ArrayCount(AppState->EntitiesDormant));
+	u32 EntityIndex = AppState->EntityCount++;
+
 	Assert(AppState->EntityCount < ArrayCount(AppState->EntitiesLow));
 	Assert(AppState->EntityCount < ArrayCount(AppState->EntitiesHigh));
 
-	u32 EntityIndex = AppState->EntityCount++;
-	AppState->EntityResidence[EntityIndex] = EntityResidence_Dormant;
-	AppState->EntitiesDormant[EntityIndex] = {};
-	AppState->EntitiesDormant[EntityIndex].Type = Type;
+	AppState->EntityResidence[EntityIndex] = EntityResidence_Low;
 	AppState->EntitiesLow[EntityIndex] = {};
 	AppState->EntitiesHigh[EntityIndex] = {};
+	AppState->EntitiesLow[EntityIndex].Type = Type;
 
 	return(EntityIndex);
 }
@@ -28,22 +27,21 @@ EntityResidenceChange(app_state *AppState, entity_residence Residence, u32 Entit
 	{
 		if(AppState->EntityResidence[EntityIndex] != EntityResidence_High)
 		{
-			// NOTE(Jusitn): Map into camera region + apron
 			high_entity *EntityHigh = AppState->EntitiesHigh + EntityIndex;
-			dormant_entity *EntityDormant = AppState->EntitiesDormant + EntityIndex;
+			low_entity *EntityLow = AppState->EntitiesLow + EntityIndex;
 
 			// NOTE(Justin): The entities basis is going to be the camera's
 			// position. The translation matrix translates the entities position
 			// from the camera's world position to a world position relative to
 			// the camera's position.
 
-			v3f Translate = WorldPosDifference(&AppState->World, &EntityDormant->P, &AppState->CameraP);
-			Translate.y += EntityDormant->Height;
+			v3f Translate = WorldPosDifference(&AppState->World, &EntityLow->P, &AppState->CameraP);
 			v3f CameraP = {(f32)AppState->CameraP.PackedX, (f32)AppState->CameraP.PackedY, (f32)AppState->CameraP.PackedZ};
 			EntityHigh->Basis.O = CameraP;
 			EntityHigh->Translate = Mat4Translation(Translate);
 		}
 	}
+
 	AppState->EntityResidence[EntityIndex] = Residence;
 }
 
@@ -61,7 +59,6 @@ EntityGet(app_state *AppState, entity_residence Residence, u32 Index)
 		}
 
 		Entity.Residence = Residence;
-		Entity.Dormant = AppState->EntitiesDormant + Index;
 		Entity.Low = AppState->EntitiesLow + Index;
 		Entity.High = AppState->EntitiesHigh + Index;
 	}
@@ -82,59 +79,37 @@ BasisStandard(void)
 	return(Result);
 }
 
-internal mat4
-TranslationToChunk(world *World, s32 PackedX, s32 PackedY, s32 PackedZ, f32 HeightInChunk)
-{
-	// NOTE(Justin): Translation matrix such that a basis is translated to the
-	// center of the chunk.
-
-	mat4 Result = Mat4Identity();
-
-	chunk_tile_position ChunkP = ChunkPosGet(World, PackedX, PackedY, PackedZ);
-
-	f32 XOffset = ChunkP.ChunkX * World->ChunkDim * World->TileSideInMeters
-		+ ChunkP.TileX * World->TileSideInMeters;
-
-	f32 ZOffset = ChunkP.ChunkZ * World->ChunkDim * World->TileSideInMeters
-		+ ChunkP.TileZ * World->TileSideInMeters;
-
-	Result = Mat4Translation(XOffset, HeightInChunk, -ZOffset);
-
-	return(Result);
-}
-
 internal void
 PlayerAdd(app_state *AppState, aabb_min_max AABBMinMax)
 {
 	u32 EntityIndex = EntityAdd(AppState, EntityType_Player);
-	entity Entity = EntityGet(AppState, EntityResidence_Dormant, EntityIndex);
+	entity Entity = EntityGet(AppState, EntityResidence_Low, EntityIndex);
 
 	world *World = &AppState->World;
 
-	Entity.Dormant->Collides = true;
-	Entity.Dormant->P.PackedX = 8;
-	Entity.Dormant->P.PackedY = 0;
-	Entity.Dormant->P.PackedZ = 4;
+	Entity.Low->Collides = true;
+	Entity.Low->P.PackedX = 8;
+	Entity.Low->P.PackedY = 0;
+	Entity.Low->P.PackedZ = 4;
 
 	// NOTE(Justin): Curently not used
-	Entity.Dormant->Width = 0;
-	Entity.Dormant->Height = 0.35f;
-	Entity.Dormant->Depth = 0;
+	Entity.Low->Width = 0;
+	Entity.Low->Height = 0.35f;
+	Entity.Low->Depth = 0;
+
+	Entity.Low->P.OffsetFromTileCenter_.y = Entity.Low->Height;
 
 	Entity.High->Basis = BasisStandard();
-	Entity.High->Basis.O.y += 0.35f;
 	Entity.High->Mesh[0] = AppState->Cube.Mesh;
 	Entity.High->Mesh[0].Colors[0] = {1.0f, 1.0f, 0.0f, 1.0f};
 	Entity.High->AABBMinMax = AABBMinMax;
-	Entity.High->Scale = Mat4Scale(Entity.Dormant->Height);
+	Entity.High->Scale = Mat4Scale(Entity.Low->Height);
 
 	EntityResidenceChange(AppState, EntityResidence_High, EntityIndex);
-	if(EntityGet(AppState, EntityResidence_Dormant, AppState->CameraEntityFollowingIndex).Residence == EntityResidence_Dormant)
+	if(EntityGet(AppState, EntityResidence_Low, AppState->CameraEntityFollowingIndex).Residence == EntityResidence_Low)
 	{
 		AppState->CameraEntityFollowingIndex = EntityIndex;
 	}
-
-	AppState->PlayerEntityIndex = EntityIndex;
 }
 
 // TODO(Justin): This is a hack.. Do the real version..
@@ -183,17 +158,17 @@ ModelAdd(app_state *AppState, mesh *Mesh, s32 PackedX, s32 PackedY, s32 PackedZ,
 		mat4 Scale, aabb_min_max AABBMinMax, loaded_bitmap *Texture = 0)
 {
 	u32 EntityIndex = EntityAdd(AppState, EntityType_Wall);
-	entity Entity = EntityGet(AppState, EntityResidence_Dormant, EntityIndex);
+	entity Entity = EntityGet(AppState, EntityResidence_Low, EntityIndex);
 
-	Entity.Dormant->Collides = true;
-	Entity.Dormant->P.PackedX = PackedX;
-	Entity.Dormant->P.PackedY = PackedY;
-	Entity.Dormant->P.PackedZ = PackedZ;
-	Entity.Dormant->Height = 0.5f;
+	Entity.Low->Collides = true;
+	Entity.Low->P.PackedX = PackedX;
+	Entity.Low->P.PackedY = PackedY;
+	Entity.Low->P.PackedZ = PackedZ;
+	Entity.Low->Height = 0.5f;
+	Entity.Low->P.OffsetFromTileCenter_.y = Entity.Low->Height;
 
 	Entity.High->Mesh[0] = *Mesh;
 	Entity.High->Basis = BasisStandard();
-	Entity.High->Basis.O.y += Entity.Dormant->Height;
 	Entity.High->AABBMinMax = AABBMinMax;
 	Entity.High->Scale = Scale;
 
@@ -204,26 +179,21 @@ ModelAdd(app_state *AppState, mesh *Mesh, s32 PackedX, s32 PackedY, s32 PackedZ,
 	// (coordinate) is the fursthers away in the opposite directon.
 
 	// TODO(Justin): Texture with loaded model
-
-
-	//EntityResidenceChange(AppState, EntityResidence_High, EntityIndex);
 }
 
 internal void
 QuadAdd(app_state *AppState, mesh *Mesh, s32 PackedX, s32 PackedY, s32 PackedZ, mat4 Scale)
 {
 	u32 EntityIndex = EntityAdd(AppState, EntityType_Quad);
-	entity Entity = EntityGet(AppState, EntityResidence_Dormant, EntityIndex);
+	entity Entity = EntityGet(AppState, EntityResidence_Low, EntityIndex);
 	
-	Entity.Dormant->P.PackedX = PackedX;
-	Entity.Dormant->P.PackedY = PackedY;
-	Entity.Dormant->P.PackedZ = PackedZ;
+	Entity.Low->P.PackedX = PackedX;
+	Entity.Low->P.PackedY = PackedY;
+	Entity.Low->P.PackedZ = PackedZ;
 
 	Entity.High->Basis = BasisStandard();
 	Entity.High->Mesh[0] = *Mesh;
 	Entity.High->Scale = Scale;
-	
-	//EntityResidenceChange(AppState, EntityResidence_High, EntityIndex);
 }
 
 internal void
@@ -244,10 +214,10 @@ EntityMove(app_state *AppState, entity Entity, v3f ddP, f32 dt)
 	v3f PlayerOffset = Mat4Column(Entity.High->Translate, 3).xyz;
 	v3f NewP = PlayerOffset + PlayerDelta;
 
-	Entity.Dormant->P = PlayerPosReCompute(World, AppState->CameraP, Entity.High);
+	Entity.Low->P = PlayerPosReCompute(World, AppState->CameraP, Entity.High);
 
 	b32 Collided = false;
-	if(WorldTileIsEmpty(World, Entity.Dormant->P.PackedX, Entity.Dormant->P.PackedY, Entity.Dormant->P.PackedZ))
+	if(WorldTileIsEmpty(World, Entity.Low->P.PackedX, Entity.Low->P.PackedY, Entity.Low->P.PackedZ))
 	{
 		Entity.High->Translate = Mat4Translation(NewP);
 		Entity.High->dP = Entity.High->dP + ddP * dt;
@@ -651,9 +621,9 @@ CameraSet(app_state *AppState, world_position NewCameraP)
 	AppState->Camera.P.z = -(f32)NewCameraP.PackedZ;
 
 	// TODO(Justin): Formalize these. They are chosen arbitrarily.
-	s32 TileXSpan = 17 * 3;
+	s32 TileXSpan = 17*2;
 	s32 TileYSpan = 10;
-	s32 TileZSpan = 9 * 3;
+	s32 TileZSpan = 17*2;
 
 	aabb CameraBounds = AABBCenterDim(V3F(0.0f, -12.0f, 0.0f), World->TileSideInMeters * V3F((f32)TileXSpan,
 																							 (f32)TileYSpan,
@@ -661,13 +631,16 @@ CameraSet(app_state *AppState, world_position NewCameraP)
 
 	for(u32 EntityIndex = 0; EntityIndex < ArrayCount(AppState->EntitiesHigh); ++EntityIndex)
 	{
-		high_entity *EntityHigh = AppState->EntitiesHigh + EntityIndex;
-		EntityHigh->Basis.O -= EntityOffsetForFrame;
-		EntityHigh->Translate = Mat4Translation(EntityOffsetForFrame) * EntityHigh->Translate;
-		v3f Offset = Mat4Column(EntityHigh->Translate, 3).xyz;
-		if(!IsInAABB(CameraBounds, Offset))
+		if(AppState->EntityResidence[EntityIndex] == EntityResidence_High)
 		{
-			EntityResidenceChange(AppState, EntityResidence_Dormant, EntityIndex);
+			high_entity *EntityHigh = AppState->EntitiesHigh + EntityIndex;
+			EntityHigh->Basis.O -= EntityOffsetForFrame;
+			EntityHigh->Translate = Mat4Translation(EntityOffsetForFrame) * EntityHigh->Translate;
+			v3f Offset = Mat4Column(EntityHigh->Translate, 3).xyz;
+			if(!IsInAABB(CameraBounds, Offset))
+			{
+				EntityResidenceChange(AppState, EntityResidence_Low, EntityIndex);
+			}
 		}
 	}
 
@@ -678,18 +651,20 @@ CameraSet(app_state *AppState, world_position NewCameraP)
 	s32 TileXMax = NewCameraP.PackedX + TileXSpan / 2;
 	s32 TileYMax = TileYSpan / 2;
 	s32 TileZMax = NewCameraP.PackedZ + TileZSpan / 2;
-	for(u32 EntityIndex = 0; EntityIndex < ArrayCount(AppState->EntitiesDormant); ++EntityIndex)
+	for(u32 EntityIndex = 0; EntityIndex < ArrayCount(AppState->EntitiesLow); ++EntityIndex)
 	{
-		dormant_entity *EntityDormant = AppState->EntitiesDormant + EntityIndex;
-
-		if((EntityDormant->P.PackedX >= TileXMin) &&
-		   (EntityDormant->P.PackedY >= TileYMin) &&
-		   (EntityDormant->P.PackedZ >= TileZMin) &&
-		   (EntityDormant->P.PackedX <= TileXMax) &&
-		   (EntityDormant->P.PackedY <= TileYMax) &&
-		   (EntityDormant->P.PackedZ <= TileZMax))
+		low_entity *EntityLow = AppState->EntitiesLow + EntityIndex;
+		if(AppState->EntityResidence[EntityIndex] == EntityResidence_Low)
 		{
-			EntityResidenceChange(AppState, EntityResidence_High, EntityIndex);
+			if((EntityLow->P.PackedX >= TileXMin) &&
+			   (EntityLow->P.PackedY >= TileYMin) &&
+			   (EntityLow->P.PackedZ >= TileZMin) &&
+			   (EntityLow->P.PackedX <= TileXMax) &&
+			   (EntityLow->P.PackedY <= TileYMax) &&
+			   (EntityLow->P.PackedZ <= TileZMax))
+			{
+				EntityResidenceChange(AppState, EntityResidence_High, EntityIndex);
+			}
 		}
 	}
 }
@@ -751,8 +726,6 @@ extern "C" APP_UPDATE_AND_RENDER(AppUpdateAndRender)
 		AppState->White = DEBUGBitmapReadEntireFile(Thread, "white_with_border.bmp", Platform.DEBUGPlatformReadEntireFile);
 		AppState->Black = DEBUGBitmapReadEntireFile(Thread, "black.bmp", Platform.DEBUGPlatformReadEntireFile);
 
-
-
 		mesh SourceCube = AppState->Cube.Mesh;
 		mesh *WallCube = MeshAllocate(WorldArena, SourceCube.VertexCount,
 												  SourceCube.UVCount,
@@ -767,6 +740,7 @@ extern "C" APP_UPDATE_AND_RENDER(AppUpdateAndRender)
 
 		mesh *QuadGround = MeshAllocate(WorldArena, 4, 4, 4, 0, 4);
 
+		// TODO(Justin): Obj file for quad
 		QuadGround->Vertices[0] = V3F(-0.5f, 0.0, 0.5f);
 		QuadGround->Vertices[1] = V3F(0.5f, 0.0, 0.5f);
 		QuadGround->Vertices[2] = V3F(0.5f, 0.0, -0.5f);
@@ -799,9 +773,9 @@ extern "C" APP_UPDATE_AND_RENDER(AppUpdateAndRender)
 		World->ChunkShift = 4;
 		World->ChunkMask = (1 << World->ChunkShift) - 1;
 		World->ChunkDim = (1 << World->ChunkShift);
-		World->ChunkCountX = 5;
+		World->ChunkCountX = 8;
 		World->ChunkCountY = 1;
-		World->ChunkCountZ = 5;
+		World->ChunkCountZ = 8;
 
 		World->TileSideInMeters = 1.0f;
 		World->ChunkDimInMeters = World->ChunkDim * World->TileSideInMeters;
@@ -817,7 +791,7 @@ extern "C" APP_UPDATE_AND_RENDER(AppUpdateAndRender)
 		s32 ScreenX = 0;
 		s32 ScreenZ = 0;
 		u32 RandomNumberIndex = 0;
-		for(s32 ScreenIndex = 0; ScreenIndex < 3; ++ScreenIndex)
+		for(s32 ScreenIndex = 0; ScreenIndex < 5; ++ScreenIndex)
 		{
 			for(s32 TileY = 0; TileY < 1; ++TileY)
 			{
@@ -884,12 +858,11 @@ extern "C" APP_UPDATE_AND_RENDER(AppUpdateAndRender)
 			u32 RandomChoice = RandomNumberTable[RandomNumberIndex++] % 2;
 			if(RandomChoice == 0)
 			{
-
-				ScreenZ++;
+				ScreenX++;
 			}
 			else
 			{
-				ScreenX++;
+				ScreenZ++;
 			}
 		}
 
@@ -1007,7 +980,6 @@ extern "C" APP_UPDATE_AND_RENDER(AppUpdateAndRender)
 		f32 CameraSpeed = 8.0f;
 		Shift = dt * CameraSpeed * Shift;
 
-		// TODO(Justin): Update the camera's world position.
 		Camera->P += Shift;
 		CameraUpdate(AppState, Camera, Input->dMouseX, Input->dMouseY, dt);
 	}
@@ -1095,7 +1067,7 @@ extern "C" APP_UPDATE_AND_RENDER(AppUpdateAndRender)
 			render_basis *Basis = PushStruct(&TransientState->TransientArena, render_basis);
 			RenderGroup->DefaultBasis = Basis;
 
-			switch(Entity.Dormant->Type)
+			switch(Entity.Low->Type)
 			{
 				case EntityType_Player:
 				{
@@ -1105,12 +1077,12 @@ extern "C" APP_UPDATE_AND_RENDER(AppUpdateAndRender)
 																  Entity.High->Translate,
 																  Entity.High->Scale); 
 
-					chunk_tile_position ChunkP = ChunkPosGet(World, Entity.Dormant->P.PackedX,
-																	Entity.Dormant->P.PackedY,
-																	Entity.Dormant->P.PackedZ);
+					chunk_tile_position ChunkP = ChunkPosGet(World, Entity.Low->P.PackedX,
+																	Entity.Low->P.PackedY,
+																	Entity.Low->P.PackedZ);
 
 					basis B = Entity.High->Basis;
-					B.O = {(f32)Entity.Dormant->P.PackedX, 0.0f, -(f32)Entity.Dormant->P.PackedZ};
+					B.O = {(f32)Entity.Low->P.PackedX, 0.0f, -(f32)Entity.Low->P.PackedZ};
 					v3f Dim = {1.0f, 0.0f, 1.0f};
 					v4f Color = {1.0f, 0.0f, 1.0f, 1.0f};
 					PushRectangle(RenderGroup, B, Dim, Color);

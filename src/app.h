@@ -206,27 +206,20 @@ struct aabb_min_max
 	v3f Max;
 };
 
-
-
 enum entity_residence
 {
 	EntityResidence_NonExistant,
-	EntityResidence_Dormant,
 	EntityResidence_Low,
 	EntityResidence_High,
 };
 
-struct dormant_entity
+struct low_entity 
 {
 	entity_type Type;
 	b32 Collides;
 
 	world_position P;
 	f32 Width, Height, Depth;
-};
-
-struct low_entity 
-{
 };
 
 // NOTE(Justin): Maybe pull this out to entity.
@@ -248,7 +241,6 @@ struct entity
 	u32 Flags;
 
 	u32 Residence;
-	dormant_entity *Dormant;
 	low_entity *Low;
 	high_entity *High;
 };
@@ -280,15 +272,11 @@ struct app_state
 	mat4 MapToScreenSpace;
 
 	u32 EntityCount;
-	entity_residence EntityResidence[2048];
-	dormant_entity EntitiesDormant[2048];
-	low_entity EntitiesLow[2048];
-	high_entity EntitiesHigh[2048];
+	entity_residence EntityResidence[4096];
+	low_entity EntitiesLow[4096];
+	high_entity EntitiesHigh[4096];
 
-	u32 PlayerEntityIndex;
 	u32 CameraEntityFollowingIndex;
-
-	f32 Time;
 };
 
 struct transient_state
