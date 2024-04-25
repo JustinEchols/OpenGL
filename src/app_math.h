@@ -578,6 +578,13 @@ operator -(v3f A, v3f B)
 	return(Result);
 }
 
+inline v3f &
+operator -=(v3f &U, v3f V)
+{
+	U = U - V;
+	return(U);
+}
+
 inline v3f
 Lerp(v3f A, f32 t, v3f B)
 {
@@ -1058,16 +1065,79 @@ Mat4OrthographicProjection(f32 l, f32 r, f32 b, f32 t, f32 n, f32 f)
 internal v4f
 Mat4Column(mat4 M, u32 ColumnIndex)
 {
+	Assert(ColumnIndex >= 0);
+	Assert(ColumnIndex < 4);
 	v4f Result = {};
 
-	Result.x = M.e[ColumnIndex][0];
-	Result.y = M.e[ColumnIndex][1];
-	Result.z = M.e[ColumnIndex][2];
-	Result.w = M.e[ColumnIndex][3];
+	Result.x = M.e[0][ColumnIndex];
+	Result.y = M.e[1][ColumnIndex];
+	Result.z = M.e[2][ColumnIndex];
+	Result.w = M.e[3][ColumnIndex];
 
 	return(Result);
 }
 
+struct aabb 
+{
+	v3f Min;
+	v3f Max;
+};
+
+
+inline aabb
+AABBMinMax(v3f Min, v3f Max)
+{
+	aabb Result;
+
+	Result.Min = Min;
+	Result.Max = Max;
+
+	return(Result);
+}
+
+inline aabb
+AABBMinDim(v3f Min, v3f Dim)
+{
+	aabb Result;
+
+	Result.Min = Min;
+	Result.Max = Min + Dim;
+}
+
+inline aabb
+AABBCenterHalfDim(v3f Center, v3f HalfDim)
+{
+	aabb Result;
+
+	Result.Min = Center - HalfDim;
+	Result.Max = Center + HalfDim;
+
+	return(Result);
+}
+
+inline aabb
+AABBCenterDim(v3f Center, v3f Dim)
+{
+	aabb Result = AABBCenterHalfDim(Center, 0.5f * Dim);
+
+	return(Result);
+}
+
+inline b32
+IsInAABB(aabb AABB, v3f Test)
+{
+	b32 Result = ((AABB.Min.x <= Test.x) &&
+				 (AABB.Min.y <= Test.y) &&
+				 (AABB.Min.z <= Test.z) &&
+				 (AABB.Max.x > Test.x) &&
+				 (AABB.Max.y > Test.y) &&
+				 (AABB.Max.z > Test.z));
+
+	return(Result);
+
+
+
+}
 
 #define APP_MATH_H
 #endif
