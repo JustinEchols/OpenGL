@@ -229,7 +229,7 @@ struct high_entity
 	v3f dP;
 
 	mesh Mesh[2];
-	aabb_min_max AABBMinMax;
+	aabb AABB;
 
 	mat4 Translate;
 	mat4 Scale;
