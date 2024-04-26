@@ -80,7 +80,7 @@ BasisStandard(void)
 }
 
 internal void
-PlayerAdd(app_state *AppState, aabb_min_max AABBMinMax)
+PlayerAdd(app_state *AppState, aabb AABB)
 {
 	u32 EntityIndex = EntityAdd(AppState, EntityType_Player);
 	entity Entity = EntityGet(AppState, EntityResidence_Low, EntityIndex);
@@ -102,7 +102,7 @@ PlayerAdd(app_state *AppState, aabb_min_max AABBMinMax)
 	Entity.High->Basis = BasisStandard();
 	Entity.High->Mesh[0] = AppState->Cube.Mesh;
 	Entity.High->Mesh[0].Colors[0] = {1.0f, 1.0f, 0.0f, 1.0f};
-	Entity.High->AABBMinMax = AABBMinMax;
+	Entity.High->AABB = AABB;
 	Entity.High->Scale = Mat4Scale(Entity.Low->Height);
 
 	EntityResidenceChange(AppState, EntityResidence_High, EntityIndex);
@@ -113,10 +113,10 @@ PlayerAdd(app_state *AppState, aabb_min_max AABBMinMax)
 }
 
 // TODO(Justin): This is a hack.. Do the real version..
-internal aabb_min_max
+internal aabb
 AABBMinMax(v3f *Vertices, u32 VerticesCount)
 {
-	aabb_min_max Result = {};
+	aabb Result = {};
 
 	f32 CurrentMinProject = 0.0f;
 	f32 CurrentMaxProject = 0.0f;
@@ -155,7 +155,7 @@ AABBMinMax(v3f *Vertices, u32 VerticesCount)
 
 internal void
 ModelAdd(app_state *AppState, mesh *Mesh, s32 PackedX, s32 PackedY, s32 PackedZ,
-		mat4 Scale, aabb_min_max AABBMinMax, loaded_bitmap *Texture = 0)
+		mat4 Scale, aabb AABB, loaded_bitmap *Texture = 0)
 {
 	u32 EntityIndex = EntityAdd(AppState, EntityType_Wall);
 	entity Entity = EntityGet(AppState, EntityResidence_Low, EntityIndex);
@@ -169,7 +169,7 @@ ModelAdd(app_state *AppState, mesh *Mesh, s32 PackedX, s32 PackedY, s32 PackedZ,
 
 	Entity.High->Mesh[0] = *Mesh;
 	Entity.High->Basis = BasisStandard();
-	Entity.High->AABBMinMax = AABBMinMax;
+	Entity.High->AABB = AABB;
 	Entity.High->Scale = Scale;
 
 	// TODO(Justin): Parametrize this value or compute the AABB.
@@ -190,10 +190,41 @@ QuadAdd(app_state *AppState, mesh *Mesh, s32 PackedX, s32 PackedY, s32 PackedZ, 
 	Entity.Low->P.PackedX = PackedX;
 	Entity.Low->P.PackedY = PackedY;
 	Entity.Low->P.PackedZ = PackedZ;
+	Entity.Low->Collides = false;
 
 	Entity.High->Basis = BasisStandard();
 	Entity.High->Mesh[0] = *Mesh;
 	Entity.High->Scale = Scale;
+}
+
+inline b32
+InSameTile(world_position *A, world_position *B)
+{
+	b32 Result = ((A->PackedX == B->PackedX) &&
+				 (A->PackedY == B->PackedY) &&
+				 (A->PackedZ == B->PackedZ));
+
+	return(Result);
+}
+
+inline b32
+AABBIntersectsAABB(aabb A, aabb B)
+{
+	b32 Result = true;
+	if((A.Max.x < B.Min.x) || (A.Min.x > B.Max.x))
+	{
+		Result = false;
+	}
+	if((A.Max.y < B.Min.y) || (A.Min.y > B.Max.y))
+	{
+		Result = false;
+	}
+	if((A.Max.z < B.Min.z) || (A.Min.z > B.Max.z))
+	{
+		Result = false;
+	}
+
+	return(Result);
 }
 
 internal void
@@ -214,14 +245,51 @@ EntityMove(app_state *AppState, entity Entity, v3f ddP, f32 dt)
 	v3f PlayerOffset = Mat4Column(Entity.High->Translate, 3).xyz;
 	v3f NewP = PlayerOffset + PlayerDelta;
 
-	Entity.Low->P = PlayerPosReCompute(World, AppState->CameraP, Entity.High);
-
 	b32 Collided = false;
-	if(WorldTileIsEmpty(World, Entity.Low->P.PackedX, Entity.Low->P.PackedY, Entity.Low->P.PackedZ))
+	for(u32 EntityIndex = 0; EntityIndex < AppState->EntityCount; ++EntityIndex)
+	{
+		entity TestEntity = EntityGet(AppState, EntityResidence_High, EntityIndex);
+		if(TestEntity.High != Entity.High)
+		{
+			if(TestEntity.Low->Collides)
+			{
+
+#if 1
+				v3f TestP = Mat4Column(TestEntity.High->Translate, 3).xyz;
+				aabb TestAABB = AABBCenterDim(TestP, V3F(1.0f));
+				aabb PlayerAABB = AABBCenterDim(NewP, V3F(0.7f));
+				if(AABBIntersectsAABB(TestAABB, PlayerAABB))
+				{
+					Collided = true;
+				}
+#else
+
+				v3f TestP = Mat4Column(TestEntity.High->Translate, 3).xyz;
+				aabb TestAABB = AABBCenterDim(TestP, V3F(1.0f));
+				aabb PlayerAABB = AABBCenterDim(NewP, V3F(0.35f));
+				if((PlayerAABB.Max.x >= TestAABB.Min.x) &&
+				   (PlayerAABB.Max.y >= TestAABB.Min.y) &&
+				   (PlayerAABB.Max.z >= TestAABB.Min.z) &&
+				   (PlayerAABB.Min.x < TestAABB.Max.x) &&
+				   (PlayerAABB.Min.y < TestAABB.Max.y) &&
+				   (PlayerAABB.Min.z < TestAABB.Max.z))
+				{
+					Collided = true;
+				}
+#endif
+			}
+		}
+	}
+
+
+	if(!Collided)
 	{
 		Entity.High->Translate = Mat4Translation(NewP);
 		Entity.High->dP = Entity.High->dP + ddP * dt;
 	}
+
+	// NOTE(Justin): Map into tile space.
+	Entity.Low->P = PlayerPosReCompute(World, AppState->CameraP, Entity.High);
 }
 
 
@@ -736,7 +804,7 @@ extern "C" APP_UPDATE_AND_RENDER(AppUpdateAndRender)
 		MeshCopy(&SourceCube, WallCube);
 		WallCube->Colors[0] = V4F(1.0f);
 
-		aabb_min_max BBox = AABBMinMax(WallCube->Vertices, WallCube->VertexCount);
+		aabb BBox = AABBMinMax(WallCube->Vertices, WallCube->VertexCount);
 
 		mesh *QuadGround = MeshAllocate(WorldArena, 4, 4, 4, 0, 4);
 
@@ -1100,6 +1168,12 @@ extern "C" APP_UPDATE_AND_RENDER(AppUpdateAndRender)
 					PushQuad(RenderGroup, Mesh->Texture,
 							Entity.High->Translate, Entity.High->Scale, Entity.High->Basis,
 							Mesh->Vertices, Mesh->UV, Mesh->Colors, QUAD_VERTEX_COUNT);
+
+					basis B = Entity.High->Basis;
+					B.O = {(f32)Entity.Low->P.PackedX, 0.0f, -(f32)Entity.Low->P.PackedZ};
+					v3f Dim = {0.1f, 0.0f, 0.1f};
+					v4f Color = {1.0f, 1.0f, 0.0f, 1.0f};
+					PushRectangle(RenderGroup, B, Dim, Color);
 				} break;
 
 				INVALID_DEFAULT_CASE;
