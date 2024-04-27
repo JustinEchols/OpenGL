@@ -210,21 +210,22 @@ InSameTile(world_position *A, world_position *B)
 inline b32
 AABBIntersectsAABB(aabb A, aabb B)
 {
-	b32 Result = true;
-	if((A.Max.x < B.Min.x) || (A.Min.x > B.Max.x))
-	{
-		Result = false;
-	}
-	if((A.Max.y < B.Min.y) || (A.Min.y > B.Max.y))
-	{
-		Result = false;
-	}
-	if((A.Max.z < B.Min.z) || (A.Min.z > B.Max.z))
-	{
-		Result = false;
-	}
 
+	b32 Result = ((A.Max.x >= B.Min.x) &&
+				  (A.Max.y >= B.Min.y) &&
+				  (A.Max.z >= B.Min.z) &&
+				  (A.Min.x < B.Max.x) &&
+				  (A.Min.y < B.Max.y) &&
+				  (A.Min.z < B.Max.z));
+	
 	return(Result);
+}
+
+// TODO(Justin): Try MK diff for AABB vs AABB collision detection
+
+internal b32
+WallCollisionTest()
+{
 }
 
 internal void
@@ -242,45 +243,80 @@ EntityMove(app_state *AppState, entity Entity, v3f ddP, f32 dt)
 	ddP += -3.0f * Entity.High->dP;
 
 	v3f PlayerDelta = 0.5f * ddP * Square(dt) + Entity.High->dP * dt;
-	v3f PlayerOffset = Mat4Column(Entity.High->Translate, 3).xyz;
-	v3f NewP = PlayerOffset + PlayerDelta;
+	v3f PlayerP = Mat4Column(Entity.High->Translate, 3).xyz;
+	v3f NewP = PlayerP + PlayerDelta;
 
+	aabb AABB2 = AABBCenterDim(NewP, V3F(0.7f));
 	b32 Collided = false;
+
+	f32 t = 0.0f;
 	for(u32 EntityIndex = 0; EntityIndex < AppState->EntityCount; ++EntityIndex)
 	{
-		entity TestEntity = EntityGet(AppState, EntityResidence_High, EntityIndex);
-		if(TestEntity.High != Entity.High)
+		if(AppState->EntityResidence[EntityIndex] == EntityResidence_High)
 		{
-			if(TestEntity.Low->Collides)
+
+			low_entity *Low = AppState->EntitiesLow + EntityIndex;
+			high_entity *High = AppState->EntitiesHigh + EntityIndex;
+			//entity TestEntity = EntityGet(AppState, EntityResidence_High, EntityIndex);
+			if(High != Entity.High)
 			{
-
-#if 1
-				v3f TestP = Mat4Column(TestEntity.High->Translate, 3).xyz;
-				aabb TestAABB = AABBCenterDim(TestP, V3F(1.0f));
-				aabb PlayerAABB = AABBCenterDim(NewP, V3F(0.7f));
-				if(AABBIntersectsAABB(TestAABB, PlayerAABB))
+				if(Low->Collides)
 				{
-					Collided = true;
-				}
-#else
+					v3f TestP = Mat4Column(High->Translate, 3).xyz;
+					aabb AABB1 = AABBCenterDim(TestP, V3F(1.7f));
+					v3f RelP = NewP - TestP;
+					aabb MKSumAABB = AABBCenterDim(V3F(0.0f), V3F(1.7f));
+					// NOTE(Justin): This is a point vs plane test that uses the Minkowski sum.
+					// and works as follows. Assume
+					// that a collision happens. First the position of the
+					// player in the wall cubes relative space is computed
+					// by A - B. This means that in this relative space the
+					// wall cube is the origin and the vector A - B is a
+					// position vector in the relative space and is the player's
+					// position. Then a bounding box is constructed at the
+					// origin of the space 0. The minimum point of the AABB
+					// is on the left face of the wall cube and is also a
+					// point on the infinite plane of the left face. Now
+					// we know that signed distance of the left face from
+					// the center is -0.5f because the dimensions of the
+					// cube are 1x1x1. Therefore by the mathemaitcal
+					// definition of a plane the normal has to be 1,0,0
+					// (confirm this). Taking the dot product of 1,0,0 and
+					// the minimum point of the AABB correctly computes the
+					// signed distance of -0.5f. Once we have the relative
+					// position and the distance D we compute the
+					// intersection time t by solving the paramtrized plane
+					// equation. if a valid t is computed in the range [0,1]
+					// we compute the new position of the player but we must
+					// check whether or not it is in the bounding box.
+					// Because the plane test uses the mathematical
+					// definition of a plane, which is inifinite in extent.
+					// If we do not check whether or not the new position is
+					// in the bounding box we will collide with the left
+					// face all the time. Therefore if the new position is
+					// in the AABB we know for certain the player collided
+					// with the wall and can update the player's position
+					// and velocity accordingly.
 
-				v3f TestP = Mat4Column(TestEntity.High->Translate, 3).xyz;
-				aabb TestAABB = AABBCenterDim(TestP, V3F(1.0f));
-				aabb PlayerAABB = AABBCenterDim(NewP, V3F(0.35f));
-				if((PlayerAABB.Max.x >= TestAABB.Min.x) &&
-				   (PlayerAABB.Max.y >= TestAABB.Min.y) &&
-				   (PlayerAABB.Max.z >= TestAABB.Min.z) &&
-				   (PlayerAABB.Min.x < TestAABB.Max.x) &&
-				   (PlayerAABB.Min.y < TestAABB.Max.y) &&
-				   (PlayerAABB.Min.z < TestAABB.Max.z))
-				{
-					Collided = true;
+					v3f N = {1.0f, 0.0f, 0.0f};
+					f32 D = Dot(N, MKSumAABB.Min);
+					if(V3FNotZero(PlayerDelta))
+					{
+						t = (D - Dot(N, RelP)) / Dot(N, PlayerDelta);
+						if(t >= 0.0f && t < 1.0f)
+						{
+							v3f PP = RelP + t * PlayerDelta;
+							if(IsInAABB(MKSumAABB, PP))
+							{
+								Collided = true;
+								break;
+							}
+						}
+					}
 				}
-#endif
 			}
 		}
 	}
-
 
 	if(!Collided)
 	{
@@ -936,6 +972,7 @@ extern "C" APP_UPDATE_AND_RENDER(AppUpdateAndRender)
 
 		// NOTE(Justin): Add ground and wall entities for allocated tiles only
 
+
 		PlayerAdd(AppState, BBox);
 		for(s32 ChunkY = 0; ChunkY < World->ChunkCountY; ++ChunkY)
 		{
@@ -973,11 +1010,13 @@ extern "C" APP_UPDATE_AND_RENDER(AppUpdateAndRender)
 			}
 		}
 
-		CameraInit(AppState, V3F(0.0f, 12.0f, 0.0f), -90.0f, -70.0f);
+		CameraInit(AppState, V3F(0.0, 12.0f, 0.0f), -90.0f, -70.0f);
 		world_position NewCameraP;
 		NewCameraP.PackedX = AppState->CameraP.PackedX;
 		NewCameraP.PackedY = AppState->CameraP.PackedY;
 		NewCameraP.PackedZ = AppState->CameraP.PackedZ;
+
+
 		CameraSet(AppState, NewCameraP);
 
 		f32 FOV = DegreeToRad(45.0f);
