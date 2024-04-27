@@ -245,27 +245,24 @@ EntityMove(app_state *AppState, entity Entity, v3f ddP, f32 dt)
 	v3f PlayerDelta = 0.5f * ddP * Square(dt) + Entity.High->dP * dt;
 	v3f PlayerP = Mat4Column(Entity.High->Translate, 3).xyz;
 	v3f NewP = PlayerP + PlayerDelta;
-
-	aabb AABB2 = AABBCenterDim(NewP, V3F(0.7f));
 	b32 Collided = false;
 
-	f32 t = 0.0f;
+	// TODO(Justin): Multiple iterations/samples to refine the update
+	f32 t = 1.0f;
 	for(u32 EntityIndex = 0; EntityIndex < AppState->EntityCount; ++EntityIndex)
 	{
 		if(AppState->EntityResidence[EntityIndex] == EntityResidence_High)
 		{
-
 			low_entity *Low = AppState->EntitiesLow + EntityIndex;
 			high_entity *High = AppState->EntitiesHigh + EntityIndex;
-			//entity TestEntity = EntityGet(AppState, EntityResidence_High, EntityIndex);
 			if(High != Entity.High)
 			{
 				if(Low->Collides)
 				{
 					v3f TestP = Mat4Column(High->Translate, 3).xyz;
-					aabb AABB1 = AABBCenterDim(TestP, V3F(1.7f));
 					v3f RelP = NewP - TestP;
 					aabb MKSumAABB = AABBCenterDim(V3F(0.0f), V3F(1.7f));
+
 					// NOTE(Justin): This is a point vs plane test that uses the Minkowski sum.
 					// and works as follows. Assume
 					// that a collision happens. First the position of the
@@ -317,6 +314,9 @@ EntityMove(app_state *AppState, entity Entity, v3f ddP, f32 dt)
 			}
 		}
 	}
+
+	// TODO(Justin): Clip the player's velocity and update the player's position
+	// based off of the collision result.
 
 	if(!Collided)
 	{
