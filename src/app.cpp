@@ -90,7 +90,7 @@ PlayerAdd(app_state *AppState, aabb AABB)
 	Entity.Low->Collides = true;
 	Entity.Low->P.PackedX = 8;
 	Entity.Low->P.PackedY = 0;
-	Entity.Low->P.PackedZ = 4;
+	Entity.Low->P.PackedZ = 5;
 
 	// NOTE(Justin): Curently not used
 	Entity.Low->Width = 0;
@@ -224,9 +224,29 @@ AABBIntersectsAABB(aabb A, aabb B)
 // TODO(Justin): Try MK diff for AABB vs AABB collision detection
 
 internal b32
-WallCollisionTest()
+WallCollisionTest(v3f RelP, v3f PlayerDelta, v3f PointOnPlane, v3f PlaneNormal, aabb MKSumAABB, f32 *tMin)
 {
+	b32 Collided = false;
+
+	f32 tEpsilon = 0.001f;
+	f32 D = Dot(PlaneNormal, PointOnPlane);
+	if(V3FNotZero(PlayerDelta))
+	{
+		f32 tResult = (D - Dot(PlaneNormal, RelP)) / Dot(PlaneNormal, PlayerDelta);
+		if((tResult >= 0.0f) && tResult < *tMin)
+		{
+			v3f PointOfIntersection = RelP + tResult * PlayerDelta;
+			if(IsInAABB(MKSumAABB, PointOfIntersection))
+			{
+				*tMin = Max(0.0f, tResult - tEpsilon);
+				Collided = true;
+			}
+		}
+	}
+
+	return(Collided);
 }
+
 
 internal void
 EntityMove(app_state *AppState, entity Entity, v3f ddP, f32 dt)
@@ -242,86 +262,131 @@ EntityMove(app_state *AppState, entity Entity, v3f ddP, f32 dt)
 	ddP *= PlayerSpeed;
 	ddP += -3.0f * Entity.High->dP;
 
+	v3f OldPlayerP = Mat4Column(Entity.High->Translate, 3).xyz;
 	v3f PlayerDelta = 0.5f * ddP * Square(dt) + Entity.High->dP * dt;
-	v3f PlayerP = Mat4Column(Entity.High->Translate, 3).xyz;
-	v3f NewP = PlayerP + PlayerDelta;
+	Entity.High->dP = ddP * dt + Entity.High->dP;
+
 	b32 Collided = false;
 
-	// TODO(Justin): Multiple iterations/samples to refine the update
-	f32 t = 1.0f;
-	for(u32 EntityIndex = 0; EntityIndex < AppState->EntityCount; ++EntityIndex)
+	for(u32 Iteration = 0; Iteration < 4; ++Iteration)
 	{
-		if(AppState->EntityResidence[EntityIndex] == EntityResidence_High)
+		f32 tMin = 1.0f;
+		v3f WallNormal = V3F(0.0f);
+		v3f DesiredPosition = OldPlayerP + PlayerDelta;
+		for(u32 EntityIndex = 0; EntityIndex < AppState->EntityCount; ++EntityIndex)
 		{
-			low_entity *Low = AppState->EntitiesLow + EntityIndex;
-			high_entity *High = AppState->EntitiesHigh + EntityIndex;
-			if(High != Entity.High)
+			if(AppState->EntityResidence[EntityIndex] == EntityResidence_High)
 			{
-				if(Low->Collides)
+				low_entity *Low = AppState->EntitiesLow + EntityIndex;
+				high_entity *High = AppState->EntitiesHigh + EntityIndex;
+				if(High != Entity.High)
 				{
-					v3f TestP = Mat4Column(High->Translate, 3).xyz;
-					v3f RelP = NewP - TestP;
-					aabb MKSumAABB = AABBCenterDim(V3F(0.0f), V3F(1.7f));
-
-					// NOTE(Justin): This is a point vs plane test that uses the Minkowski sum.
-					// and works as follows. Assume
-					// that a collision happens. First the position of the
-					// player in the wall cubes relative space is computed
-					// by A - B. This means that in this relative space the
-					// wall cube is the origin and the vector A - B is a
-					// position vector in the relative space and is the player's
-					// position. Then a bounding box is constructed at the
-					// origin of the space 0. The minimum point of the AABB
-					// is on the left face of the wall cube and is also a
-					// point on the infinite plane of the left face. Now
-					// we know that signed distance of the left face from
-					// the center is -0.5f because the dimensions of the
-					// cube are 1x1x1. Therefore by the mathemaitcal
-					// definition of a plane the normal has to be 1,0,0
-					// (confirm this). Taking the dot product of 1,0,0 and
-					// the minimum point of the AABB correctly computes the
-					// signed distance of -0.5f. Once we have the relative
-					// position and the distance D we compute the
-					// intersection time t by solving the paramtrized plane
-					// equation. if a valid t is computed in the range [0,1]
-					// we compute the new position of the player but we must
-					// check whether or not it is in the bounding box.
-					// Because the plane test uses the mathematical
-					// definition of a plane, which is inifinite in extent.
-					// If we do not check whether or not the new position is
-					// in the bounding box we will collide with the left
-					// face all the time. Therefore if the new position is
-					// in the AABB we know for certain the player collided
-					// with the wall and can update the player's position
-					// and velocity accordingly.
-
-					v3f N = {1.0f, 0.0f, 0.0f};
-					f32 D = Dot(N, MKSumAABB.Min);
-					if(V3FNotZero(PlayerDelta))
+					if(Low->Collides)
 					{
-						t = (D - Dot(N, RelP)) / Dot(N, PlayerDelta);
-						if(t >= 0.0f && t < 1.0f)
+						v3f TestP = Mat4Column(High->Translate, 3).xyz;
+						v3f CurrentP = Mat4Column(Entity.High->Translate, 3).xyz;
+						v3f RelP = CurrentP - TestP;
+
+						// TODO(Justin): Paramterize the dimensions of the AABB.
+						aabb MKSumAABB = AABBCenterDim(V3F(0.0f), V3F(1.7f));
+
+						// NOTE(Justin): This is a point vs plane test that uses the Minkowski sum.
+						// and works as follows. Assume
+						// that a collision happens on the left face (the other
+						// cases are similar). First the position of the
+						// player in the wall cubes relative space is computed
+						// by A - B. This means that in this relative space the
+						// wall cube is the origin and the vector A - B is a
+						// position vector in the relative space and is the player's
+						// position. Then a bounding box is constructed at the
+						// origin of the space 0. Moreoever this bounding box is
+						// formed by doing the MK sum of the player bounding box and
+						// enity bounding box. This is done so that we can turn the
+						// problem of AABB vs AABB collision deteion into point vs.
+						// plane collision detction.
+						//
+						// The minimum point of the AABB
+						// is on the left face of the wall cube and is also a
+						// point on the infinite plane of the left face. Now the
+						// plane convention that is used is the convention that
+						// the signed distance D is positive whenver the origin is
+						// below the plane and D is negative when the origin is
+						// above the plane. So the normal of the left face is (-1,
+						// 0, 0) therefore the signed distance of the left face from
+						// the center is 0.5f because the dimensions of the
+						// cube are 1x1x1 and by the convention we use for the plane
+						// equation. Taking the dot product of (-1,0,0) and
+						// the minimum point of the AABB correctly computes the
+						// signed distance of the plane of the left face of the
+						// expanded AABB. Once we have the relative
+						// position and the distance D we compute the
+						// intersection time t by solving the paramtrized plane
+						// equation. if a valid t is computed in the range [0,1]
+						// we compute the new relative position of the player using t and the player's delta and then
+						// check whether or not it is in the bounding box.
+						// Because the plane test uses the mathematical
+						// definition of a plane, which is inifinite in extent.
+						// If we do not check whether or not the new relative position is
+						// in the bounding box we will collide with the left
+						// face all the time. Therefore if the new relative position is
+						// in the AABB we know for certain the player collided
+						// with the wall and can update the player's position
+						// and velocity accordingly.
+
+						// NOTE(Jusitn): Left face
+						v3f PlaneNormal = {-1.0f, 0.0f, 0.0f};
+						v3f PointOnPlane = MKSumAABB.Min;
+						if(WallCollisionTest(RelP, PlayerDelta, PointOnPlane, PlaneNormal, MKSumAABB, &tMin))
 						{
-							v3f PP = RelP + t * PlayerDelta;
-							if(IsInAABB(MKSumAABB, PP))
-							{
-								Collided = true;
-								break;
-							}
+							WallNormal = PlaneNormal;
+							Collided = true;
+
+						}
+
+						// NOTE(Jusitn): Right face
+						PlaneNormal = {1.0f, 0.0f, 0.0f};
+						PointOnPlane = MKSumAABB.Max;
+						if(WallCollisionTest(RelP, PlayerDelta, PointOnPlane, PlaneNormal, MKSumAABB, &tMin))
+						{
+							WallNormal = PlaneNormal;
+							Collided = true;
+						}
+
+						// NOTE(Jusitn): Front face
+						PlaneNormal = {0.0f, 0.0f, 1.0f};
+						PointOnPlane = MKSumAABB.Max;
+						if(WallCollisionTest(RelP, PlayerDelta, PointOnPlane, PlaneNormal, MKSumAABB, &tMin))
+						{
+							WallNormal = PlaneNormal;
+							Collided = true;
+						}
+
+						// NOTE(Jusitn): Back face
+						PlaneNormal = {0.0f, 0.0f, -1.0f};
+						PointOnPlane = MKSumAABB.Min;
+						if(WallCollisionTest(RelP, PlayerDelta, PointOnPlane, PlaneNormal, MKSumAABB, &tMin))
+						{
+							WallNormal = PlaneNormal;
+							Collided = true;
 						}
 					}
 				}
 			}
 		}
-	}
 
-	// TODO(Justin): Clip the player's velocity and update the player's position
-	// based off of the collision result.
-
-	if(!Collided)
-	{
-		Entity.High->Translate = Mat4Translation(NewP);
-		Entity.High->dP = Entity.High->dP + ddP * dt;
+		v3f OffsetFromCamera = Mat4Column(Entity.High->Translate, 3).xyz;
+		OffsetFromCamera += tMin * PlayerDelta;
+		Entity.High->Translate = Mat4Translation(OffsetFromCamera);
+		if(Collided)
+		{
+			Entity.High->dP = Entity.High->dP - Dot(WallNormal, Entity.High->dP) * WallNormal;
+			PlayerDelta = DesiredPosition - Mat4Column(Entity.High->Translate, 3).xyz;
+			PlayerDelta = PlayerDelta - Dot(WallNormal, PlayerDelta) * WallNormal;
+		}
+		else
+		{
+			break;
+		}
 	}
 
 	// NOTE(Justin): Map into tile space.
