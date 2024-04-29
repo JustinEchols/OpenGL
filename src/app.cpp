@@ -264,13 +264,14 @@ EntityMove(app_state *AppState, entity Entity, v3f ddP, f32 dt)
 	v3f PlayerDelta = 0.5f * ddP * Square(dt) + Entity.High->dP * dt;
 	Entity.High->dP = ddP * dt + Entity.High->dP;
 
-	b32 Collided = false;
+
 
 	for(u32 Iteration = 0; Iteration < 4; ++Iteration)
 	{
 		f32 tMin = 1.0f;
 		v3f WallNormal = V3F(0.0f);
 		v3f DesiredPosition = OldPlayerP + PlayerDelta;
+		b32 Collided = false;
 		for(u32 EntityIndex = 0; EntityIndex < AppState->EntityCount; ++EntityIndex)
 		{
 			if(AppState->EntityResidence[EntityIndex] == EntityResidence_High)
@@ -854,7 +855,6 @@ MeshAllocate(memory_arena *Arena, u32 VertexCount, u32 UVCount,
 	Mesh->NormalCount = NormalCount;
 	Mesh->IndicesCount = IndicesCount;
 	Mesh->ColorCount = ColorCount;
-
 
 	return(Mesh);
 }
