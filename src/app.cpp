@@ -289,51 +289,6 @@ EntityMove(app_state *AppState, entity Entity, v3f ddP, f32 dt)
 						// TODO(Justin): Paramterize the dimensions of the AABB.
 						aabb MKSumAABB = AABBCenterDim(V3F(0.0f), V3F(1.7f));
 
-						// NOTE(Justin): This is a point vs plane test that uses the Minkowski sum.
-						// and works as follows. Assume
-						// that a collision happens on the left face (the other
-						// cases are similar). First the position of the
-						// player in the wall cubes relative space is computed
-						// by A - B. This means that in this relative space the
-						// wall cube is the origin and the vector A - B is a
-						// position vector in the relative space and is the player's
-						// position. Then a bounding box is constructed at the
-						// origin of the space. Moreoever this bounding box is
-						// formed by doing the MK sum of the player bounding box and
-						// enity bounding box. This is done so that we can turn the
-						// problem of AABB vs AABB collision detection into point vs.
-						// plane collision detction. The point being the
-						// player's relative position and the plane being a face
-						// of the expanded AABB.
-						//
-						// The minimum point of the AABB
-						// is on the left face of the wall cube and is also a
-						// point on the infinite plane of the left face. Now the
-						// plane convention that is used is the convention that
-						// the signed distance D is positive whenver the origin is
-						// "below" the plane and D is negative when the origin is
-						// "above" the plane. The normal of the left face is (-1,
-						// 0, 0) therefore the signed distance of the left face from
-						// the center is 0.85f because the dimensions of the
-						// expanded AABB are (1.7, 1.7, 1.7) and 1.7/2 = 0.85, and by the convention we use for the plane
-						// equation. Taking the dot product of (-1,0,0) and
-						// the minimum point of the AABB correctly computes the
-						// signed distance of the plane of the left face of the
-						// expanded AABB. Once we have the relative
-						// position and the distance D we compute the
-						// intersection time t by solving the parametrized plane
-						// equation. if a valid t is computed in the range [0,1]
-						// we compute the new relative position of the player using t and the player's delta and then
-						// check whether or not it is in the bounding box.
-						// This check must be done because the plane test uses the mathematical
-						// definition of a plane, which is inifinite in extent.
-						// If we do not check whether or not the new relative position is
-						// in the bounding box the player will collide with the left
-						// face all the time. Therefore if the new relative position is
-						// in the AABB we know for certain the player collided
-						// with the wall and can update the player's position
-						// and velocity accordingly.
-
 						// NOTE(Jusitn): Left face
 						v3f PlaneNormal = {-1.0f, 0.0f, 0.0f};
 						v3f PointOnPlane = MKSumAABB.Min;
