@@ -221,8 +221,6 @@ AABBIntersectsAABB(aabb A, aabb B)
 	return(Result);
 }
 
-// TODO(Justin): Try MK diff for AABB vs AABB collision detection
-
 internal b32
 WallCollisionTest(v3f RelP, v3f PlayerDelta, v3f PointOnPlane, v3f PlaneNormal, aabb MKSumAABB, f32 *tMin)
 {
@@ -342,7 +340,6 @@ EntityMove(app_state *AppState, entity Entity, v3f ddP, f32 dt)
 						{
 							WallNormal = PlaneNormal;
 							Collided = true;
-
 						}
 
 						// NOTE(Jusitn): Right face
@@ -1250,11 +1247,6 @@ extern "C" APP_UPDATE_AND_RENDER(AppUpdateAndRender)
 					PushModel(RenderGroup, &Entity.High->Mesh[0], Entity.High->Basis,
 																  Entity.High->Translate,
 																  Entity.High->Scale); 
-
-					chunk_tile_position ChunkP = ChunkPosGet(World, Entity.Low->P.PackedX,
-																	Entity.Low->P.PackedY,
-																	Entity.Low->P.PackedZ);
-
 					basis B = Entity.High->Basis;
 					B.O = {(f32)Entity.Low->P.PackedX, 0.0f, -(f32)Entity.Low->P.PackedZ};
 					v3f Dim = {1.0f, 0.0f, 1.0f};
@@ -1270,10 +1262,9 @@ extern "C" APP_UPDATE_AND_RENDER(AppUpdateAndRender)
 				} break;
 				case EntityType_Quad:
 				{
-					mesh *Mesh = &Entity.High->Mesh[0];
-					PushQuad(RenderGroup, Mesh->Texture,
-							Entity.High->Translate, Entity.High->Scale, Entity.High->Basis,
-							Mesh->Vertices, Mesh->UV, Mesh->Colors, QUAD_VERTEX_COUNT);
+					PushQuad(RenderGroup, &Entity.High->Mesh[0], Entity.High->Basis,
+																 Entity.High->Translate,
+																 Entity.High->Scale);
 
 					basis B = Entity.High->Basis;
 					B.O = {(f32)Entity.Low->P.PackedX, 0.0f, -(f32)Entity.Low->P.PackedZ};

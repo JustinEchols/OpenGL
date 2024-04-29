@@ -103,11 +103,17 @@ struct render_entry_quad
 
 	basis Basis;
 
+	u32 *Indices;
 	v3f *Vertices;
 	v2f *UV;
+	v3f *Normals;
 	v4f *Colors;
 
 	u32 VertexCount;
+	u32 UVCount;
+	u32 NormalCount;
+	u32 IndicesCount;
+	u32 ColorCount;
 
 	loaded_bitmap *Texture;
 

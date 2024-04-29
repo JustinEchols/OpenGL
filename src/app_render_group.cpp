@@ -349,8 +349,7 @@ PushModel(render_group *RenderGroup, mesh *Mesh, basis B, mat4 Translate, mat4 S
 }
 
 internal void
-PushQuad(render_group *RenderGroup, loaded_bitmap *Texture, mat4 Translate, mat4 Scale,
-		basis B, v3f *Vertices, v2f *UV, v4f *Colors, u32 VertexCount)
+PushQuad(render_group *RenderGroup, mesh *Mesh, basis B, mat4 Translate, mat4 Scale)
 {
 	render_entry_quad *Entry = PushRenderElement(RenderGroup, render_entry_quad);
 	if(Entry)
@@ -367,12 +366,17 @@ PushQuad(render_group *RenderGroup, loaded_bitmap *Texture, mat4 Translate, mat4
 		B.W = MetersToPixels * B.W;
 
 		Entry->Basis = B;
-		Entry->Vertices = Vertices;
-		Entry->UV = UV;
-		Entry->Colors = Colors;
-		Entry->VertexCount = VertexCount;
+		Entry->Vertices = Mesh->Vertices;
+		Entry->UV = Mesh->UV;
+		Entry->Colors = Mesh->Colors;
 
-		Entry->Texture = Texture;
+		Entry->VertexCount = Mesh->VertexCount;
+		Entry->UVCount = Mesh->UVCount;
+		Entry->NormalCount = Mesh->NormalCount;
+		Entry->IndicesCount = Mesh->IndicesCount;
+		Entry->ColorCount = Mesh->ColorCount;
+
+		Entry->Texture = Mesh->Texture;
 	}
 }
 
