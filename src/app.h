@@ -206,41 +206,38 @@ struct aabb_min_max
 	v3f Max;
 };
 
-enum entity_residence
-{
-	EntityResidence_NonExistant,
-	EntityResidence_Low,
-	EntityResidence_High,
-};
-
 struct low_entity 
 {
 	entity_type Type;
 	b32 Collides;
 
 	world_position P;
+
+	f32 BboxDim;
 	f32 Width, Height, Depth;
+
+	mat4 Scale;
+
+	u32 HighIndex;
+
+	mesh Mesh;
 };
 
-// NOTE(Justin): Maybe pull this out to entity.
 struct high_entity 
 {
 	basis Basis;
 	v3f dP;
 
-	mesh Mesh[2];
-	aabb AABB;
-
 	mat4 Translate;
-	mat4 Scale;
+
+	u32 LowIndex;
 };
 
 struct entity
 {
-	u32 Index;
+	u32 LowIndex;
 	u32 Flags;
 
-	u32 Residence;
 	low_entity *Low;
 	high_entity *High;
 };
@@ -260,6 +257,7 @@ struct app_state
 	loaded_bitmap Black;
 
 	loaded_obj Cube;
+	mesh QuadGround;
 
 	camera Camera;
 	b32 CameraIsFree;
@@ -271,10 +269,11 @@ struct app_state
 	mat4 MapToPersp;
 	mat4 MapToScreenSpace;
 
-	u32 EntityCount;
-	entity_residence EntityResidence[4096];
+	u32 EntityLowCount;
 	low_entity EntitiesLow[4096];
-	high_entity EntitiesHigh[4096];
+
+	u32 EntityHighCount;
+	high_entity EntitiesHigh_[1024];
 
 	u32 CameraEntityFollowingIndex;
 };
