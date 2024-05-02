@@ -211,7 +211,7 @@ WorldPosMapIntoTileSpace(world *World, world_position P,  high_entity *EntityHig
 {
 	world_position Result = P;
 
-	v3f OffsetFromCamera = Mat4Column(EntityHigh->Translate, 3).xyz;
+	v3f OffsetFromCamera = EntityHigh->Basis.O;//Mat4Column(EntityHigh->Translate, 3).xyz;
 	Result.OffsetFromTileCenter_ += OffsetFromCamera;
 
 	// NOTE(Justin): Because the tile side in meters is 1 and the 
