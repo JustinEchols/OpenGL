@@ -2,7 +2,13 @@
 
 struct tile_chunk
 {
+	s32 ChunkX;
+	s32 ChunkY;
+	s32 ChunkZ;
+
 	u32 *Tiles;
+
+	tile_chunk *NextInHash;
 };
 
 struct world
@@ -18,7 +24,7 @@ struct world
 	f32 TileSideInMeters;
 	f32 ChunkDimInMeters;
 
-	tile_chunk *TileChunks;
+	tile_chunk ChunkHash[4096];
 };
 
 struct chunk_tile_position
@@ -39,7 +45,7 @@ struct world_position
 	s32 PackedZ;
 
 	// NOTE(Justin): This a position relative to the center of a tile. The _
-	// at the end  is used to denote the fact that this value should rarely be
+	// at the end is used to denote the fact that this value should rarely be
 	// changed.
 	v3f OffsetFromTileCenter_;
 };

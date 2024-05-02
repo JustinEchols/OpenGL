@@ -1,4 +1,65 @@
 
+#define TILE_CHUNK_SAFE_MARGIN (INT32_MAX / 64)
+
+internal tile_chunk *
+TileChunkGet(world *World, s32 ChunkX, s32 ChunkY, s32 ChunkZ, memory_arena *Arena = 0)
+{
+	Assert(ChunkX > -TILE_CHUNK_SAFE_MARGIN);
+	Assert(ChunkY > -TILE_CHUNK_SAFE_MARGIN);
+	Assert(ChunkZ > -TILE_CHUNK_SAFE_MARGIN);
+	Assert(ChunkX < TILE_CHUNK_SAFE_MARGIN);
+	Assert(ChunkY < TILE_CHUNK_SAFE_MARGIN);
+	Assert(ChunkZ < TILE_CHUNK_SAFE_MARGIN);
+
+	// TODO(Justin): Better hash function.
+	u32 HashValue = 17 * ChunkX + 9 * ChunkZ + 3 * ChunkY;
+	u32 HashIndex = HashValue & (ArrayCount(World->ChunkHash) - 1);
+
+	Assert(HashIndex < ArrayCount(World->ChunkHash));
+
+	tile_chunk *WorldChunk = World->ChunkHash + HashIndex;
+	do
+	{
+		if((WorldChunk->ChunkX == ChunkX) &&
+		   (WorldChunk->ChunkY == ChunkY) &&
+		   (WorldChunk->ChunkZ == ChunkZ))
+		{
+			break;
+		}
+
+		if(Arena && (WorldChunk->ChunkX != 0) && (!WorldChunk->NextInHash))
+		{
+			WorldChunk->NextInHash = PushStruct(Arena, tile_chunk);
+			WorldChunk = WorldChunk->NextInHash;
+			WorldChunk->ChunkX = 0;
+		}
+
+		if(Arena && (WorldChunk->ChunkX == 0))
+		{
+
+			WorldChunk->ChunkX = ChunkX;
+			WorldChunk->ChunkY = ChunkY;
+			WorldChunk->ChunkZ = ChunkZ;
+
+			u32 TileCount = World->ChunkDim * World->ChunkDim * World->ChunkDim;
+			WorldChunk->Tiles = PushArray(Arena, TileCount, u32);
+			for(u32 Index = 0; Index < TileCount; ++Index)
+			{
+				WorldChunk->Tiles[Index] = 1;
+			}
+
+			WorldChunk->NextInHash = 0;
+
+			break;
+		}
+
+		WorldChunk = WorldChunk->NextInHash;
+
+	} while(WorldChunk);
+
+	return(WorldChunk);
+}
+
 inline u32
 TileValueUncheckedGet(world *World, tile_chunk *TileChunk, s32 TileX, s32 TileY, s32 TileZ)
 {
@@ -25,7 +86,8 @@ TileValueGet(world *World, tile_chunk *TileChunk, s32 TileX, s32 TileY, s32 Tile
 	return(Result);
 }
 
-internal tile_chunk*
+#if 0
+internal tile_chunk *
 TileChunkGet(world *World, s32 ChunkX, s32 ChunkY, s32 ChunkZ)
 {
 	tile_chunk *TileChunk= 0;
@@ -41,6 +103,9 @@ TileChunkGet(world *World, s32 ChunkX, s32 ChunkY, s32 ChunkZ)
 	
 	return(TileChunk);
 }
+#endif
+
+
 
 inline chunk_tile_position
 ChunkPosGet(world *World, s32 PackedX, s32 PackedY, s32 PackedZ)
@@ -83,7 +148,7 @@ inline void
 TileValueSet(memory_arena *Arena, world *World, s32 PackedX, s32 PackedY, s32 PackedZ, u32 TileValue)
 {
 	chunk_tile_position ChunkP = ChunkPosGet(World, PackedX, PackedY, PackedZ);
-	tile_chunk *TileChunk = TileChunkGet(World, ChunkP.ChunkX, ChunkP.ChunkY, ChunkP.ChunkZ);
+	tile_chunk *TileChunk = TileChunkGet(World, ChunkP.ChunkX, ChunkP.ChunkY, ChunkP.ChunkZ, Arena);
 	if(!TileChunk->Tiles)
 	{
 		u32 TileCount = World->ChunkDim * World->ChunkDim * World->ChunkDim;
@@ -142,7 +207,7 @@ WorldPosDifference(world *World, world_position *A, world_position *B)
 
 
 internal world_position 
-PlayerPosReCompute(world *World, world_position P,  high_entity *EntityHigh)
+WorldPosMapIntoTileSpace(world *World, world_position P,  high_entity *EntityHigh)
 {
 	world_position Result = P;
 
@@ -174,5 +239,21 @@ PlayerPosReCompute(world *World, world_position P,  high_entity *EntityHigh)
 	return(Result);
 }
 
+internal void
+WorldInitialize(world *World, f32 TileSideInMeters)
+{
+	World->ChunkShift = 4;
+	World->ChunkMask = (1 << World->ChunkShift) - 1;
+	World->ChunkDim = (1 << World->ChunkShift);
+	World->TileSideInMeters = TileSideInMeters;
+	World->ChunkDimInMeters = World->ChunkDim * World->TileSideInMeters;
+
+	for(u32 ChunkIndex = 0; ChunkIndex < ArrayCount(World->ChunkHash); ++ChunkIndex)
+	{
+		World->ChunkHash[ChunkIndex].ChunkX = 0;
+	}
+
+
+}
 
 
