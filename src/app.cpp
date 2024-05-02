@@ -225,8 +225,8 @@ inline b32
 InSameTile(world_position *A, world_position *B)
 {
 	b32 Result = ((A->PackedX == B->PackedX) &&
-				 (A->PackedY == B->PackedY) &&
-				 (A->PackedZ == B->PackedZ));
+				  (A->PackedY == B->PackedY) &&
+				  (A->PackedZ == B->PackedZ));
 
 	return(Result);
 }
@@ -297,7 +297,6 @@ EntityMove(app_state *AppState, entity Entity, v3f ddP, f32 dt)
 					v3f CurrentP = Entity.High->Basis.O;
 					v3f RelP = CurrentP - TestP;
 
-					// TODO(Justin): Paramterize the dimensions of the AABB.
 					f32 BboxDim = Entity.Low->BboxDim + EntityToTest.Low->BboxDim;
 					aabb MKSumAABB = AABBCenterDim(V3F(0.0f), V3F(BboxDim));
 
@@ -677,19 +676,19 @@ DEBUGBitmapReadEntireFile(thread_context *Thread, char *Filename, debug_platform
 }
 
 internal void
-EntityOffsetAndCheckFrequency(app_state *AppState, v3f OffsetForFrame, aabb CameraBounds)
+EntityOffsetAndCheckFrequency(app_state *AppState, v3f OffsetForFrame, aabb HighFrequencyBounds)
 {
 	for(u32 EntityIndex = 1; EntityIndex < AppState->EntityHighCount; )
 	{
 		high_entity *EntityHigh = AppState->EntitiesHigh_ + EntityIndex;
 		EntityHigh->Basis.O += OffsetForFrame;
-		if(IsInAABB(CameraBounds, EntityHigh->Basis.O))
+		if(IsInAABB(HighFrequencyBounds, EntityHigh->Basis.O))
 		{
 			EntityIndex++;
 		}
 		else
 		{
-			EntityFrequencySetToLow(AppState, EntityIndex);
+			EntityFrequencySetToLow(AppState, EntityHigh->LowIndex);
 		}
 	}
 }
@@ -725,6 +724,10 @@ CameraSet(app_state *AppState, world_position NewCameraP)
 	for(u32 EntityIndex = 1; EntityIndex < AppState->EntityLowCount; ++EntityIndex)
 	{
 		low_entity *EntityLow = AppState->EntitiesLow + EntityIndex;
+		if(EntityLow->Type == EntityType_Player)
+		{
+			int y = 0;
+		}
 		if(EntityLow->HighIndex == 0)
 		{
 			if((EntityLow->P.PackedX >= TileXMin) &&
