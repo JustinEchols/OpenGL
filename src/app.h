@@ -145,8 +145,8 @@ struct loaded_obj
 
 struct camera
 {
-	v3f P;
-	//world_position P;
+	//v3f P;
+	world_position P;
 	v3f Direction;
 	v3f Up;
 
@@ -261,7 +261,7 @@ struct app_state
 
 	camera Camera;
 	b32 CameraIsFree;
-	world_position CameraP;
+	//world_position CameraP;
 
 
 	mat4 MapToWorld;

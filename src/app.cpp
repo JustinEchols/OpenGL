@@ -7,7 +7,6 @@
 internal u32
 EntityLowAdd(app_state *AppState, entity_type Type)
 {
-
 	Assert(AppState->EntityLowCount < ArrayCount(AppState->EntitiesLow));
 
 	u32 EntityIndex = AppState->EntityLowCount++;
@@ -47,11 +46,9 @@ EntityFrequencySetToHigh(app_state *AppState, u32 LowIndex)
 			u32 HighIndex = AppState->EntityHighCount++;
 			EntityHigh = AppState->EntitiesHigh_ + HighIndex;
 
-			v3f Translate = WorldPosDifference(&AppState->World, &EntityLow->P, &AppState->CameraP);
-			v3f CameraP = {(f32)AppState->CameraP.PackedX, (f32)AppState->CameraP.PackedY, (f32)AppState->CameraP.PackedZ};
+			v3f OffsetFromCamera = WorldPosDifference(&AppState->World, &EntityLow->P, &AppState->Camera.P);
 			EntityHigh->Basis = BasisStandard();
-			EntityHigh->Basis.O = CameraP;
-			EntityHigh->Translate = Mat4Translation(Translate);
+			EntityHigh->Basis.O = OffsetFromCamera;
 			EntityHigh->LowIndex = LowIndex;
 
 			EntityLow->HighIndex = HighIndex;
@@ -159,7 +156,7 @@ AABBMinMax(v3f *Vertices, u32 VerticesCount)
 
 
 internal void
-PlayerAdd(app_state *AppState, aabb AABB)
+PlayerAdd(app_state *AppState)
 {
 	u32 EntityIndex = EntityLowAdd(AppState, EntityType_Player);
 	low_entity *EntityLow = EntityLowGet(AppState, EntityIndex);
@@ -167,9 +164,9 @@ PlayerAdd(app_state *AppState, aabb AABB)
 	world *World = &AppState->World;
 
 	EntityLow->Collides = true;
-	EntityLow->P.PackedX = 8;
+	EntityLow->P.PackedX = AppState->Camera.P.PackedX;
 	EntityLow->P.PackedY = 0;
-	EntityLow->P.PackedZ = 5;
+	EntityLow->P.PackedZ = AppState->Camera.P.PackedZ + 5;
 
 	// TODO(Jusitn): These are dimensions not w,h and d.
 	EntityLow->Width = 0.35f;
@@ -190,7 +187,7 @@ PlayerAdd(app_state *AppState, aabb AABB)
 
 internal void
 ModelAdd(app_state *AppState, mesh *Mesh, s32 PackedX, s32 PackedY, s32 PackedZ,
-		mat4 Scale, aabb AABB, loaded_bitmap *Texture = 0)
+		mat4 Scale, loaded_bitmap *Texture = 0)
 {
 	u32 EntityIndex = EntityLowAdd(AppState, EntityType_Wall);
 	low_entity *EntityLow = EntityLowGet(AppState, EntityIndex);
@@ -234,19 +231,7 @@ InSameTile(world_position *A, world_position *B)
 	return(Result);
 }
 
-inline b32
-AABBIntersectsAABB(aabb A, aabb B)
-{
 
-	b32 Result = ((A.Max.x >= B.Min.x) &&
-				  (A.Max.y >= B.Min.y) &&
-				  (A.Max.z >= B.Min.z) &&
-				  (A.Min.x < B.Max.x) &&
-				  (A.Min.y < B.Max.y) &&
-				  (A.Min.z < B.Max.z));
-	
-	return(Result);
-}
 
 internal b32
 WallCollisionTest(v3f RelP, v3f PlayerDelta, v3f PointOnPlane, v3f PlaneNormal, aabb MKSumAABB, f32 *tMin)
@@ -287,7 +272,7 @@ EntityMove(app_state *AppState, entity Entity, v3f ddP, f32 dt)
 	ddP *= PlayerSpeed;
 	ddP += -3.0f * Entity.High->dP;
 
-	v3f OldPlayerP = Mat4Column(Entity.High->Translate, 3).xyz;
+	v3f OldPlayerP = Entity.High->Basis.O;
 	v3f PlayerDelta = 0.5f * ddP * Square(dt) + Entity.High->dP * dt;
 	Entity.High->dP = ddP * dt + Entity.High->dP;
 
@@ -304,12 +289,12 @@ EntityMove(app_state *AppState, entity Entity, v3f ddP, f32 dt)
 				entity EntityToTest = {};
 				EntityToTest.High = AppState->EntitiesHigh_ + TestEntityHighIndex;
 				EntityToTest.LowIndex = EntityToTest.LowIndex;
-				EntityToTest.Low = AppState->EntitiesLow + EntityToTest.LowIndex;
+				EntityToTest.Low = AppState->EntitiesLow + EntityToTest.High->LowIndex;
 
 				if(EntityToTest.Low->Collides)
 				{
-					v3f TestP = Mat4Column(EntityToTest.High->Translate, 3).xyz;
-					v3f CurrentP = Mat4Column(Entity.High->Translate, 3).xyz;
+					v3f TestP = EntityToTest.High->Basis.O;
+					v3f CurrentP = Entity.High->Basis.O;
 					v3f RelP = CurrentP - TestP;
 
 					// TODO(Justin): Paramterize the dimensions of the AABB.
@@ -355,13 +340,11 @@ EntityMove(app_state *AppState, entity Entity, v3f ddP, f32 dt)
 			}
 		}
 
-		v3f OffsetFromCamera = Mat4Column(Entity.High->Translate, 3).xyz;
-		OffsetFromCamera += tMin * PlayerDelta;
-		Entity.High->Translate = Mat4Translation(OffsetFromCamera);
+		Entity.High->Basis.O += tMin * PlayerDelta; 
 		if(Collided)
 		{
 			Entity.High->dP = Entity.High->dP - Dot(WallNormal, Entity.High->dP) * WallNormal;
-			PlayerDelta = DesiredPosition - Mat4Column(Entity.High->Translate, 3).xyz;
+			PlayerDelta = DesiredPosition - Entity.High->Basis.O;
 			PlayerDelta = PlayerDelta - Dot(WallNormal, PlayerDelta) * WallNormal;
 		}
 		else
@@ -370,7 +353,7 @@ EntityMove(app_state *AppState, entity Entity, v3f ddP, f32 dt)
 		}
 	}
 
-	Entity.Low->P = WorldPosMapIntoTileSpace(World, AppState->CameraP, Entity.High);
+	Entity.Low->P = WorldPosMapIntoTileSpace(World, AppState->Camera.P, Entity.High);
 }
 
 
@@ -699,10 +682,8 @@ EntityOffsetAndCheckFrequency(app_state *AppState, v3f OffsetForFrame, aabb Came
 	for(u32 EntityIndex = 1; EntityIndex < AppState->EntityHighCount; )
 	{
 		high_entity *EntityHigh = AppState->EntitiesHigh_ + EntityIndex;
-		EntityHigh->Basis.O -= OffsetForFrame;
-		EntityHigh->Translate = Mat4Translation(OffsetForFrame) * EntityHigh->Translate;
-		v3f Offset = Mat4Column(EntityHigh->Translate, 3).xyz;
-		if(IsInAABB(CameraBounds, Offset))
+		EntityHigh->Basis.O += OffsetForFrame;
+		if(IsInAABB(CameraBounds, EntityHigh->Basis.O))
 		{
 			EntityIndex++;
 		}
@@ -718,32 +699,28 @@ CameraSet(app_state *AppState, world_position NewCameraP)
 {
 	world *World = &AppState->World;
 
-	v3f CameraDelta = WorldPosDifference(World, &NewCameraP, &AppState->CameraP);
+	v3f CameraDelta = WorldPosDifference(World, &NewCameraP, &AppState->Camera.P);
 	v3f EntityOffsetForFrame = -1.0f * CameraDelta;
 
-	AppState->CameraP = NewCameraP;
-	AppState->Camera.P.x = (f32)NewCameraP.PackedX;
-	AppState->Camera.P.y = (f32)NewCameraP.PackedY;
-	AppState->Camera.P.z = -(f32)NewCameraP.PackedZ;
+	AppState->Camera.P = NewCameraP;
 
 	// TODO(Justin): Formalize these. They are chosen arbitrarily.
-	s32 TileXSpan = 17;
-	s32 TileYSpan = 5;
-	s32 TileZSpan = 17;
+	s32 TileXSpan = 17*3;
+	s32 TileYSpan = 40;
+	s32 TileZSpan = 9*3;
 
-	aabb CameraBounds = AABBCenterDim(V3F(0.0f, -12.0f, 0.0f), World->TileSideInMeters * V3F((f32)TileXSpan,
-																							 (f32)TileYSpan,
-																							 (f32)TileZSpan));
-
+	aabb CameraBounds = AABBCenterDim(V3F(0.0f, 0.0f, 0.0f), World->TileSideInMeters * V3F((f32)TileXSpan,
+																						   (f32)TileYSpan,
+																						   (f32)TileZSpan));
 
 	EntityOffsetAndCheckFrequency(AppState, EntityOffsetForFrame, CameraBounds);
 
 	s32 TileXMin = NewCameraP.PackedX - TileXSpan / 2;
-	s32 TileYMin = -TileYSpan / 2;
+	s32 TileYMin = NewCameraP.PackedY - TileYSpan / 2;
 	s32 TileZMin = NewCameraP.PackedZ - TileZSpan / 2;
 
 	s32 TileXMax = NewCameraP.PackedX + TileXSpan / 2;
-	s32 TileYMax = TileYSpan / 2;
+	s32 TileYMax = NewCameraP.PackedY + TileYSpan / 2;
 	s32 TileZMax = NewCameraP.PackedZ + TileZSpan / 2;
 	for(u32 EntityIndex = 1; EntityIndex < AppState->EntityLowCount; ++EntityIndex)
 	{
@@ -764,15 +741,15 @@ CameraSet(app_state *AppState, world_position NewCameraP)
 }
 
 internal void
-CameraInit(app_state *AppState, v3f P, f32 Yaw, f32 Pitch)
+CameraInit(app_state *AppState, f32 Yaw, f32 Pitch)
 {
 	camera *Camera = &AppState->Camera;
 
 	// TODO(Justin): Should the camera's position be a WORLD position?
-	Camera->P = P;
-	AppState->CameraP.PackedX = 17/2;
-	AppState->CameraP.PackedY = 12;
-	AppState->CameraP.PackedZ = 0;
+	Camera->P.PackedX = 17/2;
+	Camera->P.PackedY = 12;
+	Camera->P.PackedZ = 0;
+	Camera->P.OffsetFromTileCenter_ = {};
 	AppState->CameraIsFree = false;
 
 	Camera->Yaw = Yaw;
@@ -784,7 +761,9 @@ CameraInit(app_state *AppState, v3f P, f32 Yaw, f32 Pitch)
 	// NOTE(Justin): These packed values are the center of a "Screen", NOT a
 	// chunk.
 
-	AppState->MapToCamera = Mat4CameraMap(Camera->P, Camera->P + Camera->Direction);
+	
+	v3f P = Camera->P.OffsetFromTileCenter_;
+	AppState->MapToCamera = Mat4CameraMap(P, P + Camera->Direction);
 }
 
 internal void
@@ -810,7 +789,8 @@ CameraUpdate(app_state *AppState, camera *Camera, f32 dMouseX, f32 dMouseY, f32 
 
 	Camera->Direction = Normalize(Camera->Direction);
 
-	AppState->MapToCamera = Mat4CameraMap(Camera->P, Camera->P + Camera->Direction);
+	v3f P = Camera->P.OffsetFromTileCenter_;
+	AppState->MapToCamera = Mat4CameraMap(P, P + Camera->Direction);
 }
 
 internal mesh *
@@ -862,7 +842,7 @@ extern "C" APP_UPDATE_AND_RENDER(AppUpdateAndRender)
 		ArenaInitialize(WorldArena, Memory->PermanentStorageSize - sizeof(app_state),
 				(u8 *)Memory->PermanentStorage + sizeof(app_state));
 
-		CameraInit(AppState, V3F(0.0, 12.0f, 0.0f), -90.0f, -70.0f);
+		CameraInit(AppState, -90.0f, -70.0f);
 		f32 FOV = DegreeToRad(45.0f);
 		f32 AspectRatio = (f32)BackBuffer->Width / (f32)BackBuffer->Height;
 		f32 ZNear = 0.1f;
@@ -892,7 +872,6 @@ extern "C" APP_UPDATE_AND_RENDER(AppUpdateAndRender)
 
 		aabb BBox = AABBMinMax(SourceCube->Vertices, SourceCube->VertexCount);
 
-		//mesh *QuadGround = &AppState->QuadGround;
 		mesh *QuadGround = MeshAllocate(WorldArena, 4, 4, 4, 0, 4);
 
 		QuadGround->Vertices[0] = V3F(-0.5f, 0.0, 0.5f);
@@ -923,29 +902,26 @@ extern "C" APP_UPDATE_AND_RENDER(AppUpdateAndRender)
 		mat4 ScaleCube = Mat4Scale(0.5f);
 
 		world *World = &AppState->World;
-		
-		World->ChunkShift = 4;
-		World->ChunkMask = (1 << World->ChunkShift) - 1;
-		World->ChunkDim = (1 << World->ChunkShift);
-		World->ChunkCountX = 2;
-		World->ChunkCountY = 1;
-		World->ChunkCountZ = 2;
-
-		World->TileSideInMeters = 1.0f;
-		World->ChunkDimInMeters = World->ChunkDim * World->TileSideInMeters;
+		WorldInitialize(World, 1.0f);
 
 		AppState->MetersToPixels = 1.0f / World->TileSideInMeters;
 
-		World->TileChunks = PushArray(WorldArena, World->ChunkCountX *
-												  World->ChunkCountY *
-												  World->ChunkCountZ, tile_chunk);
-
 		s32 TilesInXPerScreen = 17;
 		s32 TilesInZPerScreen = 9;
-		s32 ScreenX = 0;
-		s32 ScreenZ = 0;
+
 		u32 RandomNumberIndex = 0;
-		for(s32 ScreenIndex = 0; ScreenIndex < 1; ++ScreenIndex)
+
+		//s32 WorldCenterX = (INT32_MAX / TilesInXPerScreen) / 2;
+		//s32 WorldCenterY = (INT32_MAX / 2);
+		//s32 WorldCenterZ = (INT32_MAX / TilesInZPerScreen) / 2;
+		//s32 ScreenX = WorldCenterX;
+		//s32 ScreenY = WorldCenterY;
+		//s32 ScreenZ = WorldCenterZ;
+
+		s32 ScreenX = 0;
+		s32 ScreenY = 0;
+		s32 ScreenZ = 0;
+		for(s32 ScreenIndex = 0; ScreenIndex < 5; ++ScreenIndex)
 		{
 			for(s32 TileY = 0; TileY < 1; ++TileY)
 			{
@@ -1005,6 +981,14 @@ extern "C" APP_UPDATE_AND_RENDER(AppUpdateAndRender)
 						}
 
 						TileValueSet(WorldArena, World, PackedX, PackedY, PackedZ, TileValue);
+						if(TileValue == 1)
+						{
+							QuadAdd(AppState, QuadGround, PackedX, PackedY, PackedZ, ScaleQuad);
+						}
+						else if(TileValue == 2)
+						{
+							ModelAdd(AppState, WallCube, PackedX, PackedY, PackedZ, ScaleCube);
+						}
 					}
 				}
 			}
@@ -1020,53 +1004,13 @@ extern "C" APP_UPDATE_AND_RENDER(AppUpdateAndRender)
 			}
 		}
 
-		// NOTE(Justin): Add ground and wall entities for allocated tiles only
-
-
-
-		for(s32 ChunkY = 0; ChunkY < World->ChunkCountY; ++ChunkY)
-		{
-			for(s32 ChunkZ = 0; ChunkZ < World->ChunkCountZ; ++ChunkZ)
-			{
-				for(s32 ChunkX = 0; ChunkX < World->ChunkCountX; ++ChunkX)
-				{
-					tile_chunk *TileChunk = TileChunkGet(World, ChunkX, ChunkY, ChunkZ);
-					if(TileChunk && TileChunk->Tiles)
-					{
-						for(s32 TileY = 0; TileY < 1; ++TileY)
-						{
-							for(s32 TileZ = 0; TileZ < World->ChunkDim ; ++TileZ)
-							{
-								for(s32 TileX = 0; TileX < World->ChunkDim; ++TileX)
-								{
-									u32 TileValue = TileValueGet(World, TileChunk, TileX, TileY, TileZ);
-
-									s32 PackedX = ChunkX * World->ChunkDim + TileX;
-									s32 PackedY = ChunkY * World->ChunkDim + TileY;
-									s32 PackedZ = ChunkZ * World->ChunkDim + TileZ;
-									if(TileValue == 1)
-									{
-										QuadAdd(AppState, QuadGround, PackedX, PackedY, PackedZ, ScaleQuad);
-									}
-									else if(TileValue == 2)
-									{
-										ModelAdd(AppState, WallCube, PackedX, PackedY, PackedZ, ScaleCube, BBox);
-									}
-								}
-							}
-						}
-					}
-				}
-			}
-		}
-
 		world_position NewCameraP = {};
-		NewCameraP.PackedX = AppState->CameraP.PackedX;
-		NewCameraP.PackedY = AppState->CameraP.PackedY;
-		NewCameraP.PackedZ = AppState->CameraP.PackedZ;
+		NewCameraP.PackedX = 17/2;
+		NewCameraP.PackedY = 12;
+		NewCameraP.PackedZ = 0;
 		CameraSet(AppState, NewCameraP);
 
-		PlayerAdd(AppState, BBox);
+		PlayerAdd(AppState);
 
 		Memory->IsInitialized = true;
 	}
@@ -1126,7 +1070,7 @@ extern "C" APP_UPDATE_AND_RENDER(AppUpdateAndRender)
 		f32 CameraSpeed = 8.0f;
 		Shift = dt * CameraSpeed * Shift;
 
-		Camera->P += Shift;
+		Camera->P.OffsetFromTileCenter_ += Shift;
 		CameraUpdate(AppState, Camera, Input->dMouseX, Input->dMouseY, dt);
 	}
 	else
@@ -1156,9 +1100,9 @@ extern "C" APP_UPDATE_AND_RENDER(AppUpdateAndRender)
 		entity CameraFollowingEntity = EntityHighGet(AppState, AppState->CameraEntityFollowingIndex);
 		if(CameraFollowingEntity.High)
 		{
-			v3f EntityOffsetFromCamera = Mat4Column(CameraFollowingEntity.High->Translate, 3).xyz;
+			v3f EntityOffsetFromCamera = CameraFollowingEntity.High->Basis.O;
 
-			world_position NewCameraP = AppState->CameraP;
+			world_position NewCameraP = AppState->Camera.P;
 
 			if(EntityOffsetFromCamera.x > (9.0f * World->TileSideInMeters))
 			{
@@ -1219,8 +1163,9 @@ extern "C" APP_UPDATE_AND_RENDER(AppUpdateAndRender)
 			{
 				EntityMove(AppState, Entity, ddP, dt);
 
+				mat4 Translate = Mat4Identity();
 				PushModel(RenderGroup, &Entity.Low->Mesh, Entity.High->Basis,
-														  Entity.High->Translate,
+														  Translate,
 														  Entity.Low->Scale); 
 				basis B = Entity.High->Basis;
 				B.O = {(f32)Entity.Low->P.PackedX, 0.0f, -(f32)Entity.Low->P.PackedZ};
@@ -1231,18 +1176,22 @@ extern "C" APP_UPDATE_AND_RENDER(AppUpdateAndRender)
 			} break;
 			case EntityType_Wall:
 			{
+
+				mat4 Translate = Mat4Identity();
 				PushModel(RenderGroup, &Entity.Low->Mesh, Entity.High->Basis,
-														  Entity.High->Translate,
+														  Translate,
 														  Entity.Low->Scale); 
 			} break;
 			case EntityType_Quad:
 			{
+				mat4 Translate = Mat4Identity();
 				PushQuad(RenderGroup, &Entity.Low->Mesh, Entity.High->Basis,
-														 Entity.High->Translate,
+														 Translate,
 														 Entity.Low->Scale);
 
+				v3f Offset = WorldPosDifference(World, &Entity.Low->P, &AppState->Camera.P);
 				basis B = Entity.High->Basis;
-				B.O = {(f32)Entity.Low->P.PackedX, 0.0f, -(f32)Entity.Low->P.PackedZ};
+				B.O = Offset;
 				v3f Dim = {0.1f, 0.0f, 0.1f};
 				v4f Color = {1.0f, 1.0f, 0.0f, 1.0f};
 				PushRectangle(RenderGroup, B, Dim, Color);
