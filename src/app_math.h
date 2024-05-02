@@ -1127,16 +1127,30 @@ inline b32
 IsInAABB(aabb AABB, v3f Test)
 {
 	b32 Result = ((AABB.Min.x <= Test.x) &&
-				 (AABB.Min.y <= Test.y) &&
-				 (AABB.Min.z <= Test.z) &&
-				 (AABB.Max.x > Test.x) &&
-				 (AABB.Max.y > Test.y) &&
-				 (AABB.Max.z > Test.z));
+				  (AABB.Min.y <= Test.y) &&
+				  (AABB.Min.z <= Test.z) &&
+				  (AABB.Max.x >= Test.x) &&
+				  (AABB.Max.y >= Test.y) &&
+				  (AABB.Max.z >= Test.z));
 
 	return(Result);
 
 
 
+}
+
+inline b32
+AABBIntersectsAABB(aabb A, aabb B)
+{
+
+	b32 Result = ((A.Max.x >= B.Min.x) &&
+				  (A.Max.y >= B.Min.y) &&
+				  (A.Max.z >= B.Min.z) &&
+				  (A.Min.x < B.Max.x) &&
+				  (A.Min.y < B.Max.y) &&
+				  (A.Min.z < B.Max.z));
+	
+	return(Result);
 }
 
 #define APP_MATH_H
