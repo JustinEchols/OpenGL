@@ -1,6 +1,6 @@
 
 #include "app.h"
-#include "app_tile.cpp"
+#include "app_world.cpp"
 #include "app_random.h"
 #include "app_render_group.cpp"
 
@@ -111,8 +111,6 @@ EntityHighGet(app_state *AppState, u32 LowIndex)
 	return(Result);
 }
 
-
-
 // TODO(Justin): This is a hack.. Do the real version..
 internal aabb
 AABBMinMax(v3f *Vertices, u32 VerticesCount)
@@ -169,14 +167,14 @@ PlayerAdd(app_state *AppState)
 	EntityLow->P.PackedZ = AppState->Camera.P.PackedZ + 5;
 
 	// TODO(Jusitn): These are dimensions not w,h and d.
-	EntityLow->Width = 0.35f;
-	EntityLow->Height = 0.35f;
-	EntityLow->Depth = 0.35f;
-	EntityLow->BboxDim = 0.7f;
+	EntityLow->Width = 1.0f;
+	EntityLow->Height = 1.0f;
+	EntityLow->Depth = 1.0;
+	EntityLow->BboxDim = 2.0f;
 	EntityLow->Scale = Mat4Scale(EntityLow->Height);
 	EntityLow->P.OffsetFromTileCenter_.y = EntityLow->Height;
 
-	EntityLow->Mesh = AppState->Cube.Mesh;
+	EntityLow->Mesh = AppState->Human.Mesh;
 
 	if(AppState->CameraEntityFollowingIndex == 0)
 	{
@@ -186,7 +184,7 @@ PlayerAdd(app_state *AppState)
 
 
 internal void
-ModelAdd(app_state *AppState, mesh *Mesh, s32 PackedX, s32 PackedY, s32 PackedZ,
+WallAdd(app_state *AppState, mesh *Mesh, s32 PackedX, s32 PackedY, s32 PackedZ,
 		mat4 Scale, loaded_bitmap *Texture = 0)
 {
 	u32 EntityIndex = EntityLowAdd(AppState, EntityType_Wall);
@@ -229,6 +227,14 @@ InSameTile(world_position *A, world_position *B)
 				  (A->PackedZ == B->PackedZ));
 
 	return(Result);
+}
+
+inline void
+BasisRotate(basis *B, mat4 Rotate)
+{
+	B->U = Rotate * B->U;
+	B->V = Rotate * B->V;
+	B->W = Rotate * B->W;
 }
 
 
@@ -351,6 +357,99 @@ EntityMove(app_state *AppState, entity Entity, v3f ddP, f32 dt)
 			break;
 		}
 	}
+
+#if 1
+	f32 dX = AbsVal(Entity.High->dP.x);
+	f32 dY = AbsVal(Entity.High->dP.y);
+	f32 dZ = AbsVal(Entity.High->dP.z);
+	if((dX != 0.0f) || (dY != 0.0f) || (dZ != 0.0f))
+	{
+		f32 MaxComponent = Max3(dX, dY, dZ);
+		mat4 Rotate = Mat4Identity();
+		facing_direction NewFacingDirection = FacingDirection_Towards;
+		if(MaxComponent == dX)
+		{
+			if(Entity.High->dP.x > 0.0f)
+			{
+				if(Entity.High->FacingDirection == FacingDirection_Towards)
+				{
+					Rotate = Mat4YRotation(DegreeToRad(90.0f));
+				}
+				if(Entity.High->FacingDirection == FacingDirection_Left)
+				{
+					Rotate = Mat4YRotation(DegreeToRad(180.0f));
+				}
+				if(Entity.High->FacingDirection == FacingDirection_Away)
+				{
+					Rotate = Mat4YRotation(DegreeToRad(-90.0f));
+				}
+
+				NewFacingDirection = FacingDirection_Right;
+			}
+			if(Entity.High->dP.x < 0.0f)
+			{
+				if(Entity.High->FacingDirection == FacingDirection_Towards)
+				{
+					Rotate = Mat4YRotation(DegreeToRad(-90.0f));
+				}
+				if(Entity.High->FacingDirection == FacingDirection_Right)
+				{
+					Rotate = Mat4YRotation(DegreeToRad(180.0f));
+				}
+				if(Entity.High->FacingDirection == FacingDirection_Away)
+				{
+					Rotate = Mat4YRotation(DegreeToRad(90.0f));
+				}
+
+				NewFacingDirection = FacingDirection_Left;
+			}
+		}
+
+		if(MaxComponent == dZ)
+		{
+			if(Entity.High->dP.z > 0.0f)
+			{
+				if(Entity.High->FacingDirection == FacingDirection_Away)
+				{
+					Rotate = Mat4YRotation(DegreeToRad(180.0f));
+				}
+				if(Entity.High->FacingDirection == FacingDirection_Left)
+				{
+					Rotate = Mat4YRotation(DegreeToRad(90.0f));
+				}
+				if(Entity.High->FacingDirection == FacingDirection_Right)
+				{
+					Rotate = Mat4YRotation(DegreeToRad(-90.0f));
+				}
+
+				NewFacingDirection = FacingDirection_Towards;
+			}
+
+			if(Entity.High->dP.z < 0.0f)
+			{
+				if(Entity.High->FacingDirection == FacingDirection_Towards)
+				{
+					Rotate = Mat4YRotation(DegreeToRad(180.0f));
+				}
+				if(Entity.High->FacingDirection == FacingDirection_Left)
+				{
+					Rotate = Mat4YRotation(DegreeToRad(-90.0f));
+				}
+				if(Entity.High->FacingDirection == FacingDirection_Right)
+				{
+					Rotate = Mat4YRotation(DegreeToRad(90.0f));
+				}
+
+				NewFacingDirection = FacingDirection_Away;
+			}
+		}
+		
+		BasisRotate(&Entity.High->Basis, Rotate);
+		Entity.High->FacingDirection = NewFacingDirection;
+	}
+#endif
+
+
 
 	Entity.Low->P = WorldPosMapIntoTileSpace(World, AppState->Camera.P, Entity.High);
 }
@@ -856,6 +955,7 @@ extern "C" APP_UPDATE_AND_RENDER(AppUpdateAndRender)
 		AppState->MapToWorld = Mat4WorldSpaceMap(V3F(0.0f, 0.0f, 0.0f));
 
 		AppState->Cube = DEBUGObjReadEntireFile(Thread, "models/cube.obj", WorldArena, Platform.DEBUGPlatformReadEntireFile);
+		AppState->Human = DEBUGObjReadEntireFile(Thread, "models/human_tpose.obj", WorldArena, Platform.DEBUGPlatformReadEntireFile);
 		AppState->Ground = DEBUGBitmapReadEntireFile(Thread, "textures/ground.bmp", Platform.DEBUGPlatformReadEntireFile);
 		AppState->Gray = DEBUGBitmapReadEntireFile(Thread, "gray_with_boundary.bmp", Platform.DEBUGPlatformReadEntireFile);
 		AppState->White = DEBUGBitmapReadEntireFile(Thread, "white_with_border.bmp", Platform.DEBUGPlatformReadEntireFile);
@@ -869,9 +969,9 @@ extern "C" APP_UPDATE_AND_RENDER(AppUpdateAndRender)
 												 SourceCube->NormalCount,
 												 SourceCube->IndicesCount,
 												 SourceCube->ColorCount);
-
-		WallCube->Colors[0] = {1.0f, 1.0f, 0.0f, 1.0f};
 		MeshCopy(SourceCube, WallCube);
+		WallCube->Colors[0] = {1.0f, 1.0f, 0.0f, 1.0f};
+		//WallCube->Texture = &AppState->White;
 
 		aabb BBox = AABBMinMax(SourceCube->Vertices, SourceCube->VertexCount);
 
@@ -913,13 +1013,6 @@ extern "C" APP_UPDATE_AND_RENDER(AppUpdateAndRender)
 		s32 TilesInZPerScreen = 9;
 
 		u32 RandomNumberIndex = 0;
-
-		//s32 WorldCenterX = (INT32_MAX / TilesInXPerScreen) / 2;
-		//s32 WorldCenterY = (INT32_MAX / 2);
-		//s32 WorldCenterZ = (INT32_MAX / TilesInZPerScreen) / 2;
-		//s32 ScreenX = WorldCenterX;
-		//s32 ScreenY = WorldCenterY;
-		//s32 ScreenZ = WorldCenterZ;
 
 		s32 ScreenX = 0;
 		s32 ScreenY = 0;
@@ -983,14 +1076,13 @@ extern "C" APP_UPDATE_AND_RENDER(AppUpdateAndRender)
 							}
 						}
 
-						TileValueSet(WorldArena, World, PackedX, PackedY, PackedZ, TileValue);
 						if(TileValue == 1)
 						{
 							QuadAdd(AppState, QuadGround, PackedX, PackedY, PackedZ, ScaleQuad);
 						}
 						else if(TileValue == 2)
 						{
-							ModelAdd(AppState, WallCube, PackedX, PackedY, PackedZ, ScaleCube);
+							WallAdd(AppState, WallCube, PackedX, PackedY, PackedZ, ScaleCube);
 						}
 					}
 				}
@@ -1170,11 +1262,18 @@ extern "C" APP_UPDATE_AND_RENDER(AppUpdateAndRender)
 				PushModel(RenderGroup, &Entity.Low->Mesh, Entity.High->Basis,
 														  Translate,
 														  Entity.Low->Scale); 
+
 				basis B = Entity.High->Basis;
+
+#if 0
+
 				B.O = {(f32)Entity.Low->P.PackedX, 0.0f, -(f32)Entity.Low->P.PackedZ};
 				v3f Dim = {1.0f, 0.0f, 1.0f};
 				v4f Color = {1.0f, 0.0f, 1.0f, 1.0f};
 				PushRectangle(RenderGroup, B, Dim, Color);
+#else
+				PushCoordinateSystem(RenderGroup, B.O, B.U, B.V, B.W);
+#endif
 
 			} break;
 			case EntityType_Wall:
