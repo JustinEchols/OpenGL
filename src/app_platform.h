@@ -139,6 +139,13 @@ typedef struct app_offscreen_buffer
 	void *Memory;
 } app_offscreen_buffer;
 
+typedef struct app_sound_output_buffer
+{
+	int SamplesPerSecond;
+	int SampleCount;
+	s16 *Samples;
+} app_sound_output_buffer;
+
 typedef struct app_button_state
 {
 	b32 EndedDown;
@@ -195,6 +202,9 @@ struct app_memory
 
 #define APP_UPDATE_AND_RENDER(name) void name(thread_context *Thread, app_memory *Memory, app_input *Input, app_offscreen_buffer *BackBuffer)
 typedef APP_UPDATE_AND_RENDER(app_update_and_render);
+
+#define APP_GET_SOUND_SAMPLES(name) void name(thread_context *Thread, app_memory *Memory, app_sound_output_buffer *SoundBuffer)
+typedef APP_GET_SOUND_SAMPLES(app_get_sound_samples);
 
 #ifdef __cplusplus
 }
