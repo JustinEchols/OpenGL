@@ -26,11 +26,13 @@ enum render_group_entry_type
 	RENDER_GROUP_ENTRY_TYPE_render_entry_clear,
 	RENDER_GROUP_ENTRY_TYPE_render_entry_rectangle,
 	RENDER_GROUP_ENTRY_TYPE_render_entry_bitmap,
-	RENDER_GROUP_ENTRY_TYPE_render_entry_coordinate_system,
 	RENDER_GROUP_ENTRY_TYPE_render_entry_triangle,
-	RENDER_GROUP_ENTRY_TYPE_render_entry_model,
-	RENDER_GROUP_ENTRY_TYPE_render_entry_plane,
+	RENDER_GROUP_ENTRY_TYPE_render_entry_coordinate_system,
 	RENDER_GROUP_ENTRY_TYPE_render_entry_quad,
+	RENDER_GROUP_ENTRY_TYPE_render_entry_wall,
+	RENDER_GROUP_ENTRY_TYPE_render_entry_model,
+	RENDER_GROUP_ENTRY_TYPE_render_entry_aabb,
+
 };
 
 struct render_group_entry_header
@@ -89,6 +91,18 @@ struct render_entry_model
 	loaded_bitmap *Texture;
 };
 
+struct render_entry_aabb
+{
+	render_entity_basis EntityBasis;
+
+	basis Basis;
+	mat4 Transform;
+
+	f32 Dim;
+	v3f Min;
+	v3f Max;
+};
+
 struct render_entry_plane
 {
 	render_entity_basis EntityBasis;
@@ -121,13 +135,10 @@ struct render_entry_quad
 
 struct render_entry_coordinate_system
 {
-	v2f Origin;
-	v2f XAxis;
-	v2f YAxis;
-	v4f Color;
-
-	loaded_bitmap *Texture;
-	loaded_bitmap *NormalMap;
+	v3f Origin;
+	v3f XAxis;
+	v3f YAxis;
+	v3f ZAxis;
 };
 
 

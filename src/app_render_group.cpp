@@ -390,22 +390,29 @@ PushClear(render_group *RenderGroup, v4f Color)
 	}
 }
 
+inline void
+PushAABB(render_group *RenderGroup, basis B, v3f Min, v3f Max, f32 Dim)
+{
+	render_entry_aabb *Entry = (render_entry_aabb *)PushRenderElement(RenderGroup, render_entry_aabb);
+	if(Entry)
+	{
+		Entry->Basis = B;
+		Entry->Min = Min;
+		Entry->Max = Max;
+		Entry->Dim = Dim;
+	}
+}
+
 inline render_entry_coordinate_system * 
-PushCoordinateSystem(render_group *RenderGroup, v2f Origin, v2f XAxis, v2f YAxis, v4f Color,
-				 loaded_bitmap *Texture, loaded_bitmap *NormalMap)
+PushCoordinateSystem(render_group *RenderGroup, v3f Origin, v3f XAxis, v3f YAxis, v3f ZAxis)
 {
 	render_entry_coordinate_system *Entry = PushRenderElement(RenderGroup, render_entry_coordinate_system);
 	if(Entry)
 	{
-		mat4 M = RenderGroupGetViewingTransformation(RenderGroup);
-		f32 MetersToPixels = RenderGroup->MetersToPixels;
-
 		Entry->Origin = Origin;
 		Entry->XAxis = XAxis;
 		Entry->YAxis = YAxis;
-		Entry->Color = Color;
-		Entry->Texture = Texture;
-		Entry->NormalMap = NormalMap;
+		Entry->ZAxis = ZAxis;
 	}
 
 	return(Entry);
@@ -481,14 +488,7 @@ RenderGroupToOutput(render_group *RenderGroup, app_offscreen_buffer *OutputTarge
 			case RENDER_GROUP_ENTRY_TYPE_render_entry_coordinate_system:
 			{
 				render_entry_coordinate_system *Entry = (render_entry_coordinate_system *)Data;
-
-				v4f Color = {1, 1, 0, 1};
-				v2f Dim = {2, 2};
-
-				v2f P = Entry->Origin;
-
 				BaseAddress += sizeof(*Entry);
-
 			} break;
 
 			INVALID_DEFAULT_CASE;
