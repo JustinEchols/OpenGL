@@ -72,14 +72,14 @@ OpenGLTriangle(v4f *Vertices, v3f *Colors)
 	v3f C1 = Colors[1];
 	v3f C2 = Colors[2];
 
-	glColor3f(C0.r, C0.g, C0.b);
-	glVertex4f(V0.x, V0.y, V0.z, V0.w);
+	glColor4fv(C0.e);
+	glVertex4fv(V0.e);
 
-	glColor3f(C1.r, C1.g, C1.b);
-	glVertex4f(V1.x, V1.y, V1.z, V1.w);
+	glColor3fv(C1.e);
+	glVertex4fv(V1.e);
 
-	glColor3f(C2.r, C2.g, C2.b);
-	glVertex4f(V2.x, V2.y, V2.z, V2.w);
+	glColor3fv(C2.e);
+	glVertex4fv(V2.e);
 
 	glEnd();
 }
@@ -93,20 +93,19 @@ OpenGLPoints(v3f *Points, u32 PointCount)
 	for(u32 Index = 0; Index < PointCount; ++Index)
 	{
 		v3f P = Points[Index];
-		glColor3f(C.r, C.g, C.b);
-		glVertex3f(P.x, P.y, P.z);
+		glColor4fv(C.e);
+		glVertex3fv(P.e);
 	}
 
 	glEnd();
 }
 
 inline void
-OpenGLBasisDraw(basis *B)
+OpenGLBasisDraw(v3f O, v3f XAxis, v3f YAxis, v3f ZAxis)
 {
-	v3f O = B->O;
-	v3f OX = O + B->U;
-	v3f OY = O + B->V;
-	v3f OZ = O + B->W;
+	v3f OX = O + XAxis;
+	v3f OY = O + YAxis;
+	v3f OZ = O + ZAxis;
 
 	glBegin(GL_LINES);
 
@@ -263,19 +262,15 @@ OpenGLRenderGroupToOutput(render_group *RenderGroup, app_offscreen_buffer *Outpu
 				render_entry_model *Entry = (render_entry_model *)Data;
 
 
-				// NOTE(Justin): If the model being rendered is the cube, then
-				// must use GL_QUADS, if the model being rendered is the suzanne
-				// model then use GL_TRIANGLES. How to we determine this
-				// programatically? Why doesnt GL_TRIANGLES just work with the
-				// cube?
-
-				// NOTE(Justin):
-				// Translation of the basis origin works as expected
-				// Scaling the basis axes scales the model as expected
+				// NOTE(Justin): How to we determine render gemoemtry programatically?
+				// Or just use GL_TRIANGLES for everything...
 
 				basis *Basis = &Entry->Basis;
+
+				glDisable(GL_BLEND);
 				glDisable(GL_TEXTURE_2D);
-				glBegin(GL_QUADS);
+
+				glBegin(GL_TRIANGLES);
 				v4f C = Entry->Colors[0];
 
 				for(u32 Index = 0; Index < Entry->IndicesCount; Index += 3)
@@ -295,9 +290,8 @@ OpenGLRenderGroupToOutput(render_group *RenderGroup, app_offscreen_buffer *Outpu
 
 				}
 
-
 				glEnd();
-				glEnable(GL_TEXTURE_2D);
+				glEnable(GL_BLEND);
 
 				BaseAddress += sizeof(*Entry);
 
@@ -353,6 +347,13 @@ OpenGLRenderGroupToOutput(render_group *RenderGroup, app_offscreen_buffer *Outpu
 				glEnable(GL_BLEND);
 				BaseAddress += sizeof(*Entry);
 
+			} break;
+			case RENDER_GROUP_ENTRY_TYPE_render_entry_coordinate_system:
+			{
+				render_entry_coordinate_system *Entry = (render_entry_coordinate_system *)Data;
+
+				OpenGLBasisDraw(Entry->Origin, Entry->XAxis, Entry->YAxis, Entry->ZAxis);
+				BaseAddress += sizeof(*Entry);
 			} break;
 			INVALID_DEFAULT_CASE;
 		}
