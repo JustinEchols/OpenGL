@@ -13,7 +13,6 @@ AppOutputSound(app_state *AppState, app_sound_output_buffer *SoundBuffer, s32 To
 	s16 *SampleOut = SoundBuffer->Samples;
 	for(s32 SampleIndex = 0; SampleIndex < SoundBuffer->SampleCount; ++SampleIndex)
 	{
-		// TODO(casey): Draw this out for people
 #if 1
 		f32 SineValue = Sin(AppState->tSine);
 		s16 SampleValue = (s16)(SineValue * ToneVolume);
