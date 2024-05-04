@@ -9,7 +9,7 @@ pushd ..\..\build
 REM 64-bit build
 del *.pdb > NUL 2> NUL
 echo WAITING FOR PDB > lock.tmp
-cl %CommonCompilerFlags% ..\opengl\src\app.cpp -Fmapp.map -LD /link -incremental:no -opt:ref -PDB:app_%random%.pdb -EXPORT:AppUpdateAndRender
+cl %CommonCompilerFlags% ..\opengl\src\app.cpp -Fmapp.map -LD /link -incremental:no -opt:ref -PDB:app_%random%.pdb -EXPORT:AppGetSoundSamples -EXPORT:AppUpdateAndRender
 del lock.tmp
 cl %CommonCompilerFlags% ..\opengl\src\win32_app.cpp -Fmwin32_app.map /link %CommonLinkerFlags%
 popd
