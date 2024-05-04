@@ -4,6 +4,35 @@
 #include "app_random.h"
 #include "app_render_group.cpp"
 
+internal void
+AppOutputSound(app_state *AppState, app_sound_output_buffer *SoundBuffer, s32 ToneHz)
+{
+	s16 ToneVolume = 3000;
+	s32 WavePeriod = SoundBuffer->SamplesPerSecond / ToneHz;
+
+	s16 *SampleOut = SoundBuffer->Samples;
+	for(s32 SampleIndex = 0; SampleIndex < SoundBuffer->SampleCount; ++SampleIndex)
+	{
+		// TODO(casey): Draw this out for people
+#if 1
+		f32 SineValue = Sin(AppState->tSine);
+		s16 SampleValue = (s16)(SineValue * ToneVolume);
+#else
+		s16 SampleValue = 0;
+#endif
+		*SampleOut++ = SampleValue;
+		*SampleOut++ = SampleValue;
+
+#if 1
+		AppState->tSine += 2.0f*PI32*1.0f/(f32)WavePeriod;
+		if(AppState->tSine > 2.0f*PI32)
+		{
+			AppState->tSine -= 2.0f*PI32;
+		}
+#endif
+	}
+}
+
 internal u32
 EntityLowAdd(app_state *AppState, entity_type Type)
 {
@@ -170,7 +199,7 @@ PlayerAdd(app_state *AppState)
 	EntityLow->Width = 1.0f;
 	EntityLow->Height = 1.0f;
 	EntityLow->Depth = 1.0;
-	EntityLow->BboxDim = 2.0f;
+	EntityLow->BboxDim = 0.7f;
 	EntityLow->Scale = Mat4Scale(EntityLow->Height);
 	EntityLow->P.OffsetFromTileCenter_.y = EntityLow->Height;
 
@@ -1306,4 +1335,10 @@ extern "C" APP_UPDATE_AND_RENDER(AppUpdateAndRender)
 	RenderToOutput(RenderGroup, BackBuffer);
 	TemporaryMemoryEnd(RenderMemory);
 
+}
+
+extern "C" APP_GET_SOUND_SAMPLES(AppGetSoundSamples)
+{
+    app_state *AppState = (app_state *)Memory->PermanentStorage;
+    AppOutputSound(AppState, SoundBuffer, 400);
 }
