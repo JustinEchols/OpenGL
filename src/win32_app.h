@@ -3,16 +3,25 @@
 struct win32_offscreen_buffer
 {
 	BITMAPINFO Info;
-	s32 Width;
-	s32 Height;
-	s32 Stride;
 	void *Memory;
+	int Width;
+	int Height;
+	int Stride;
 };
 
 struct win32_client_dimensions
 {
-	s32 Width;
-	s32 Height;
+	int Width;
+	int Height;
+};
+
+struct win32_sound_output
+{
+	int SamplesPerSecond;
+	int BytesPerSample;
+	u32 RunningSampleIndex;
+	DWORD SecondaryBufferSize;
+	DWORD SafetyButes;
 };
 
 
@@ -20,7 +29,9 @@ struct win32_app_code
 {
 	HMODULE DLL;
 	FILETIME DLLLastWriteTime;
+
 	app_update_and_render *UpdateAndRender;
+	app_get_sound_samples *GetSoundSamples;
 
 	b32 IsValid;
 };

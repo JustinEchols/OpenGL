@@ -4,6 +4,7 @@
 #include "app_math.h"
 
 #include <windows.h>
+#include <dsound.h>
 #include <stdio.h>
 #include <malloc.h>
 #include <gl/gl.h>
@@ -11,14 +12,155 @@
 #include "win32_app.h"
 #include "app_opengl.cpp"
 
-
 global_variable b32 GlobalRunning;
 global_variable win32_offscreen_buffer Win32GlobalBackBuffer;
+global_variable LPDIRECTSOUNDBUFFER Win32GlobalSecondaryBuffer;
 global_variable s64 GlobalTicksPerSecond;
 global_variable WINDOWPLACEMENT GlobalWindowPos = {sizeof(GlobalWindowPos)};
-
 global_variable f32 dMouseX;
 global_variable f32 dMouseY;
+
+#define DIRECT_SOUND_CREATE(name) HRESULT WINAPI name(LPGUID lpGuid, LPDIRECTSOUND* ppDS, LPUNKNOWN  pUnkOuter)
+typedef DIRECT_SOUND_CREATE(direct_sound_create);
+
+internal void
+Win32DirectSoundInit(HWND Window, s32 SamplesPerSecond, s32 SecondaryBufferSize)
+{
+	HMODULE DSoundLibrary = LoadLibraryA("dsound.dll");
+	if(DSoundLibrary)
+	{
+		direct_sound_create *DirectSoundCreate =
+			(direct_sound_create *)GetProcAddress(DSoundLibrary, "DirectSoundCreate");
+
+		LPDIRECTSOUND DirectSound;
+		if(DirectSoundCreate && SUCCEEDED(DirectSoundCreate(0, &DirectSound, 0)))
+		{
+			WAVEFORMATEX WaveFormat = {};
+			WaveFormat.wFormatTag = WAVE_FORMAT_PCM;
+			WaveFormat.nChannels = 2;
+			WaveFormat.nSamplesPerSec = SamplesPerSecond;
+			WaveFormat.wBitsPerSample = 16;	
+			WaveFormat.nBlockAlign = (WaveFormat.nChannels * WaveFormat.wBitsPerSample) / 8;
+			WaveFormat.nAvgBytesPerSec = WaveFormat.nSamplesPerSec * WaveFormat.nBlockAlign;
+			WaveFormat.cbSize = 0;
+
+			if(SUCCEEDED(DirectSound->SetCooperativeLevel(Window, DSSCL_PRIORITY)))
+			{
+				DSBUFFERDESC BufferDesc = {};
+				BufferDesc.dwSize = sizeof(BufferDesc);
+				BufferDesc.dwFlags = DSBCAPS_PRIMARYBUFFER;
+
+				LPDIRECTSOUNDBUFFER PrimaryBuffer;
+				if(SUCCEEDED(DirectSound->CreateSoundBuffer(&BufferDesc, &PrimaryBuffer, 0)))
+				{
+					if(SUCCEEDED(PrimaryBuffer->SetFormat(&WaveFormat)))
+					{
+						OutputDebugStringA("Primary buffer format set successfully.\n");
+					}
+					else
+					{
+						// TODO: Diagnostic
+					}
+				}
+				else
+				{
+					// TODO: Diagnostic
+				}
+			}
+			else
+			{
+				// TODO: Diagnostic
+			}
+
+			DSBUFFERDESC BufferDesc = {};
+			BufferDesc.dwSize = sizeof(BufferDesc);
+			BufferDesc.dwFlags = DSBCAPS_GETCURRENTPOSITION2;
+			BufferDesc.dwBufferBytes = SecondaryBufferSize;
+			BufferDesc.lpwfxFormat = &WaveFormat;
+
+			// NOTE(Justin): Using Win32GlobalSecondaryBuffer here!
+			if(SUCCEEDED(DirectSound->CreateSoundBuffer(&BufferDesc, &Win32GlobalSecondaryBuffer, 0)))
+			{
+				OutputDebugStringA("Secondary buffer created successfully.\n");
+			}
+			else
+			{
+				// TODO: Diagnostic
+			}
+		}
+		else
+		{
+			// TODO: Diagnostic
+		}
+	}
+	else
+	{
+		// TODO: Diagnostic
+	}
+}
+
+internal void
+Win32SoundBufferClear(win32_sound_output *SoundOutput)
+{
+	VOID *Region1;
+	DWORD Region1Size;
+	VOID *Region2;
+	DWORD Region2Size;
+	if(SUCCEEDED(Win32GlobalSecondaryBuffer->Lock(0, SoundOutput->SecondaryBufferSize,
+													&Region1, &Region1Size,
+													&Region2, &Region2Size, 0)))
+	{
+		u8 *DestSample = (u8 *)Region1;
+		for(DWORD ByteIndex = 0; ByteIndex < Region1Size; ++ByteIndex)
+		{
+			*DestSample++ = 0;
+		}
+
+		DestSample = (u8 *)Region2;
+		for(DWORD ByteIndex = 0; ByteIndex < Region2Size; ++ByteIndex)
+		{
+			*DestSample++ = 0;
+		}
+
+		Win32GlobalSecondaryBuffer->Unlock(Region1, Region1Size, Region2, Region2Size);
+	}
+}
+
+internal void
+Win32SoundBufferFill(win32_sound_output *Win32SoundOutput, DWORD ByteToLock, DWORD BytesToWrite,
+		app_sound_output_buffer *SourceBuffer)
+{
+	VOID *Region1;
+	DWORD Region1Size;
+	VOID *Region2;
+	DWORD Region2Size;
+	if(SUCCEEDED(Win32GlobalSecondaryBuffer->Lock(ByteToLock, BytesToWrite,
+												 &Region1, &Region1Size,
+												 &Region2, &Region2Size,
+												 0)))
+	{
+		DWORD Region1SampleCount = Region1Size / Win32SoundOutput->BytesPerSample;
+		s16 *DestSample = (s16 *)Region1;
+		s16 *SrcSample = SourceBuffer->Samples;
+		for(DWORD SampleIndex = 0; SampleIndex < Region1SampleCount; ++SampleIndex)
+		{
+			*DestSample++ = *SrcSample++;
+			*DestSample++ = *SrcSample++;
+			++Win32SoundOutput->RunningSampleIndex;
+		}
+
+		DWORD Region2SampleCount = Region2Size / Win32SoundOutput->BytesPerSample;
+		DestSample = (s16 *)Region2;
+		for(DWORD SampleIndex = 0; SampleIndex < Region2SampleCount; ++SampleIndex)
+		{
+			*DestSample++ = *SrcSample++;
+			*DestSample++ = *SrcSample++;
+			++Win32SoundOutput->RunningSampleIndex;
+		}
+
+		Win32GlobalSecondaryBuffer->Unlock(Region1, Region1Size, Region2, Region2Size);
+	}
+}
 
 internal void
 Win32CenterCursor(HWND Window)
@@ -189,13 +331,15 @@ Win32AppLoad(char *SrcDLLName, char *TempDLLName, char *LockFilename)
 		if(Result.DLL)
 		{
 			Result.UpdateAndRender = (app_update_and_render *)GetProcAddress(Result.DLL, "AppUpdateAndRender");
-			Result.IsValid = (Result.UpdateAndRender != 0);
+			Result.GetSoundSamples = (app_get_sound_samples *)GetProcAddress(Result.DLL, "AppGetSoundSamples");
+			Result.IsValid = (Result.UpdateAndRender && Result.GetSoundSamples);
 		}
 	}
 
 	if(!Result.IsValid)
 	{
 		Result.UpdateAndRender = 0;
+		Result.GetSoundSamples = 0;
 	}
 
 	return(Result);
@@ -557,11 +701,6 @@ WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLine, int ShowC
 	WindowClass.hCursor = LoadCursor(0, IDC_ARROW);
 	WindowClass.lpszClassName = "OpenGL Window Class";
 
-
-
-	//Win32ResizeDIB(&Win32GlobalBackBuffer, 960, 540);
-	//Win32ResizeDIB(&Win32GlobalBackBuffer, 1920, 1080);
-
 	if(RegisterClassA(&WindowClass))
 	{
 		HWND Window = CreateWindowExA(
@@ -605,6 +744,17 @@ WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLine, int ShowC
 			f32 AppRefreshRate = MonitorRefreshRate / 2.0f;
 			f32 TargetSecondsPerFrame = 1.0f / (f32)AppRefreshRate;
 
+			win32_sound_output Win32SoundOutput = {};
+			Win32SoundOutput.SamplesPerSecond = 48000;
+			Win32SoundOutput.BytesPerSample = sizeof(s16) * 2;
+			Win32SoundOutput.SecondaryBufferSize = Win32SoundOutput.SamplesPerSecond * Win32SoundOutput.BytesPerSample;
+			Win32SoundOutput.SafetyButes = (int)(((f32)Win32SoundOutput.SamplesPerSecond * (f32)Win32SoundOutput.BytesPerSample / AppRefreshRate) / 3.0f);
+			Win32DirectSoundInit(Window, Win32SoundOutput.SamplesPerSecond, Win32SoundOutput.SecondaryBufferSize);
+			Win32SoundBufferClear(&Win32SoundOutput);
+			Win32GlobalSecondaryBuffer->Play(0, 0, DSBPLAY_LOOPING);
+
+			s16 *SoundSamples = (s16 *)VirtualAlloc(0, Win32SoundOutput.SecondaryBufferSize, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
+
 #if APP_INTERNAL
 			LPVOID BaseAddress = (LPVOID)Terabytes(2);
 #else
@@ -631,18 +781,23 @@ WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLine, int ShowC
 
 			AppMemory.TransientStorage = (u8 *)AppMemory.PermanentStorage + AppMemory.PermanentStorageSize;
 
-			if(AppMemory.PermanentStorage && AppMemory.TransientStorage)
+			if(SoundSamples && AppMemory.PermanentStorage && AppMemory.TransientStorage)
 			{
 				app_input Input[2] = {};
 				app_input *NewInput = &Input[0];
 				app_input *OldInput = &Input[1];
 
 				LARGE_INTEGER LastTickCount = Win32WallClock();
+				LARGE_INTEGER FrameBoundaryTickCount = Win32WallClock();
+
+				DWORD AudioLatencyBytes = 0;
+				f32 AudioLatencySeconds = 0;
+				b32 SoundIsValid = false;
 
 				win32_app_code App = Win32AppLoad(AppDLLPath, TempAppDLLPath, LockFilePath);
 
-				u64 LastCycleCount = __rdtsc();
 				GlobalRunning = true;
+				u64 LastCycleCount = __rdtsc();
 				while(GlobalRunning)
 				{
 					NewInput->dtForFrame = TargetSecondsPerFrame;
@@ -693,6 +848,73 @@ WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLine, int ShowC
 						App.UpdateAndRender(&Thread, &AppMemory, NewInput, &Buffer);
 					}
 
+					LARGE_INTEGER AudioWallClock = Win32WallClock();
+					f32 TickCountFromFrameToAudioStart = Win32SecondsElapsed(FrameBoundaryTickCount, AudioWallClock);
+
+					DWORD PlayCursor;
+					DWORD WriteCursor;
+					if(Win32GlobalSecondaryBuffer->GetCurrentPosition(&PlayCursor, &WriteCursor) == DS_OK)
+					{
+						if(!SoundIsValid)
+						{
+							Win32SoundOutput.RunningSampleIndex = WriteCursor / Win32SoundOutput.BytesPerSample;
+							SoundIsValid = true;
+						}
+
+						DWORD ByteToLock = (Win32SoundOutput.RunningSampleIndex * Win32SoundOutput.BytesPerSample) % Win32SoundOutput.SecondaryBufferSize;
+						DWORD ExpectedSoundBytesPerFrame = (int)((f32)(Win32SoundOutput.SamplesPerSecond * Win32SoundOutput.BytesPerSample) / AppRefreshRate);
+						f32 SecondsLeftUntilFlip = TargetSecondsPerFrame - TickCountFromFrameToAudioStart;
+						DWORD ExpectedBytesUntilFlip = (DWORD)((SecondsLeftUntilFlip / TargetSecondsPerFrame) * (f32)ExpectedSoundBytesPerFrame);
+						DWORD ExpectedFrameBoundaryByte = PlayCursor + ExpectedBytesUntilFlip;
+						DWORD SafeWriteCursor = WriteCursor;
+						if(SafeWriteCursor < PlayCursor)
+						{
+							SafeWriteCursor += Win32SoundOutput.SecondaryBufferSize;
+						}
+						Assert(SafeWriteCursor >= PlayCursor);
+						SafeWriteCursor += Win32SoundOutput.SafetyButes;
+
+						b32 AudioCardIsLowLatency = (SafeWriteCursor < ExpectedFrameBoundaryByte);
+
+						DWORD TargetCursor = 0;
+						if(AudioCardIsLowLatency)
+						{
+							TargetCursor = ExpectedFrameBoundaryByte + ExpectedSoundBytesPerFrame;
+						}
+						else
+						{
+							TargetCursor = (WriteCursor + ExpectedSoundBytesPerFrame + Win32SoundOutput.SafetyButes);
+						}
+						TargetCursor = (TargetCursor % Win32SoundOutput.SecondaryBufferSize);
+
+						DWORD BytesToWrite = 0;
+						if(ByteToLock > TargetCursor)
+						{
+							BytesToWrite = Win32SoundOutput.SecondaryBufferSize - ByteToLock;
+							BytesToWrite += TargetCursor;
+						}
+						else
+						{
+							BytesToWrite = TargetCursor - ByteToLock;
+						}
+
+						app_sound_output_buffer SoundBuffer = {};
+						SoundBuffer.SamplesPerSecond = Win32SoundOutput.SamplesPerSecond;
+						SoundBuffer.SampleCount = BytesToWrite / Win32SoundOutput.BytesPerSample;
+						SoundBuffer.Samples = SoundSamples;
+						if(App.GetSoundSamples)
+						{
+							App.GetSoundSamples(&Thread, &AppMemory, &SoundBuffer);
+						}
+
+						Win32SoundBufferFill(&Win32SoundOutput, ByteToLock, BytesToWrite, &SoundBuffer);
+
+					}
+					else
+					{
+						SoundIsValid = false;
+					}
+
 					LARGE_INTEGER WorkTickCount = Win32WallClock();
 					f32 SecondsElapsedForWork = Win32SecondsElapsed(LastTickCount, WorkTickCount);
 
@@ -707,8 +929,8 @@ WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLine, int ShowC
 								Sleep(SleepTime);
 							}
 						}
-						f32 TestSecondsElapsedForFrame = Win32SecondsElapsed(LastTickCount, Win32WallClock());
 
+						f32 TestSecondsElapsedForFrame = Win32SecondsElapsed(LastTickCount, Win32WallClock());
 						if(TestSecondsElapsedForFrame < TargetSecondsPerFrame)
 						{
 							//TODO(JE): Missed sleep
@@ -731,6 +953,8 @@ WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLine, int ShowC
 					win32_client_dimensions Dimensions = Win32ClientDimensions(Window);
 					Win32DisplayBuffer(&Win32GlobalBackBuffer, DeviceContext, Dimensions.Width, Dimensions.Height);
 					ReleaseDC(Window, DeviceContext);
+
+					FrameBoundaryTickCount = Win32WallClock();
 
 					app_input *Temp = NewInput;
 					NewInput= OldInput;
