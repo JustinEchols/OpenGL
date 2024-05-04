@@ -1,17 +1,8 @@
-/*
- TODO(Justin):
 
- Texture array
- Texture indices
-
-*/
 #if !defined(APP_H)
 
 #include "app_platform.h"
 
-
-
-#define QUAD_VERTEX_COUNT 4
 
 struct memory_arena
 {
@@ -102,7 +93,7 @@ ZeroSize(void *Ptr, memory_index Size)
 
 #include "app_intrinsics.h"
 #include "app_math.h"
-#include "app_tile.h"
+#include "app_world.h"
 #include "app_render_group.h"
 
 struct mesh
@@ -145,7 +136,6 @@ struct loaded_obj
 
 struct camera
 {
-	//v3f P;
 	world_position P;
 	v3f Direction;
 	v3f Up;
@@ -184,7 +174,7 @@ enum entity_type
 	EntityType_Null,
 	EntityType_Player,
 	EntityType_Wall,
-	EntityType_Quad, // Ground
+	EntityType_Quad,
 };
 
 struct interval
@@ -223,13 +213,22 @@ struct low_entity
 	mesh Mesh;
 };
 
+enum facing_direction
+{
+	FacingDirection_Towards,
+	FacingDirection_Right,
+	FacingDirection_Away,
+	FacingDirection_Left,
+};
+
 struct high_entity 
 {
 	basis Basis;
 	v3f dP;
 
-	mat4 Translate;
+	facing_direction FacingDirection;
 
+	mat4 Translate;
 	u32 LowIndex;
 };
 
@@ -257,12 +256,11 @@ struct app_state
 	loaded_bitmap Black;
 
 	loaded_obj Cube;
+	loaded_obj Human;
 	mesh QuadGround;
 
 	camera Camera;
 	b32 CameraIsFree;
-	//world_position CameraP;
-
 
 	mat4 MapToWorld;
 	mat4 MapToCamera;
@@ -270,12 +268,14 @@ struct app_state
 	mat4 MapToScreenSpace;
 
 	u32 EntityLowCount;
-	low_entity EntitiesLow[4096];
+	low_entity EntitiesLow[100000];
 
 	u32 EntityHighCount;
 	high_entity EntitiesHigh_[1024];
 
 	u32 CameraEntityFollowingIndex;
+
+	f32 tSine;
 };
 
 struct transient_state
