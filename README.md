@@ -1,2 +1,2 @@
 # OpenGL
-Computer graphics explorations with OpenGL
+3D game engine in OpenGL for learning purposes
